@@ -20,7 +20,8 @@ import {
   Ban,
   Lock,
   Unlock,
-  RotateCcw
+  RotateCcw,
+  QrCode
 } from 'lucide-react';
 
 export default function KitchenDisplaySystemPage() {
@@ -198,6 +199,13 @@ export default function KitchenDisplaySystemPage() {
               <Store className="w-3.5 h-3.5" />
               <span>MANAGER (16)</span>
             </button>
+            <Link
+              href="/qrs"
+              className="px-3 py-1 rounded-full text-zinc-700 hover:text-black hover:bg-white transition-colors flex items-center gap-1.5 border border-zinc-200/80 bg-white shadow-2xs"
+            >
+              <QrCode className="w-3.5 h-3.5 text-zinc-900" />
+              <span>100 SEAT QRS</span>
+            </Link>
           </div>
 
           {/* Mode Switcher */}
