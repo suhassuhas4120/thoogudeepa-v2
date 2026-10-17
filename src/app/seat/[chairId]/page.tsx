@@ -1,38 +1,28 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { AlertCircle, Lock, ArrowRight, UtensilsCrossed } from 'lucide-react';
-import { useHardwareBack } from '../../../lib/hooks/useHardwareBack';
-import { getActiveDiningSession, clearActiveDiningSession, ActiveDiningSession } from '../../../lib/session/diningSession';
+import { useParams } from 'next/navigation';
+import { Lock, ArrowRight, UtensilsCrossed } from 'lucide-react';
+import { getActiveDiningSession, ActiveDiningSession } from '../../../lib/session/diningSession';
 
-interface SeatPageProps {
-  params: Promise<{
-    chairId: string;
-  }>;
-}
-
-export default function CustomerSeatPage({ params }: SeatPageProps) {
-  const resolvedParams = use(params);
-  const chairId = resolvedParams?.chairId || '12';
-  const router = useRouter();
-
-  // Prevent device back gestures from exiting the application on entrance screen
-  useHardwareBack(`/seat/${chairId}`);
-
+export default function CustomerSeatPage() {
+  const params = useParams();
+  const chairId = (params?.chairId as string) || '12';
   const seatNumber = chairId.replace(/[^0-9]/g, '') || chairId;
 
   const [customerName, setCustomerName] = useState('');
   const [activeSession, setActiveSession] = useState<ActiveDiningSession | null>(null);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   useEffect(() => {
-    const session = getActiveDiningSession();
-    if (session && session.paymentStatus === 'unpaid') {
-      setActiveSession(session);
+    try {
+      const session = getActiveDiningSession();
+      if (session && session.paymentStatus === 'unpaid') {
+        setActiveSession(session);
+      }
+    } catch {
+      // Ignore storage errors
     }
-    setIsCheckingSession(false);
   }, [chairId]);
 
   const targetMenuUrl = `/seat/${chairId}/menu${
@@ -45,7 +35,7 @@ export default function CustomerSeatPage({ params }: SeatPageProps) {
   // If customer has an active order for the SAME seat -> Option to resume or add more
   const isCurrentSeatActive = activeSession && activeSession.seatId === chairId && activeSession.paymentStatus === 'unpaid';
 
-  if (!isCheckingSession && isLockedToDifferentSeat) {
+  if (isLockedToDifferentSeat && activeSession) {
     return (
       <div className="min-h-screen w-full bg-white text-black flex flex-col items-center justify-between px-6 py-10 max-w-md mx-auto">
         {/* Top Header Warning */}
@@ -118,20 +108,21 @@ export default function CustomerSeatPage({ params }: SeatPageProps) {
     <div className="min-h-screen w-full bg-white text-black flex flex-col items-center justify-between px-6 py-12 max-w-md mx-auto">
       {/* Upper area with enlarged circular logo */}
       <div className="w-full flex flex-col items-center pt-4 sm:pt-8">
-        <div className="w-40 h-40 sm:w-44 sm:h-44 rounded-full border-2 border-black flex items-center justify-center shadow-xs">
-          <span className="text-base font-bold">Logo</span>
+        <div className="w-36 h-36 sm:w-40 sm:h-40 rounded-full border-2 border-black flex flex-col items-center justify-center shadow-xs bg-white">
+          <span className="text-xs font-black tracking-widest uppercase text-zinc-400">THOOGUDEEPA</span>
+          <span className="text-base font-black uppercase tracking-tight">DONNE BIRYANI</span>
         </div>
       </div>
 
       {/* Center area with Seat No and Name input */}
       <div className="w-full flex flex-col items-center gap-5 my-auto py-6">
-        <div className="w-full text-center py-2.5 border border-black">
-          <span className="text-lg font-bold">Seat No: {seatNumber}</span>
+        <div className="w-full text-center py-2.5 border-2 border-black rounded-xl bg-zinc-950 text-white shadow-2xs">
+          <span className="text-lg font-black tracking-wider uppercase">Seat No: {seatNumber}</span>
         </div>
 
         {/* Welcome back indicator if same seat has an active order */}
         {isCurrentSeatActive && (
-          <div className="w-full p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs text-center font-bold flex flex-col gap-1">
+          <div className="w-full p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs text-center font-bold flex flex-col gap-1 shadow-2xs">
             <span>Welcome back! You have an active order for this seat.</span>
             <Link
               href={`/seat/${chairId}/tracking`}
@@ -143,7 +134,7 @@ export default function CustomerSeatPage({ params }: SeatPageProps) {
         )}
 
         <div className="w-full flex flex-col gap-1.5">
-          <label htmlFor="customerName" className="text-sm font-medium">
+          <label htmlFor="customerName" className="text-xs font-bold uppercase tracking-wider text-zinc-700">
             Name (Optional)
           </label>
           <input
@@ -151,8 +142,8 @@ export default function CustomerSeatPage({ params }: SeatPageProps) {
             type="text"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Enter Name"
-            className="w-full border border-black px-3 py-2.5 text-base outline-none bg-white text-black rounded-none"
+            placeholder="Enter your name"
+            className="w-full border-2 border-black px-3.5 py-2.5 text-sm outline-none bg-white text-black rounded-xl placeholder:text-zinc-400 font-semibold"
           />
         </div>
       </div>
@@ -161,14 +152,14 @@ export default function CustomerSeatPage({ params }: SeatPageProps) {
       <div className="w-full pb-4 sm:pb-8 flex flex-col gap-2">
         <Link
           href={targetMenuUrl}
-          className="w-full block text-center border-2 border-black bg-black text-white py-3.5 text-base font-bold uppercase tracking-wider cursor-pointer active:opacity-80"
+          className="w-full block text-center border-2 border-black bg-black text-white py-3.5 text-sm font-black uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 shadow-md"
         >
           {isCurrentSeatActive ? 'Add More Dishes' : 'Start Ordering'}
         </Link>
         {isCurrentSeatActive && (
           <Link
             href={`/seat/${chairId}/tracking`}
-            className="w-full block text-center border border-black bg-white text-black py-2.5 text-xs font-black uppercase tracking-wider cursor-pointer active:bg-zinc-100"
+            className="w-full block text-center border-2 border-black bg-white text-black py-2.5 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer active:bg-zinc-100"
           >
             Track Active Order
           </Link>

@@ -1,8 +1,10 @@
 import React from 'react';
 
+export const dynamicParams = true;
+
 export function generateStaticParams() {
-  // Pre-generate menu items 1 through 8 for static deployment
-  return Array.from({ length: 8 }, (_, i) => ({
+  // Pre-generate menu items 1 through 10 for static deployment
+  return Array.from({ length: 10 }, (_, i) => ({
     itemId: String(i + 1),
   }));
 }
