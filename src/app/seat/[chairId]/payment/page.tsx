@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ChevronLeft, Bell, Plus } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
+import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 
 export default function CustomerSelfPaymentPage() {
   const params = useParams();
@@ -13,8 +14,20 @@ export default function CustomerSelfPaymentPage() {
   // Device hardware back button & swipe back: return to bill/order summary
   useHardwareBack(`/seat/${chairId}/bill`);
 
+  const [session, setSession] = useState<ActiveDiningSession | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const s = getActiveDiningSession();
+    if (s && s.seatId === chairId) {
+      setSession(s);
+    }
+  }, [chairId]);
+
+  const billTotal = session?.totalAmount || 0;
+  const subtotal = billTotal > 0 ? Math.round(billTotal / 1.05) : 0;
+  const gstAmount = billTotal - subtotal;
 
   const cards = [
     {
@@ -228,11 +241,11 @@ export default function CustomerSelfPaymentPage() {
           <div className="w-full border-t border-zinc-200 pt-3 flex flex-col gap-1.5 text-xs text-zinc-700">
             <div className="w-full flex items-center justify-between">
               <span>Item Subtotal</span>
-              <span className="font-bold">₹ ---</span>
+              <span className="font-bold">₹ {subtotal}</span>
             </div>
             <div className="w-full flex items-center justify-between">
               <span>Taxes &amp; Charges (5% GST)</span>
-              <span className="font-bold">₹ ---</span>
+              <span className="font-bold">₹ {gstAmount}</span>
             </div>
           </div>
 
@@ -242,7 +255,7 @@ export default function CustomerSelfPaymentPage() {
               Total Payable
             </span>
             <span className="text-lg font-black">
-              ₹ ---
+              ₹ {billTotal}
             </span>
           </div>
         </div>

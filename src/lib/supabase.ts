@@ -149,11 +149,65 @@ export const realtimeBridge = {
     }
   },
 
+  // Fetch active orders (pending, in_progress, ready) with their line items
+  async getActiveOrders(): Promise<{ order: OrderRecord; items: OrderItemRecord[] }[]> {
+    try {
+      if (supabase) {
+        const { data: orders, error: oErr } = await supabase
+          .from('orders')
+          .select('*')
+          .in('status', ['pending', 'in_progress', 'ready'])
+          .order('created_at', { ascending: false });
+
+        if (oErr || !orders) return [];
+
+        const orderIds = orders.map((o) => o.id);
+        if (orderIds.length === 0) return [];
+
+        const { data: items, error: iErr } = await supabase
+          .from('order_items')
+          .select('*')
+          .in('order_id', orderIds);
+
+        if (iErr || !items) {
+          return orders.map((o) => ({ order: o, items: [] }));
+        }
+
+        return orders.map((o) => ({
+          order: o,
+          items: items.filter((it) => it.order_id === o.id),
+        }));
+      }
+      return [];
+    } catch (err) {
+      console.error('Error fetching active orders:', err);
+      return [];
+    }
+  },
+
+  // Clear all orders (for clean fresh slate)
+  async clearAllOrders(): Promise<boolean> {
+    try {
+      if (supabase) {
+        await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      }
+      if (localChannel) {
+        localChannel.postMessage({ type: 'CLEAR_ALL_ORDERS' });
+      }
+      return true;
+    } catch (err) {
+      console.error('Error clearing orders:', err);
+      return false;
+    }
+  },
+
   // Subscribe to KDS changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
     onStageChange?: (data: { key: string; stage: 'REC' | 'PREP' | 'READY' }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
+    onClearAll?: () => void;
   }) {
     // 1. Supabase Realtime Channel
     let supabaseSub: ReturnType<SupabaseClient['channel']> | null = null;
@@ -191,6 +245,8 @@ export const realtimeBridge = {
         callbacks.onStageChange({ key: data.key, stage: data.stage });
       } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {
         callbacks.onAvailabilityChange({ dishId: data.dishId, isAvailable: data.isAvailable });
+      } else if (data.type === 'CLEAR_ALL_ORDERS' && callbacks.onClearAll) {
+        callbacks.onClearAll();
       }
     };
 

@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Check } from 'lucide-react';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
-import { clearActiveDiningSession, updateActiveDiningSession } from '../../../../lib/session/diningSession';
+import { getActiveDiningSession, clearActiveDiningSession, updateActiveDiningSession } from '../../../../lib/session/diningSession';
 import { useCart } from '../../../../lib/context/CartContext';
 
 function PaymentSuccessContent() {
@@ -20,12 +20,25 @@ function PaymentSuccessContent() {
 
   const modeParam = searchParams?.get('mode') || 'Card';
 
-  // Mark session as paid and release anti-cheat lock
+  // Mark session as paid, save settled receipt record, and release anti-cheat lock
   useEffect(() => {
+    const s = getActiveDiningSession();
+    if (s && s.seatId === chairId) {
+      try {
+        localStorage.setItem(`thoogudeepa_settled_receipt_${chairId}`, JSON.stringify({
+          ticketNumber: s.ticketNumber,
+          totalAmount: s.totalAmount,
+          mode: modeParam,
+          settledAt: Date.now(),
+        }));
+      } catch {
+        // Ignore storage errors
+      }
+    }
     updateActiveDiningSession({ paymentStatus: 'paid' });
     clearActiveDiningSession();
     clearCart();
-  }, [clearCart]);
+  }, [chairId, clearCart, modeParam]);
 
   // Fixed completion timestamp recorded once and persisted permanently
   const [completionTimestamp, setCompletionTimestamp] = useState<{ date: string; time: string }>({
