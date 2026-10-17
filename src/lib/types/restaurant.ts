@@ -27,6 +27,8 @@ export interface MenuItem {
   inStock: boolean;
   prepTimeMinutes: number;
   imageUrl: string;
+  options?: string[];
+  addOns?: { name: string; price: number }[];
 }
 
 export interface MenuCategory {

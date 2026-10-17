@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Heart, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../../../../lib/context/CartContext';
 import { useHardwareBack } from '../../../../../lib/hooks/useHardwareBack';
+import { getMenuItemById, MENU_CATEGORIES } from '../../../../../lib/data/menuData';
 
 export default function ItemCustomizationPage() {
   const router = useRouter();
@@ -18,115 +19,81 @@ export default function ItemCustomizationPage() {
 
   const { addItemWithDetails, toggleLike, isItemLiked } = useCart();
 
+  // Retrieve authentic item data
+  const dish = useMemo(() => getMenuItemById(itemId), [itemId]);
+  const categoryName = useMemo(() => {
+    return (
+      MENU_CATEGORIES.find((cat) => cat.id === dish.categoryId)?.title ||
+      'Donne Biryani'
+    );
+  }, [dish]);
+
   const [quantity, setQuantity] = useState(1);
-  const [selectedOption, setSelectedOption] = useState('Option 1');
+  const [selectedOption, setSelectedOption] = useState<string>(
+    dish.options && dish.options.length > 0 ? dish.options[0] : 'Standard'
+  );
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
 
-  // Multiple dish perspective visuals for wireframe presentation
-  const dishImages = [
+  // Add-on options with authentic pricing
+  const availableAddOns = useMemo(() => {
+    return (
+      dish.addOns || [
+        { name: 'Extra Salna Cup', price: 30 },
+        { name: 'Boiled Egg (1 pc)', price: 25 },
+        { name: 'Double Raita Bowl', price: 20 },
+      ]
+    );
+  }, [dish]);
+
+  // Compute add-ons surcharge
+  const addOnsCost = useMemo(() => {
+    return selectedAddOns.reduce((sum, addonName) => {
+      const match = availableAddOns.find((a) => a.name === addonName);
+      return sum + (match?.price || 0);
+    }, 0);
+  }, [selectedAddOns, availableAddOns]);
+
+  const itemUnitPrice = dish.price + addOnsCost;
+  const calculatedGrandTotal = itemUnitPrice * quantity;
+
+  // Multiple presentation visuals for the interactive carousel
+  const dishVisuals = useMemo(() => [
     {
       id: 1,
-      renderIcon: () => (
-        <svg viewBox="0 0 100 100" className="w-24 h-24 sm:w-28 sm:h-28 stroke-black fill-none stroke-[1.5]">
-          <circle cx="50" cy="50" r="42" />
-          <circle cx="50" cy="50" r="32" strokeDasharray="3 3" />
-          <circle cx="50" cy="50" r="20" />
-          <path d="M42 45 Q50 38 58 45 Q50 52 42 45" />
-          <path d="M44 54 Q50 48 56 54 Q50 60 44 54" />
-        </svg>
-      ),
+      url: dish.imageUrl,
+      alt: `${dish.title} - Main View`,
     },
     {
       id: 2,
-      renderIcon: () => (
-        <svg viewBox="0 0 100 100" className="w-24 h-24 sm:w-28 sm:h-28 stroke-black fill-none stroke-[1.5]">
-          <circle cx="50" cy="50" r="42" />
-          <circle cx="50" cy="50" r="28" />
-          <circle cx="50" cy="50" r="14" strokeDasharray="2 2" />
-          <circle cx="36" cy="36" r="6" />
-          <circle cx="64" cy="64" r="7" />
-        </svg>
-      ),
+      url: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=800&auto=format&fit=crop&q=80',
+      alt: `${dish.title} - Military Preparation`,
     },
     {
       id: 3,
-      renderIcon: () => (
-        <svg viewBox="0 0 100 100" className="w-24 h-24 sm:w-28 sm:h-28 stroke-black fill-none stroke-[1.5]">
-          <circle cx="42" cy="50" r="34" />
-          <circle cx="74" cy="36" r="15" />
-          <circle cx="74" cy="64" r="15" />
-          <path d="M36 46 Q42 40 48 46" />
-        </svg>
-      ),
+      url: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&auto=format&fit=crop&q=80',
+      alt: `${dish.title} - Fresh Spices`,
     },
-    {
-      id: 4,
-      renderIcon: () => (
-        <svg viewBox="0 0 100 100" className="w-24 h-24 sm:w-28 sm:h-28 stroke-black fill-none stroke-[1.5]">
-          <path d="M28 36 H72 L66 74 H34 Z" />
-          <ellipse cx="50" cy="36" rx="22" ry="7" />
-          <path d="M42 22 Q46 16 46 22" strokeDasharray="2 2" />
-          <path d="M50 20 Q54 14 54 20" strokeDasharray="2 2" />
-          <path d="M58 22 Q62 16 62 22" strokeDasharray="2 2" />
-        </svg>
-      ),
-    },
-  ];
+  ], [dish]);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchDeltaX, setTouchDeltaX] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const totalImages = dishImages.length;
 
   const handlePrevImage = () => {
-    setActiveImageIndex((prev) => (prev - 1 + totalImages) % totalImages);
+    setActiveImageIndex((prev) => (prev - 1 + dishVisuals.length) % dishVisuals.length);
   };
 
   const handleNextImage = () => {
-    setActiveImageIndex((prev) => (prev + 1) % totalImages);
+    setActiveImageIndex((prev) => (prev + 1) % dishVisuals.length);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    if (e.touches.length === 1) {
-      setTouchStartX(e.touches[0].clientX);
-      setTouchDeltaX(0);
-      setIsDragging(true);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    if (touchStartX !== null) {
-      const delta = e.touches[0].clientX - touchStartX;
-      setTouchDeltaX(delta);
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    e.stopPropagation();
-    if (touchStartX !== null) {
-      if (touchDeltaX < -40) {
-        handleNextImage();
-      } else if (touchDeltaX > 40) {
-        handlePrevImage();
-      }
-    }
-    setTouchStartX(null);
-    setTouchDeltaX(0);
-    setIsDragging(false);
-  };
-
-  const toggleAddOn = (addon: string) => {
+  const toggleAddOn = (addonName: string) => {
     setSelectedAddOns((prev) =>
-      prev.includes(addon) ? prev.filter((a) => a !== addon) : [...prev, addon]
+      prev.includes(addonName)
+        ? prev.filter((a) => a !== addonName)
+        : [...prev, addonName]
     );
   };
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleAddToCart = () => {
     addItemWithDetails(itemId, quantity, selectedOption, selectedAddOns);
     router.push(`/seat/${chairId}/menu`);
   };
@@ -146,9 +113,9 @@ export default function ItemCustomizationPage() {
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
-          {/* Title Placeholder */}
-          <div className="text-center font-bold text-sm uppercase tracking-wider">
-            Details
+          {/* Title Space */}
+          <div className="text-center font-black text-sm uppercase tracking-wider">
+            Dish Details
           </div>
 
           {/* Favorite Action Button connected to global likes */}
@@ -166,7 +133,6 @@ export default function ItemCustomizationPage() {
 
         {/* Hero Interactive Sliding Carousel Section */}
         <div className="w-full flex flex-col items-center gap-3 relative">
-          {/* Carousel Viewport with touch swipe & arrow buttons */}
           <div className="w-full flex items-center justify-between gap-1 relative px-2">
             {/* Previous Image Button */}
             <button
@@ -179,27 +145,12 @@ export default function ItemCustomizationPage() {
             </button>
 
             {/* Sliding Dish Circle Display */}
-            <div
-              className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border-2 border-black flex items-center justify-center bg-white cursor-grab active:cursor-grabbing touch-pan-y shadow-xs"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <div
-                className="w-full h-full flex items-center transition-transform duration-300 ease-out"
-                style={{
-                  transform: `translateX(-${activeImageIndex * 100}%)`,
-                }}
-              >
-                {dishImages.map((img) => (
-                  <div
-                    key={img.id}
-                    className="w-full h-full flex-shrink-0 flex items-center justify-center p-3"
-                  >
-                    {img.renderIcon()}
-                  </div>
-                ))}
-              </div>
+            <div className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border-2 border-black flex items-center justify-center bg-white shadow-md">
+              <img
+                src={dishVisuals[activeImageIndex].url}
+                alt={dishVisuals[activeImageIndex].alt}
+                className="w-full h-full object-cover transition-opacity duration-300"
+              />
             </div>
 
             {/* Next Image Button */}
@@ -215,7 +166,7 @@ export default function ItemCustomizationPage() {
 
           {/* Carousel Indicator Dots */}
           <div className="flex items-center gap-2 mt-1">
-            {dishImages.map((_, idx) => (
+            {dishVisuals.map((_, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -233,101 +184,122 @@ export default function ItemCustomizationPage() {
 
         {/* Title & Price Section */}
         <div className="w-full flex items-center justify-between border-b border-black pb-4">
-          <div className="flex flex-col gap-1">
-            <div className="text-lg font-bold">
-              Item Title {itemId}
+          <div className="flex flex-col gap-1 max-w-[70%]">
+            <div className="text-lg font-black leading-tight">
+              {dish.title}
             </div>
-            <div className="text-xs text-zinc-600">
-              Category Tag
+            <div className="flex items-center gap-2 mt-0.5">
+              <span
+                className={`inline-block w-2.5 h-2.5 rounded-full border ${
+                  dish.isVegetarian
+                    ? 'bg-emerald-600 border-emerald-700'
+                    : 'bg-red-600 border-red-700'
+                }`}
+              />
+              <span className="text-xs font-bold text-zinc-600 uppercase tracking-wide">
+                {categoryName}
+              </span>
+              {dish.isSignature && (
+                <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-sm border border-amber-300">
+                  Chef Choice
+                </span>
+              )}
             </div>
           </div>
-          <div className="text-xl font-bold">
-            ₹ ---
+          <div className="text-2xl font-black text-right">
+            ₹ {dish.price}
           </div>
         </div>
 
-        {/* Description Section */}
-        <div className="w-full flex flex-col gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider">
-            Description
+        {/* Authentic Description Section */}
+        <div className="w-full flex flex-col gap-1.5">
+          <span className="text-xs font-black uppercase tracking-wider text-zinc-800">
+            Heritage Recipe
           </span>
-          <div className="w-full flex flex-col gap-1.5">
-            <div className="w-full h-3 bg-zinc-200 border border-zinc-300 rounded" />
-            <div className="w-5/6 h-3 bg-zinc-200 border border-zinc-300 rounded" />
-            <div className="w-4/6 h-3 bg-zinc-200 border border-zinc-300 rounded" />
-          </div>
+          <p className="text-xs text-zinc-700 leading-relaxed">
+            {dish.description}
+          </p>
         </div>
 
         {/* Customization Options Section */}
-        <div className="w-full flex flex-col gap-3 border-t border-black pt-4">
-          <span className="text-xs font-bold uppercase tracking-wider">
-            Customization Options
-          </span>
-          <div className="grid grid-cols-3 gap-2">
-            {['Option 1', 'Option 2', 'Option 3'].map((opt) => (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setSelectedOption(opt)}
-                className={`py-2 px-3 border text-xs font-bold rounded-lg cursor-pointer transition-all ${
-                  selectedOption === opt
-                    ? 'border-black bg-black text-white'
-                    : 'border-black bg-white text-black'
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
+        {dish.options && dish.options.length > 0 && (
+          <div className="w-full flex flex-col gap-3 border-t border-black pt-4">
+            <span className="text-xs font-black uppercase tracking-wider">
+              Spice & Preparation
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {dish.options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setSelectedOption(opt)}
+                  className={`py-2 px-3 border text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    selectedOption === opt
+                      ? 'border-black bg-black text-white'
+                      : 'border-black bg-white text-black hover:bg-zinc-100'
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Add-ons Options Section */}
         <div className="w-full flex flex-col gap-2.5 border-t border-black pt-4">
-          <span className="text-xs font-bold uppercase tracking-wider">
-            Add-ons Options
+          <span className="text-xs font-black uppercase tracking-wider">
+            Authentic Accompaniments
           </span>
           <div className="flex flex-col gap-2">
-            {['Add-on 1', 'Add-on 2', 'Add-on 3'].map((addon) => (
-              <label
-                key={addon}
-                className="flex items-center justify-between border border-black p-2.5 rounded-lg cursor-pointer bg-white"
-              >
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={selectedAddOns.includes(addon)}
-                    onChange={() => toggleAddOn(addon)}
-                    className="w-4 h-4 accent-black"
-                  />
-                  <span className="text-xs font-semibold">{addon}</span>
-                </div>
-                <span className="text-xs font-bold">+ ₹ ---</span>
-              </label>
-            ))}
+            {availableAddOns.map((addon) => {
+              const isChecked = selectedAddOns.includes(addon.name);
+              return (
+                <label
+                  key={addon.name}
+                  className={`flex items-center justify-between border p-2.5 rounded-lg cursor-pointer transition-all ${
+                    isChecked
+                      ? 'border-black bg-zinc-50'
+                      : 'border-black bg-white hover:bg-zinc-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleAddOn(addon.name)}
+                      className="w-4 h-4 accent-black cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold">{addon.name}</span>
+                  </div>
+                  <span className="text-xs font-black">+ ₹ {addon.price}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
         {/* Quantity Stepper Section */}
         <div className="w-full flex items-center justify-between border-t border-black pt-4">
-          <span className="text-xs font-bold uppercase tracking-wider">
+          <span className="text-xs font-black uppercase tracking-wider">
             Quantity
           </span>
-          <div className="flex items-center border border-black">
+          <div className="flex items-center border-2 border-black rounded-lg overflow-hidden">
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              className="w-9 h-9 flex items-center justify-center border-r border-black cursor-pointer active:bg-zinc-200"
+              className="w-10 h-10 flex items-center justify-center border-r border-black cursor-pointer active:bg-zinc-200"
               aria-label="Decrease quantity"
             >
               <Minus className="w-4 h-4" />
             </button>
-            <span className="w-10 text-center font-bold text-sm">
+            <span className="w-12 text-center font-black text-sm">
               {quantity}
             </span>
             <button
               type="button"
               onClick={() => setQuantity((q) => q + 1)}
-              className="w-9 h-9 flex items-center justify-center border-l border-black cursor-pointer active:bg-zinc-200"
+              className="w-10 h-10 flex items-center justify-center border-l border-black cursor-pointer active:bg-zinc-200"
               aria-label="Increase quantity"
             >
               <Plus className="w-4 h-4" />
@@ -337,15 +309,15 @@ export default function ItemCustomizationPage() {
       </div>
 
       {/* Bottom Sticky Action Bar */}
-      <div className="sticky bottom-0 z-30 w-full max-w-md bg-white border-t-2 border-black pt-3 pb-2 mt-8 flex items-center justify-between gap-3">
+      <div className="sticky bottom-0 z-30 w-full max-w-md bg-white border-t-2 border-black pt-3 pb-2 mt-8 flex items-center justify-between gap-4">
         <div className="flex flex-col">
-          <span className="text-[10px] text-zinc-500 uppercase">Total</span>
-          <span className="text-base font-bold">₹ ---</span>
+          <span className="text-[10px] text-zinc-500 uppercase font-bold">Total</span>
+          <span className="text-xl font-black">₹ {calculatedGrandTotal}</span>
         </div>
         <button
           type="button"
           onClick={handleAddToCart}
-          className="flex-1 border-2 border-black bg-black text-white py-3 px-4 text-sm font-bold uppercase tracking-wider cursor-pointer active:opacity-80 transition-opacity"
+          className="flex-1 border-2 border-black bg-black text-white py-3 px-4 text-sm font-black uppercase tracking-wider cursor-pointer active:opacity-80 transition-opacity rounded-xl"
         >
           Add to Cart
         </button>

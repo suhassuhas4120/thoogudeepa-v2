@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, Bell, Plus } from 'lucide-react';
+import { ChevronLeft, Bell, Plus, Check } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
+import { getMenuItemById } from '../../../../lib/data/menuData';
 
 export default function CustomerSelfPaymentPage() {
   const params = useParams();
@@ -15,7 +16,7 @@ export default function CustomerSelfPaymentPage() {
   useHardwareBack(`/seat/${chairId}/bill`);
 
   const [session, setSession] = useState<ActiveDiningSession | null>(null);
-  const [selectedMethod, setSelectedMethod] = useState<number | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<number | null>(1);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,45 +33,42 @@ export default function CustomerSelfPaymentPage() {
   const cards = [
     {
       id: 'card1',
-      title: 'CARD / PRIMARY',
-      number: '•••• •••• •••• 2345',
-      holder: 'Jonathan Smith',
-      expiry: '02 / 21',
-      logo: 'VISA',
+      title: 'UPI / INSTANT QR',
+      number: `upi://pay?pa=thoogudeepa@upi&seat=${chairId}`,
+      holder: `Seat #${chairId} Guest`,
+      expiry: 'LIVE',
+      logo: 'UPI',
     },
     {
       id: 'card2',
-      title: 'CARD / SECONDARY',
+      title: 'RUPAY / DEBIT CARD',
       number: '•••• •••• •••• 8765',
-      holder: 'Jonathan Smith',
-      expiry: '09 / 29',
-      logo: 'MASTERCARD',
+      holder: `Seat #${chairId} Guest`,
+      expiry: '12 / 29',
+      logo: 'RUPAY',
     },
     {
       id: 'card3',
-      title: 'CARD / UPI QR',
+      title: 'CREDIT / TAP TO PAY',
       number: '•••• •••• •••• 9901',
-      holder: 'Jonathan Smith',
-      expiry: '12 / 30',
-      logo: 'RUPAY',
+      holder: `Seat #${chairId} Guest`,
+      expiry: '08 / 30',
+      logo: 'VISA',
     },
   ];
 
-  // Methods list representing the icon row
+  // Payment channels
   const paymentMethods = [
     { id: 0, isAdd: true },
-    { id: 1, label: 'Method 1' },
-    { id: 2, label: 'Method 2' },
-    { id: 3, label: 'Method 3' },
-    { id: 4, label: 'Method 4' },
+    { id: 1, label: 'UPI' },
+    { id: 2, label: 'Card' },
+    { id: 3, label: 'NetBank' },
+    { id: 4, label: 'Cash' },
   ];
 
-  // History / Order rounds items
-  const historyItems = [
-    { id: 1, title: 'Item Section 1', subtitle: 'Detail: 01', buttonLabel: 'Action 1' },
-    { id: 2, title: 'Item Section 2', subtitle: 'Detail: 02', buttonLabel: 'Status' },
-    { id: 3, title: 'Item Section 3', subtitle: 'Detail: 03', buttonLabel: 'Action 2' },
-  ];
+  // Determine selected method name
+  const selectedMethodObj = paymentMethods.find((m) => m.id === selectedMethod);
+  const selectedMethodName = selectedMethodObj?.label || 'UPI';
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
@@ -88,7 +86,12 @@ export default function CustomerSelfPaymentPage() {
           </Link>
 
           {/* Center Title */}
-          <h1 className="text-base font-bold tracking-tight">Payment</h1>
+          <div className="flex flex-col items-center">
+            <h1 className="text-base font-bold tracking-tight">Settle Bill</h1>
+            <span className="text-[10px] text-zinc-500 font-bold uppercase">
+              Seat #{chairId}
+            </span>
+          </div>
 
           {/* Right Notification Bell */}
           <Link
@@ -121,7 +124,7 @@ export default function CustomerSelfPaymentPage() {
                     isSelected ? 'bg-white ring-3 ring-black/80' : 'bg-zinc-50 hover:bg-white'
                   }`}
                 >
-                  {/* Top row inside card: Title & Brand / Logo Placeholder */}
+                  {/* Top row inside card: Title & Brand / Logo */}
                   <div className="w-full flex items-center justify-between">
                     <span className="text-sm font-black tracking-wide">{card.title}</span>
                     <div className="border border-black px-2 py-0.5 rounded text-[10px] font-black uppercase bg-white">
@@ -130,22 +133,22 @@ export default function CustomerSelfPaymentPage() {
                   </div>
 
                   {/* Middle row: Card Number / Identifier */}
-                  <div className="text-base font-mono font-bold tracking-widest my-auto">
+                  <div className="text-sm font-mono font-bold tracking-wider my-auto truncate">
                     {card.number}
                   </div>
 
-                  {/* Bottom row: Chip icon placeholder and Meta Details */}
+                  {/* Bottom row: Meta Details */}
                   <div className="w-full flex items-end justify-between">
                     <div className="w-8 h-6 border border-black rounded-md flex items-center justify-center bg-zinc-100">
                       <div className="w-4 h-3 border border-black rounded-xs" />
                     </div>
-                    <div className="flex gap-6 text-right">
+                    <div className="flex gap-4 text-right">
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Detail 1</span>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Customer</span>
                         <span className="text-xs font-bold">{card.holder}</span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Detail 2</span>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Status</span>
                         <span className="text-xs font-bold">{card.expiry}</span>
                       </div>
                     </div>
@@ -159,7 +162,7 @@ export default function CustomerSelfPaymentPage() {
         {/* Section: Choose Method */}
         <div className="w-full flex flex-col gap-3">
           <span className="text-xs font-black uppercase tracking-wider">
-            Choose Method
+            Choose Payment Mode
           </span>
 
           {/* Methods Horizontal Row */}
@@ -192,13 +195,13 @@ export default function CustomerSelfPaymentPage() {
                       setSelectedCardId(null);
                     }
                   }}
-                  className={`w-13 h-13 rounded-full border-2 border-black flex items-center justify-center shrink-0 cursor-pointer transition-all ${
+                  className={`px-4 py-2.5 rounded-full border-2 border-black flex items-center justify-center shrink-0 cursor-pointer transition-all ${
                     isSelected ? 'bg-black text-white' : 'bg-white text-black'
                   }`}
                   aria-label={method.label}
                 >
-                  <span className="text-[10px] font-black uppercase">
-                    {isSelected ? '✓' : `M${method.id}`}
+                  <span className="text-xs font-black uppercase tracking-wider">
+                    {method.label}
                   </span>
                 </button>
               );
@@ -206,46 +209,84 @@ export default function CustomerSelfPaymentPage() {
           </div>
         </div>
 
-        {/* Items & Price Breakdown Section (Replacing History) */}
+        {/* Items & Price Breakdown Section */}
         <div className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-4 bg-white shadow-sm">
           {/* Section Header */}
           <div className="w-full flex items-center justify-between border-b border-zinc-200 pb-2">
             <span className="text-xs font-black uppercase tracking-wider">
-              Items &amp; Price Breakdown
+              Items &amp; Bill Breakdown
             </span>
-            <span className="text-[10px] font-bold border border-black px-2 py-0.5 rounded-full">
-              3 Dishes
+            <span className="text-[10px] font-bold border border-black px-2 py-0.5 rounded-full uppercase bg-zinc-50">
+              {session?.ticketNumber || `Seat #${chairId}`}
             </span>
           </div>
 
-          {/* Item Rows */}
+          {/* Real Item Rows */}
           <div className="w-full flex flex-col gap-3">
-            {[1, 2, 3].map((num) => (
-              <div key={num} className="w-full flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-18 h-18 rounded-full border-2 border-black flex items-center justify-center shrink-0 bg-white shadow-sm">
-                    <span className="text-xs font-bold">Image</span>
+            {session?.items && session.items.length > 0 ? (
+              session.items.map((item, idx) => {
+                const numericId = item.id.replace('dish-', '');
+                const dishData = getMenuItemById(numericId);
+                return (
+                  <div key={idx} className="w-full flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-full border border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100">
+                        <img
+                          src={dishData.imageUrl}
+                          alt={item.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-bold truncate">
+                          {item.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-semibold">
+                          Qty: {item.quantity} &times; ₹ {item.price}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black shrink-0">
+                      ₹ {item.price * item.quantity}
+                    </span>
                   </div>
-                  <span className="text-xs font-bold truncate">
-                    Item Title {num} &times; 1
-                  </span>
+                );
+              })
+            ) : (
+              <div className="w-full flex items-center justify-between gap-3 py-1">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-full border border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100">
+                    <img
+                      src="https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop&q=80"
+                      alt="Donne Biryani"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold truncate">
+                      Authentic Military Dining
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-semibold">
+                      Dine-in Order Session
+                    </span>
+                  </div>
                 </div>
-                <span className="text-xs font-bold shrink-0">
-                  ₹ ---
+                <span className="text-xs font-black shrink-0">
+                  ₹ {subtotal}
                 </span>
               </div>
-            ))}
+            )}
           </div>
 
           {/* Subtotal & Taxes Breakdown */}
           <div className="w-full border-t border-zinc-200 pt-3 flex flex-col gap-1.5 text-xs text-zinc-700">
             <div className="w-full flex items-center justify-between">
               <span>Item Subtotal</span>
-              <span className="font-bold">₹ {subtotal}</span>
+              <span className="font-bold text-zinc-900">₹ {subtotal}</span>
             </div>
             <div className="w-full flex items-center justify-between">
               <span>Taxes &amp; Charges (5% GST)</span>
-              <span className="font-bold">₹ {gstAmount}</span>
+              <span className="font-bold text-zinc-900">₹ {gstAmount}</span>
             </div>
           </div>
 
@@ -269,24 +310,24 @@ export default function CustomerSelfPaymentPage() {
             href={`/seat/${chairId}/card-details?card=${selectedCardId}`}
             className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
           >
-            Continue
+            Continue with Card
           </Link>
         ) : selectedMethod !== null ? (
-          /* Method (M1, M2, M3, M4) Selected -> Goes Directly to Payment Success */
+          /* Method Selected -> Goes to Payment Success */
           <Link
-            href={`/seat/${chairId}/payment-success?mode=Method-${selectedMethod}`}
+            href={`/seat/${chairId}/payment-success?mode=${encodeURIComponent(selectedMethodName)}&amount=${billTotal}`}
             className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
           >
-            Continue
+            Pay ₹ {billTotal} via {selectedMethodName}
           </Link>
         ) : (
-          /* Nothing Selected -> Disabled */
+          /* Nothing Selected */
           <button
             type="button"
             disabled
             className="w-full border-2 border-zinc-300 bg-zinc-200 text-zinc-500 py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-not-allowed text-center opacity-70"
           >
-            Continue
+            Select Payment Method
           </button>
         )}
       </div>

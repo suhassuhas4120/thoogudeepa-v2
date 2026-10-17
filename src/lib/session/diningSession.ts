@@ -9,6 +9,7 @@ export interface ActiveDiningSession {
   customerName?: string;
   orderedAt: number;
   totalAmount: number;
+  items?: { id: string; title: string; quantity: number; price: number }[];
 }
 
 const STORAGE_SESSION_KEY = 'thoogudeepa_v2_active_dining_session';

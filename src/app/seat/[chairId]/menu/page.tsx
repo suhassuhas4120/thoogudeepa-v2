@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -9,9 +9,6 @@ import {
   ShoppingCart,
   Search,
   Heart,
-  ShoppingBag,
-  User,
-  Home,
   Minus,
   Plus,
   X,
@@ -19,6 +16,7 @@ import {
 import { useCart } from '../../../../lib/context/CartContext';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
+import { MENU_CATEGORIES, MENU_ITEMS } from '../../../../lib/data/menuData';
 
 export default function CustomerMenuPage() {
   const params = useParams();
@@ -27,12 +25,23 @@ export default function CustomerMenuPage() {
   // Device hardware back button & swipe back: return to seat entrance
   useHardwareBack(`/seat/${chairId}`);
 
-  const { getItemQuantity, updateQuantity, totalItemCount, toggleLike, isItemLiked, likedItems } = useCart();
+  const { getItemQuantity, updateQuantity, totalItemCount, toggleLike, isItemLiked } = useCart();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // 8 sample card skeletons matching the 2-column layout
-  const cards = [1, 2, 3, 4, 5, 6, 7, 8];
+  // Filter items dynamically by selected category and search query
+  const filteredDishes = useMemo(() => {
+    return MENU_ITEMS.filter((item) => {
+      const matchesCategory =
+        selectedCategory === 'all' || item.categoryId === selectedCategory;
+      const matchesSearch =
+        searchQuery.trim() === '' ||
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [selectedCategory, searchQuery]);
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative">
@@ -40,7 +49,7 @@ export default function CustomerMenuPage() {
       <div className="w-full flex-1 px-4 pt-4 pb-24">
         {/* Top Header Section with Back Navigation */}
         <header className="w-full flex items-center justify-between py-2">
-          {/* Back Navigation Button to Screen 1 */}
+          {/* Back Navigation Button to Seat Entrance */}
           <Link
             href={`/seat/${chairId}`}
             className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70"
@@ -51,7 +60,7 @@ export default function CustomerMenuPage() {
 
           {/* Center Title Space */}
           <div className="text-center">
-            <span className="text-base font-bold tracking-tight">Title</span>
+            <span className="text-base font-black tracking-tight uppercase">Menu</span>
           </div>
 
           {/* Right Spacer for Header Balance */}
@@ -59,17 +68,17 @@ export default function CustomerMenuPage() {
         </header>
 
         {/* Sticky Search & Category Bar Section pinned on scroll */}
-        <div className="sticky top-0 z-20 bg-white pt-2 pb-3 flex flex-col gap-3 -mx-4 px-4 border-b border-zinc-100">
-          {/* Row 1: Search Bar (Reduced Size) with Bell & Cart Beside It */}
+        <div className="sticky top-0 z-20 bg-white pt-2 pb-3 flex flex-col gap-3 -mx-4 px-4 border-b border-zinc-100 shadow-2xs">
+          {/* Row 1: Search Bar with Bell & Cart Beside It */}
           <div className="w-full flex items-center gap-2">
-            {/* Reduced Search Input Container */}
+            {/* Search Input Container */}
             <div className="flex-1 border border-black rounded-2xl flex items-center px-3.5 py-2.5 gap-2 bg-white min-w-0">
               <Search className="w-4 h-4 text-black shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search"
+                placeholder="Search Donne Biryani, Kebabs..."
                 className="w-full text-sm outline-none bg-transparent text-black min-w-0"
               />
               {searchQuery.length > 0 && (
@@ -110,140 +119,175 @@ export default function CustomerMenuPage() {
 
           {/* Row 2: Category Filter Pills Section */}
           <div className="w-full flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-            <button
-              type="button"
-              className="px-4 py-1.5 rounded-xl text-xs font-bold border border-black bg-black text-white whitespace-nowrap"
-            >
-              Category 1
-            </button>
-            <button
-              type="button"
-              className="px-4 py-1.5 rounded-xl text-xs font-semibold border border-black bg-white text-black whitespace-nowrap"
-            >
-              Category 2
-            </button>
-            <button
-              type="button"
-              className="px-4 py-1.5 rounded-xl text-xs font-semibold border border-black bg-white text-black whitespace-nowrap"
-            >
-              Category 3
-            </button>
-            <button
-              type="button"
-              className="px-4 py-1.5 rounded-xl text-xs font-semibold border border-black bg-white text-black whitespace-nowrap"
-            >
-              Category 4
-            </button>
+            {MENU_CATEGORIES.map((category) => {
+              const isActive = selectedCategory === category.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`px-4 py-1.5 rounded-xl text-xs whitespace-nowrap cursor-pointer transition-colors ${
+                    isActive
+                      ? 'border border-black bg-black text-white font-bold'
+                      : 'border border-black bg-white text-black font-semibold hover:bg-zinc-100'
+                  }`}
+                >
+                  {category.title}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 2-Column Product Cards Grid with enlarged circular image area */}
-        <div className="w-full grid grid-cols-2 gap-x-3.5 gap-y-20 mt-18">
-          {cards.map((num) => {
-            const currentQty = getItemQuantity(String(num));
-            const isLiked = likedItems[String(num)];
+        {/* Empty Search Results */}
+        {filteredDishes.length === 0 ? (
+          <div className="w-full border-2 border-black rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-white mt-12">
+            <span className="text-sm font-black uppercase tracking-wider">No Dishes Found</span>
+            <p className="text-xs text-zinc-500">
+              Try searching for something else or reset category filters.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="mt-2 border-2 border-black bg-black text-white px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider"
+            >
+              Show All Menu
+            </button>
+          </div>
+        ) : (
+          /* 2-Column Product Cards Grid with circular image area */
+          <div className="w-full grid grid-cols-2 gap-x-3.5 gap-y-20 mt-18">
+            {filteredDishes.map((item) => {
+              const currentQty = getItemQuantity(item.id);
+              const isLiked = isItemLiked(item.id);
 
-            return (
-              <div
-                key={num}
-                className="relative border border-black rounded-2xl pt-18 sm:pt-20 pb-3.5 px-3 flex flex-col items-center text-center bg-white"
-              >
-                {/* Clickable Card Body opening Screen 3 */}
-                <Link
-                  href={`/seat/${chairId}/item/${num}`}
-                  className="w-full flex flex-col items-center cursor-pointer active:opacity-75"
+              return (
+                <div
+                  key={item.id}
+                  className="relative border border-black rounded-2xl pt-18 sm:pt-20 pb-3.5 px-3 flex flex-col items-center text-center bg-white shadow-2xs"
                 >
-                  {/* Enlarged Overlapping Circular Image Placeholder */}
-                  <div className="absolute -top-14 sm:-top-16 w-28 h-28 sm:w-32 sm:h-32 rounded-full border-2 border-black bg-white flex items-center justify-center shadow-sm">
-                    <span className="text-xs font-bold">Image</span>
-                  </div>
+                  {/* Clickable Card Body opening Item Details */}
+                  <Link
+                    href={`/seat/${chairId}/item/${item.id}`}
+                    className="w-full flex flex-col items-center cursor-pointer active:opacity-75"
+                  >
+                    {/* Circular Image Container */}
+                    <div className="absolute -top-14 sm:-top-16 w-28 h-28 sm:w-32 sm:h-32 rounded-full border-2 border-black bg-white overflow-hidden shadow-sm flex items-center justify-center">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
 
-                  {/* Title Section */}
-                  <div className="w-full text-xs font-bold mt-1 line-clamp-2">
-                    Item Title {num}
-                  </div>
+                    {/* Veg / Non-Veg Indicator */}
+                    <div className="w-full flex items-center justify-center gap-1.5 mt-1">
+                      <span
+                        className={`inline-block w-2.5 h-2.5 rounded-full border ${
+                          item.isVegetarian
+                            ? 'bg-emerald-600 border-emerald-700'
+                            : 'bg-red-600 border-red-700'
+                        }`}
+                        title={item.isVegetarian ? 'Vegetarian' : 'Non-Vegetarian'}
+                      />
+                      {item.isSignature && (
+                        <span className="text-[9px] font-black uppercase tracking-wider text-amber-700">
+                          Special
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Short Description Section */}
-                  <div className="w-full text-[10px] text-zinc-600 mt-1 line-clamp-2">
-                    Short description line goes here
-                  </div>
+                    {/* Title Section */}
+                    <div className="w-full text-xs font-bold mt-1 line-clamp-2 min-h-[32px] flex items-center justify-center">
+                      {item.title}
+                    </div>
 
-                  {/* Price Section */}
-                  <div className="w-full text-sm font-bold mt-2">
-                    ₹ ---
-                  </div>
-                </Link>
+                    {/* Short Description Section */}
+                    <div className="w-full text-[10px] text-zinc-600 mt-1 line-clamp-2 min-h-[28px]">
+                      {item.description}
+                    </div>
 
-                {/* Bottom Row: Stepper/Add Button + Small Heart Like Button */}
-                <div className="w-full mt-2.5 flex items-center gap-1.5">
-                  {currentQty === 0 ? (
+                    {/* Price Section */}
+                    <div className="w-full text-sm font-black mt-2">
+                      ₹ {item.price}
+                    </div>
+                  </Link>
+
+                  {/* Bottom Row: Stepper/Add Button + Small Heart Like Button */}
+                  <div className="w-full mt-2.5 flex items-center gap-1.5">
+                    {currentQty === 0 ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          updateQuantity(item.id, 1);
+                        }}
+                        className="flex-1 py-1.5 border border-black rounded-lg text-xs font-bold uppercase tracking-wider bg-black text-white cursor-pointer active:opacity-80"
+                      >
+                        Add
+                      </button>
+                    ) : (
+                      <div
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        className="flex-1 flex items-center justify-between border-2 border-black rounded-lg bg-black text-white px-1.5 py-1"
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            updateQuantity(item.id, currentQty - 1);
+                          }}
+                          className="w-6 h-6 flex items-center justify-center font-bold text-base cursor-pointer active:opacity-60"
+                          aria-label="Decrease"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-xs font-black">{currentQty}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            updateQuantity(item.id, currentQty + 1);
+                          }}
+                          className="w-6 h-6 flex items-center justify-center font-bold text-base cursor-pointer active:opacity-60"
+                          aria-label="Increase"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Small Heart Like Button beside Add */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        updateQuantity(String(num), 1);
+                        toggleLike(item.id);
                       }}
-                      className="flex-1 py-1.5 border border-black rounded-lg text-xs font-bold uppercase tracking-wider bg-black text-white cursor-pointer active:opacity-80"
+                      className={`w-7 h-7 shrink-0 border border-black rounded-lg flex items-center justify-center cursor-pointer transition-all active:scale-90 ${
+                        isLiked ? 'bg-black text-white' : 'bg-white text-black'
+                      }`}
+                      aria-label="Like item"
                     >
-                      Add
+                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
                     </button>
-                  ) : (
-                    <div
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      className="flex-1 flex items-center justify-between border-2 border-black rounded-lg bg-black text-white px-1.5 py-1"
-                    >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          updateQuantity(String(num), currentQty - 1);
-                        }}
-                        className="w-6 h-6 flex items-center justify-center font-bold text-base cursor-pointer active:opacity-60"
-                        aria-label="Decrease"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-xs font-black">{currentQty}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          updateQuantity(String(num), currentQty + 1);
-                        }}
-                        className="w-6 h-6 flex items-center justify-center font-bold text-base cursor-pointer active:opacity-60"
-                        aria-label="Increase"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Small Heart Like Button beside Add */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      toggleLike(String(num));
-                    }}
-                    className={`w-7 h-7 shrink-0 border border-black rounded-lg flex items-center justify-center cursor-pointer transition-all active:scale-90 ${
-                      isItemLiked(String(num)) ? 'bg-black text-white' : 'bg-white text-black'
-                    }`}
-                    aria-label="Like item"
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${isItemLiked(String(num)) ? 'fill-current' : ''}`} />
-                  </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Fixed Bottom Navigation Bar */}

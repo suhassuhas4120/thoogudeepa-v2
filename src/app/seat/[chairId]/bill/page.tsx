@@ -97,16 +97,31 @@ export default function OrderSummaryBillPage() {
                 </span>
               </div>
 
-              {/* Real Order Row */}
-              <div className="w-full flex flex-col gap-2 py-1">
-                <div className="w-full flex items-center justify-between text-xs font-bold">
-                  <span>Authentic Military Dining Order</span>
-                  <span>₹ {subtotal}</span>
+              {/* Real Order Breakdown */}
+              {session.items && session.items.length > 0 ? (
+                <div className="w-full flex flex-col gap-2.5 py-1">
+                  {session.items.map((it, idx) => (
+                    <div key={idx} className="w-full flex items-center justify-between text-xs">
+                      <span className="font-semibold text-zinc-900 truncate pr-2">
+                        {it.quantity} &times; {it.title}
+                      </span>
+                      <span className="font-bold text-zinc-950 shrink-0">
+                        ₹ {it.price * it.quantity}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-[10px] text-zinc-500 font-medium">
-                  Steamed donne biryani &amp; military starters steamed in traditional herbal spices.
+              ) : (
+                <div className="w-full flex flex-col gap-2 py-1">
+                  <div className="w-full flex items-center justify-between text-xs font-bold">
+                    <span>Authentic Military Dining Order</span>
+                    <span>₹ {subtotal}</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500 font-medium">
+                    Steamed donne biryani &amp; military starters steamed in traditional herbal spices.
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Subtotal & Taxes Breakdown */}
               <div className="w-full border-t border-zinc-200 pt-3 flex flex-col gap-1.5 text-xs text-zinc-700">

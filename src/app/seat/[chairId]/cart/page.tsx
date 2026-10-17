@@ -9,19 +9,7 @@ import CustomerBottomNav from '../../../../components/navigation/CustomerBottomN
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { realtimeBridge } from '../../../../lib/supabase';
 import { setActiveDiningSession } from '../../../../lib/session/diningSession';
-
-const DISH_CATALOG: Record<string, { title: string; price: number; desc: string }> = {
-  '1': { title: 'Signature Chicken Donne Biryani', price: 240, desc: 'Seeraga samba rice steamed with coriander herbal masala' },
-  '2': { title: 'Mutton Donne Biryani', price: 340, desc: 'Slow-cooked succulent tender goat meat in palm leaf donne cups' },
-  '3': { title: 'Kshatriya Donne Biryani', price: 270, desc: 'Crispy fried spiced chicken cuts on donne rice' },
-  '4': { title: 'Egg Donne Biryani', price: 190, desc: 'Pan-roasted masala eggs on aromatic donne rice' },
-  '5': { title: 'Gunfire Chicken Kebab', price: 210, desc: 'Crispy military chicken kebabs with lemon slices' },
-  '6': { title: 'Chicken Sukka', price: 230, desc: 'Pan-roasted tender spiced chicken with curry leaves' },
-  '7': { title: 'Mutton Chukka', price: 330, desc: 'Boneless tender goat meat in rich pepper gravy' },
-  '8': { title: 'Guntur Chilli Chicken', price: 220, desc: 'Hot red chilli and green peppercorn sauté' },
-  '9': { title: 'Donne Khushka Rice', price: 150, desc: 'Fragrant seasoned donne biryani rice without meat' },
-  '10': { title: 'Chilled Spiced Buttermilk', price: 60, desc: 'Cooling herbal yoghurt with ginger & coriander' },
-};
+import { getMenuItemById } from '../../../../lib/data/menuData';
 
 export default function CustomerCartPage() {
   const params = useParams();
@@ -41,14 +29,14 @@ export default function CustomerCartPage() {
   }, [items]);
 
   // Slidable suggestions to complement meal
-  const extraItems = ['5', '6', '8', '9', '10'].filter((id) => !activeItemIds.includes(id));
+  const extraItems = ['5', '6', '8', '10', '13', '14'].filter((id) => !activeItemIds.includes(id));
 
   // Compute live subtotal, GST (5%), and total
   const subtotal = useMemo(() => {
     return activeItemIds.reduce((sum, id) => {
       const qty = items[id]?.quantity || 0;
-      const price = DISH_CATALOG[id]?.price || 240;
-      return sum + price * qty;
+      const dish = getMenuItemById(id);
+      return sum + dish.price * qty;
     }, 0);
   }, [activeItemIds, items]);
 
@@ -63,7 +51,7 @@ export default function CustomerCartPage() {
       
       const orderItems = activeItemIds.map((id) => {
         const qty = items[id]?.quantity || 1;
-        const catalogEntry = DISH_CATALOG[id] || { title: `Military Dish #${id}`, price: 240 };
+        const catalogEntry = getMenuItemById(id);
         return {
           chair_id: chairId,
           seat_label: `SEAT ${chairId}`,
@@ -94,6 +82,12 @@ export default function CustomerCartPage() {
         paymentStatus: 'unpaid',
         orderedAt: Date.now(),
         totalAmount: grandTotal,
+        items: orderItems.map((oi) => ({
+          id: oi.dish_id,
+          title: oi.dish_name,
+          quantity: oi.quantity,
+          price: oi.price,
+        })),
       });
 
       router.push(`/seat/${chairId}/tracking`);
@@ -111,16 +105,24 @@ export default function CustomerCartPage() {
       <div className="w-full flex flex-col gap-5">
         {/* Top Header */}
         <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+          {/* Back Navigation Button to Menu */}
           <Link
             href={`/seat/${chairId}/menu`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70"
+            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
             aria-label="Back to Menu"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
-          <h1 className="text-lg font-bold tracking-tight">Cart</h1>
+          {/* Center Title */}
+          <div className="flex flex-col items-center">
+            <h1 className="text-base font-bold tracking-tight">Your Tray</h1>
+            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+              Seat #{chairId}
+            </span>
+          </div>
 
+          {/* Right Notification Bell */}
           <Link
             href={`/seat/${chairId}/assistant?from=${encodeURIComponent(`/seat/${chairId}/cart`)}`}
             className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
@@ -130,42 +132,21 @@ export default function CustomerCartPage() {
           </Link>
         </header>
 
-        {/* Liked Items Quick Access Bar */}
-        <Link
-          href={`/seat/${chairId}/likes`}
-          className="w-full border-2 border-black rounded-2xl p-2.5 px-3 flex items-center justify-between bg-white hover:bg-zinc-50 active:opacity-80 transition-all cursor-pointer shadow-xs"
-        >
-          <div className="flex items-center gap-2">
-            <Heart className="w-4 h-4 text-black fill-black" />
-            <span className="text-xs font-black uppercase tracking-wider">
-              Items You Liked ({likedCount})
-            </span>
-          </div>
-          <span className="text-xs font-bold text-zinc-600 flex items-center gap-1">
-            View &rarr;
-          </span>
-        </Link>
-
-        {/* Empty Cart View */}
+        {/* Empty State Banner (Displayed when activeItemIds is 0) */}
         {activeItemIds.length === 0 ? (
-          <div className="w-full py-16 flex flex-col items-center justify-center text-center gap-3.5 border-2 border-dashed border-zinc-300 rounded-3xl bg-zinc-50/50 p-6 my-2">
-            <div className="w-16 h-16 rounded-full border-2 border-black bg-white flex items-center justify-center shadow-xs">
-              <ShoppingBag className="w-7 h-7 text-black" />
+          <div className="w-full border-2 border-black rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-white mt-4 shadow-sm">
+            <div className="w-16 h-16 rounded-full border-2 border-black flex items-center justify-center bg-zinc-50">
+              <ShoppingBag className="w-8 h-8 text-zinc-400" />
             </div>
-            <div className="flex flex-col gap-1">
-              <h2 className="text-base font-black uppercase tracking-tight text-zinc-950">
-                Your Tray is Empty
-              </h2>
-              <p className="text-xs text-zinc-500 font-medium max-w-xs leading-relaxed">
-                You have not selected any military delicacies yet. Browse our donne biryanis and authentic starters to start ordering!
-              </p>
-            </div>
+            <span className="text-sm font-black uppercase tracking-wider">Your Tray is Empty</span>
+            <p className="text-xs text-zinc-500 max-w-xs">
+              Explore authentic donne biryani, sizzling kebabs, and country curries from the menu.
+            </p>
             <Link
               href={`/seat/${chairId}/menu`}
-              className="mt-2 px-6 py-2.5 border-2 border-black bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 shadow-xs flex items-center gap-2"
+              className="mt-2 border-2 border-black bg-black text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider"
             >
-              <span>Explore Menu</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              Explore Menu
             </Link>
           </div>
         ) : (
@@ -173,16 +154,21 @@ export default function CustomerCartPage() {
           <div className="w-full flex flex-col gap-3.5">
             {activeItemIds.map((itemId) => {
               const qty = getItemQuantity(itemId) || 1;
-              const dish = DISH_CATALOG[itemId] || { title: `Military Dish #${itemId}`, price: 240, desc: 'Fresh authentic preparation' };
+              const dish = getMenuItemById(itemId);
 
               return (
                 <div
                   key={itemId}
                   className="w-full border border-black rounded-2xl p-3 flex items-center justify-between bg-white shadow-sm gap-3"
                 >
-                  {/* Circular Image Placeholder */}
-                  <div className="w-16 h-16 rounded-full border-2 border-black flex items-center justify-center shrink-0 bg-zinc-100">
-                    <span className="text-[10px] font-black uppercase text-zinc-700">Dish</span>
+                  {/* Circular Image Container */}
+                  <div className="w-16 h-16 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100 shadow-2xs">
+                    <img
+                      src={dish.imageUrl}
+                      alt={dish.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
                   </div>
 
                   {/* Title and Price Section */}
@@ -191,7 +177,7 @@ export default function CustomerCartPage() {
                       {dish.title}
                     </span>
                     <span className="text-[11px] font-medium text-zinc-500 line-clamp-1">
-                      {dish.desc}
+                      {dish.description}
                     </span>
                     <span className="text-xs font-black text-zinc-900 mt-0.5">
                       ₹ {dish.price}
@@ -231,13 +217,13 @@ export default function CustomerCartPage() {
           <div className="w-full flex flex-col gap-2 pt-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-zinc-800">
-                Add More Items
+                Recommended Complements
               </span>
             </div>
 
             <div className="w-full flex items-center gap-3 overflow-x-auto no-scrollbar py-2">
               {extraItems.map((extraId) => {
-                const dish = DISH_CATALOG[extraId] || { title: `Extra Dish #${extraId}`, price: 180 };
+                const dish = getMenuItemById(extraId);
                 const extraQty = getItemQuantity(extraId);
 
                 return (
@@ -245,8 +231,13 @@ export default function CustomerCartPage() {
                     key={extraId}
                     className="w-36 shrink-0 border border-black rounded-xl p-3 flex flex-col items-center text-center bg-white shadow-2xs"
                   >
-                    <div className="w-14 h-14 rounded-full border-2 border-black flex items-center justify-center mb-1.5 bg-zinc-100">
-                      <span className="text-[9px] font-black uppercase text-zinc-700">Dish</span>
+                    <div className="w-14 h-14 rounded-full border-2 border-black overflow-hidden flex items-center justify-center mb-1.5 bg-zinc-100 shadow-2xs">
+                      <img
+                        src={dish.imageUrl}
+                        alt={dish.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     </div>
 
                     <span className="text-xs font-bold truncate w-full">
@@ -301,30 +292,41 @@ export default function CustomerCartPage() {
               <span>GST (5%)</span>
               <span className="font-bold text-zinc-900">₹ {gstAmount}</span>
             </div>
-            <div className="w-full border-t border-black pt-2 flex items-center justify-between text-sm font-black">
-              <span>Total Payable (Pay after meal)</span>
-              <span className="text-base">₹ {grandTotal}</span>
+            <div className="w-full flex items-center justify-between text-sm font-black border-t border-zinc-200 pt-2 text-zinc-950">
+              <span>Grand Total</span>
+              <span className="text-base font-black">₹ {grandTotal}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Sticky Bottom Place Order Button */}
-      <div className="sticky bottom-16 z-30 w-full bg-white/95 backdrop-blur-sm pt-2 pb-2">
-        <button
-          type="button"
-          onClick={handlePlaceOrder}
-          disabled={isSubmitting || activeItemIds.length === 0}
-          className="w-full flex items-center justify-center gap-2.5 border-2 border-black bg-black text-white py-3.5 text-sm font-bold uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 transition-opacity shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <span>{isSubmitting ? 'Placing Order...' : activeItemIds.length === 0 ? 'Select Dishes to Order' : 'Place Order'}</span>
-          {activeItemIds.length > 0 && (
-            <span className="w-5 h-5 rounded-full bg-white text-black text-xs font-black flex items-center justify-center shrink-0">
-              {activeItemIds.length}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* Floating Order Dispatch Footer */}
+      {activeItemIds.length > 0 && (
+        <div className="fixed bottom-16 left-0 right-0 z-30 max-w-md mx-auto px-4 py-2 bg-white/95 backdrop-blur-md border-t border-zinc-200">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handlePlaceOrder}
+            className="w-full border-2 border-black bg-black text-white py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-lg cursor-pointer active:scale-[0.99] transition-transform disabled:opacity-50"
+          >
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-400">
+                {activeItemIds.length} Dishes
+              </span>
+              <span className="text-base font-black">
+                ₹ {grandTotal}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black tracking-wider uppercase">
+                {isSubmitting ? 'Sending to Kitchen...' : 'Send to Kitchen'}
+              </span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Fixed Bottom Navigation Bar */}
       <CustomerBottomNav chairId={chairId} activeTab="cart" />

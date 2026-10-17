@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ChevronLeft, Bell, Heart, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../../../lib/context/CartContext';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
+import { MENU_ITEMS } from '../../../../lib/data/menuData';
 
 export default function CustomerLikesPage() {
   const params = useParams();
@@ -17,18 +18,10 @@ export default function CustomerLikesPage() {
 
   const { likedItems, toggleLike, getItemQuantity, updateQuantity } = useCart();
 
-  // All catalog items
-  const catalog = [
-    { id: '1', title: 'Item Title 1', subtitle: 'Chef special recipe', price: '₹ ---' },
-    { id: '2', title: 'Item Title 2', subtitle: 'Traditional preparation', price: '₹ ---' },
-    { id: '3', title: 'Item Title 3', subtitle: 'Freshly seasoned', price: '₹ ---' },
-    { id: '4', title: 'Item Title 4', subtitle: 'Signature dish', price: '₹ ---' },
-    { id: '5', title: 'Item Title 5', subtitle: 'Special blend', price: '₹ ---' },
-    { id: '6', title: 'Item Title 6', subtitle: 'Authentic taste', price: '₹ ---' },
-  ];
-
-  // Filter only items currently liked
-  const likedList = catalog.filter((item) => likedItems[item.id]);
+  // Filter only items currently liked from authentic menu
+  const likedDishes = useMemo(() => {
+    return MENU_ITEMS.filter((item) => likedItems[item.id]);
+  }, [likedItems]);
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-24">
@@ -59,7 +52,7 @@ export default function CustomerLikesPage() {
         </header>
 
         {/* Liked Items Grid / List */}
-        {likedList.length === 0 ? (
+        {likedDishes.length === 0 ? (
           <div className="w-full border-2 border-black rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-white mt-8 shadow-sm">
             <div className="w-16 h-16 rounded-full border-2 border-black flex items-center justify-center bg-zinc-50">
               <Heart className="w-8 h-8 text-zinc-400" />
@@ -77,7 +70,7 @@ export default function CustomerLikesPage() {
           </div>
         ) : (
           <div className="w-full grid grid-cols-2 gap-3.5">
-            {likedList.map((item) => {
+            {likedDishes.map((item) => {
               const currentQty = getItemQuantity(item.id);
 
               return (
@@ -89,18 +82,23 @@ export default function CustomerLikesPage() {
                     href={`/seat/${chairId}/item/${item.id}`}
                     className="w-full flex flex-col items-center cursor-pointer"
                   >
-                    {/* Enlarged Circular Image Placeholder */}
-                    <div className="w-24 h-24 rounded-full border-2 border-black flex items-center justify-center mb-2.5 bg-white shadow-xs">
-                      <span className="text-xs font-bold">Image</span>
+                    {/* Circular Image Container */}
+                    <div className="w-24 h-24 rounded-full border-2 border-black overflow-hidden flex items-center justify-center mb-2.5 bg-white shadow-xs">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     </div>
 
                     <span className="text-xs font-bold text-center truncate w-full">
                       {item.title}
                     </span>
-                    <span className="text-[10px] text-zinc-500 text-center truncate w-full">
-                      {item.subtitle}
+                    <span className="text-[10px] text-zinc-500 text-center line-clamp-1 w-full mt-0.5">
+                      {item.description}
                     </span>
-                    <span className="text-xs font-black mt-1">{item.price}</span>
+                    <span className="text-xs font-black mt-1">₹ {item.price}</span>
                   </Link>
 
                   {/* Actions Row: Add/Stepper + Unlike Button */}
