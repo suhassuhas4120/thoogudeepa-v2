@@ -125,13 +125,18 @@ export default function KitchenDisplaySystemPage() {
     }
   };
 
-  const updateItemStage = (itemKey: string, stage: 'REC' | 'PREP' | 'READY') => {
+  const updateItemStage = (
+    itemKey: string,
+    stage: 'REC' | 'PREP' | 'READY',
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string }
+  ) => {
     setItemStages((prev) => ({ ...prev, [itemKey]: stage }));
-    realtimeBridge.updateStage(itemKey, stage);
+    realtimeBridge.updateStage(itemKey, stage, meta);
   };
 
-  const handleCompleteOrder = (ticketNumber: string) => {
+  const handleCompleteOrder = (ticketNumber: string, chairId?: string) => {
     setActiveOrders((prev) => prev.filter((o) => o.order.ticket_number !== ticketNumber));
+    realtimeBridge.dispatchTicket(ticketNumber, chairId);
   };
 
   const handleClearAllOrders = async () => {
@@ -420,8 +425,8 @@ export default function KitchenDisplaySystemPage() {
                 </div>
               </div>
             ) : (
-              /* Grid of Active Orders */
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 w-full flex-1 overflow-y-auto py-2">
+              /* Grid of Active Orders (Content-fitting, compact, neatly aligned) */
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 w-full flex-1 overflow-y-auto py-1 items-start content-start">
                 {activeOrders.map((active) => {
                   const order = active.order;
                   const items = active.items;
@@ -430,56 +435,56 @@ export default function KitchenDisplaySystemPage() {
                   return (
                     <div
                       key={order.ticket_number || order.id}
-                      className="bg-white rounded-lg border-2 border-zinc-900 shadow-2xs p-2 flex flex-col justify-between overflow-hidden"
+                      className="w-full h-fit bg-white rounded-xl border-2 border-zinc-950 shadow-xs p-2.5 flex flex-col gap-2"
                     >
                       {/* Ticket Header */}
-                      <div className="pb-1 border-b border-zinc-200 flex items-center justify-between shrink-0">
+                      <div className="pb-1.5 border-b border-zinc-200 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-black text-xs text-zinc-950 uppercase tracking-tight">
+                          <span className="font-black text-xs text-zinc-950 uppercase tracking-tight bg-zinc-100 px-2 py-0.5 rounded border border-zinc-300">
                             SEAT {chairId}
                           </span>
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700 font-mono">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-zinc-600 font-mono">
                             #{order.ticket_number}
                           </span>
                         </div>
-                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 uppercase">
+                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase">
                           ₹ {order.total_amount}
                         </span>
                       </div>
 
-                      {/* Items List */}
-                      <div className="flex-1 flex flex-col gap-1.5 py-1.5 overflow-y-auto max-h-48">
+                      {/* Items List (Tight spacing, no excessive gaps) */}
+                      <div className="flex flex-col gap-1.5 py-0.5">
                         {items.length === 0 ? (
                           <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
                             Order received (compiling line items...)
                           </div>
                         ) : (
                           items.map((it, idx) => {
-                            const itemKey = it.id || `${it.dish_id}-${chairId}-${idx}`;
+                            const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
                             const currentStage = itemStages[itemKey] || it.stage || 'REC';
 
                             return (
                               <div
                                 key={itemKey}
-                                className="bg-[#fbf9f5] rounded border border-zinc-200 px-2 py-1 flex flex-col gap-1"
+                                className="bg-[#fbf9f5] rounded-lg border border-zinc-200 px-2.5 py-1.5 flex flex-col gap-1.5"
                               >
-                                <div className="flex items-center justify-between gap-1">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="w-4 h-4 rounded bg-zinc-900 text-white text-[9px] font-black flex items-center justify-center shrink-0">
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="w-5 h-5 rounded bg-zinc-900 text-white text-[10px] font-black flex items-center justify-center shrink-0">
                                       {it.quantity}x
                                     </span>
-                                    <span className="font-black text-[11px] text-zinc-900 truncate">
+                                    <span className="font-black text-xs text-zinc-900 truncate">
                                       {it.dish_name}
                                     </span>
                                   </div>
-                                  <span className="text-[10px] font-bold text-zinc-700 shrink-0">
+                                  <span className="text-[11px] font-bold text-zinc-700 shrink-0">
                                     ₹ {it.price * it.quantity}
                                   </span>
                                 </div>
 
-                                {/* Notes / Addons if present */}
+                                {/* Notes if present */}
                                 {it.notes && (
-                                  <div className="text-[9px] font-semibold text-zinc-500 truncate pl-5">
+                                  <div className="text-[9px] font-semibold text-zinc-500 truncate pl-7">
                                     Note: {it.notes}
                                   </div>
                                 )}
@@ -492,8 +497,14 @@ export default function KitchenDisplaySystemPage() {
                                       <button
                                         key={stage}
                                         type="button"
-                                        onClick={() => updateItemStage(itemKey, stage)}
-                                        className={`h-6 rounded text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${
+                                        onClick={() =>
+                                          updateItemStage(itemKey, stage, {
+                                            chairId: order.chair_id,
+                                            dishId: it.dish_id,
+                                            ticketNumber: order.ticket_number,
+                                          })
+                                        }
+                                        className={`h-7 rounded-md text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${
                                           isCurrent
                                             ? 'bg-zinc-950 text-white border-zinc-950 ring-1 ring-zinc-400'
                                             : 'bg-white hover:bg-zinc-100 text-zinc-700 border-zinc-300'
@@ -510,13 +521,13 @@ export default function KitchenDisplaySystemPage() {
                         )}
                       </div>
 
-                      {/* Ticket Dispatch / Complete Action */}
+                      {/* Ticket Dispatch Action */}
                       <button
                         type="button"
-                        onClick={() => handleCompleteOrder(order.ticket_number)}
-                        className="w-full py-1.5 rounded bg-zinc-900 hover:bg-black text-white font-black text-[10px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-2xs transition-colors cursor-pointer shrink-0 border border-zinc-900 mt-1"
+                        onClick={() => handleCompleteOrder(order.ticket_number, order.chair_id)}
+                        className="w-full py-2 rounded-lg bg-zinc-900 hover:bg-black text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0 border border-zinc-900 mt-0.5 active:scale-[0.99]"
                       >
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
                         <span>DISPATCH / DISMISS</span>
                       </button>
                     </div>

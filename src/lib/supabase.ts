@@ -107,8 +107,12 @@ export const realtimeBridge = {
     }
   },
 
-  // Update item stage
-  async updateStage(itemIdOrKey: string, stage: 'REC' | 'PREP' | 'READY'): Promise<boolean> {
+  // Update item stage with seat and dish metadata
+  async updateStage(
+    itemIdOrKey: string,
+    stage: 'REC' | 'PREP' | 'READY',
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string }
+  ): Promise<boolean> {
     try {
       if (supabase && itemIdOrKey.includes('-') && itemIdOrKey.length === 36) {
         await supabase.from('order_items').update({ stage, updated_at: new Date().toISOString() }).eq('id', itemIdOrKey);
@@ -118,11 +122,54 @@ export const realtimeBridge = {
           type: 'STAGE_CHANGE',
           key: itemIdOrKey,
           stage,
+          ...meta,
         });
+      }
+      if (typeof window !== 'undefined') {
+        const chair = meta?.chairId || '';
+        if (chair) {
+          try {
+            const key = `thoogudeepa_item_stages_${chair}`;
+            const existing = JSON.parse(localStorage.getItem(key) || '{}');
+            existing[itemIdOrKey] = stage;
+            if (meta?.dishId) existing[meta.dishId] = stage;
+            localStorage.setItem(key, JSON.stringify(existing));
+          } catch {
+            // Ignore storage errors
+          }
+        }
       }
       return true;
     } catch (err) {
       console.error('Error updating stage:', err);
+      return false;
+    }
+  },
+
+  // Dispatch / Complete order from pass
+  async dispatchTicket(ticketNumber: string, chairId?: string): Promise<boolean> {
+    try {
+      if (supabase) {
+        await supabase.from('orders').update({ status: 'ready', updated_at: new Date().toISOString() }).eq('ticket_number', ticketNumber);
+      }
+      if (localChannel) {
+        localChannel.postMessage({
+          type: 'TICKET_DISPATCHED',
+          ticketNumber,
+          chairId,
+        });
+      }
+      if (typeof window !== 'undefined' && chairId) {
+        try {
+          const key = `thoogudeepa_ticket_dispatched_${chairId}`;
+          localStorage.setItem(key, JSON.stringify({ ticketNumber, dispatchedAt: Date.now() }));
+        } catch {
+          // Ignore storage errors
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error('Error dispatching ticket:', err);
       return false;
     }
   },
@@ -205,7 +252,8 @@ export const realtimeBridge = {
   // Subscribe to KDS changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-    onStageChange?: (data: { key: string; stage: 'REC' | 'PREP' | 'READY' }) => void;
+    onStageChange?: (data: { key: string; stage: 'REC' | 'PREP' | 'READY'; dishId?: string; chairId?: string; ticketNumber?: string }) => void;
+    onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
     onClearAll?: () => void;
   }) {
@@ -222,7 +270,7 @@ export const realtimeBridge = {
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, (payload) => {
           if (callbacks.onStageChange) {
             const row = payload.new as OrderItemRecord;
-            callbacks.onStageChange({ key: row.id || row.dish_id, stage: row.stage });
+            callbacks.onStageChange({ key: row.id || row.dish_id, stage: row.stage, dishId: row.dish_id, chairId: row.chair_id });
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'dish_inventory' }, (payload) => {
@@ -242,7 +290,15 @@ export const realtimeBridge = {
       if (data.type === 'NEW_ORDER' && callbacks.onNewOrder) {
         callbacks.onNewOrder({ order: data.order, items: data.items });
       } else if (data.type === 'STAGE_CHANGE' && callbacks.onStageChange) {
-        callbacks.onStageChange({ key: data.key, stage: data.stage });
+        callbacks.onStageChange({
+          key: data.key,
+          stage: data.stage,
+          dishId: data.dishId,
+          chairId: data.chairId,
+          ticketNumber: data.ticketNumber,
+        });
+      } else if (data.type === 'TICKET_DISPATCHED' && callbacks.onTicketDispatched) {
+        callbacks.onTicketDispatched({ ticketNumber: data.ticketNumber, chairId: data.chairId });
       } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {
         callbacks.onAvailabilityChange({ dishId: data.dishId, isAvailable: data.isAvailable });
       } else if (data.type === 'CLEAR_ALL_ORDERS' && callbacks.onClearAll) {

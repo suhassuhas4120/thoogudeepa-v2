@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -12,12 +12,14 @@ import {
   Bell,
   CheckCircle2,
   ArrowRight,
-  Receipt
+  Receipt,
+  Flame,
 } from 'lucide-react';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { realtimeBridge } from '../../../../lib/supabase';
+import { getMenuItemById } from '../../../../lib/data/menuData';
 
 export default function LiveOrderTrackingPage() {
   const params = useParams();
@@ -30,23 +32,49 @@ export default function LiveOrderTrackingPage() {
 
   const [session, setSession] = useState<ActiveDiningSession | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [currentStep, setCurrentStep] = useState<number>(3); // 1 to 5
+  const [itemStages, setItemStages] = useState<Record<string, 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
+  const [isDispatched, setIsDispatched] = useState<boolean>(false);
 
   useEffect(() => {
     const s = getActiveDiningSession();
     if (s && s.seatId === chairId && s.paymentStatus === 'unpaid') {
       setSession(s);
-      if (s.orderStatus === 'ready') setCurrentStep(4);
-      else if (s.orderStatus === 'in_progress') setCurrentStep(3);
-      else setCurrentStep(2);
     }
+
+    // Restore cached stage progress for this seat if available
+    try {
+      const cachedStages = localStorage.getItem(`thoogudeepa_item_stages_${chairId}`);
+      if (cachedStages) {
+        setItemStages(JSON.parse(cachedStages));
+      }
+      const dispatchRecord = localStorage.getItem(`thoogudeepa_ticket_dispatched_${chairId}`);
+      if (dispatchRecord) {
+        setIsDispatched(true);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+
     setIsLoaded(true);
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
-        if (data.stage === 'READY') setCurrentStep(4);
-        else if (data.stage === 'PREP') setCurrentStep(3);
-        else if (data.stage === 'REC') setCurrentStep(2);
+        setItemStages((prev) => {
+          const nextStages = { ...prev };
+          if (data.key) nextStages[data.key] = data.stage;
+          if (data.dishId) nextStages[data.dishId] = data.stage;
+          return nextStages;
+        });
+      },
+      onTicketDispatched: (data) => {
+        if (!data.chairId || data.chairId === chairId) {
+          setIsDispatched(true);
+        }
+      },
+      onClearAll: () => {
+        setSession(null);
+        setItemStages({});
+        setIsDispatched(false);
       },
     });
 
@@ -55,16 +83,33 @@ export default function LiveOrderTrackingPage() {
     };
   }, [chairId]);
 
-  const steps = [
-    { label: 'Placed', time: session?.orderedAt ? new Date(session.orderedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--' },
-    { label: 'Received', time: 'Pass Sync' },
-    { label: 'Preparing', time: 'In Wok' },
-    { label: 'Ready', time: 'Pass Ready' },
-    { label: 'Served', time: 'At Table' },
-  ];
+  // Determine items list to track individually
+  const trackingDishes = useMemo(() => {
+    if (session?.items && session.items.length > 0) {
+      return session.items;
+    }
+    if (session) {
+      // Fallback single line item if placed before itemization
+      return [
+        {
+          id: 'dish-1',
+          title: 'Signature Donne Biryani Order',
+          quantity: 1,
+          price: session.totalAmount || 240,
+        },
+      ];
+    }
+    return [];
+  }, [session]);
+
+  const placedTimeStr = useMemo(() => {
+    return session?.orderedAt
+      ? new Date(session.orderedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : 'Just now';
+  }, [session]);
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-24">
+    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col gap-4">
         {/* Top Header */}
@@ -123,104 +168,164 @@ export default function LiveOrderTrackingPage() {
             </Link>
           </div>
         ) : (
-          /* Active Order Tracking */
+          /* Active Order Tracking with Individual Item Cards */
           <>
+            {/* Top Live Pass Status Banner */}
             <div className="w-full border-2 border-black rounded-2xl p-4 flex items-center justify-between bg-white shadow-sm">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-0.5 min-w-0">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-black" />
-                  <h2 className="text-base font-black tracking-tight">
-                    Live Order Tracking
+                  <Clock className="w-5 h-5 text-black shrink-0" />
+                  <h2 className="text-base font-black tracking-tight truncate">
+                    Live Dish Tracking
                   </h2>
                 </div>
-                <p className="text-xs text-zinc-600">
-                  Ticket #{session?.ticketNumber} • Kitchen pass preparation active
+                <p className="text-xs text-zinc-600 truncate">
+                  Ticket #{session?.ticketNumber} • {trackingDishes.length} {trackingDishes.length === 1 ? 'Dish' : 'Dishes'} in Kitchen Pass
                 </p>
               </div>
-              <div className="border border-black p-2 rounded-xl text-center shrink-0">
-                <Sparkles className="w-4 h-4 mx-auto mb-0.5" />
-                <span className="text-[9px] font-bold uppercase tracking-wider block">
-                  Live State
+
+              <div className="border border-black px-2.5 py-1.5 rounded-xl text-center shrink-0 bg-zinc-50">
+                <Sparkles className="w-4 h-4 mx-auto mb-0.5 text-amber-600" />
+                <span className="text-[9px] font-black uppercase tracking-wider block">
+                  Live Sync
                 </span>
               </div>
             </div>
 
-            {/* Active Ticket Tracking Card */}
-            <div className="w-full border-2 border-black rounded-2xl p-3.5 flex flex-col gap-3 bg-white shadow-sm">
-              <div className="w-full flex items-start justify-between gap-3">
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <span className="text-[9px] font-black uppercase tracking-wider border border-black px-1.5 py-0.5 rounded bg-zinc-100">
-                    PASS ACTIVE
-                  </span>
-                  <div className="w-20 h-20 rounded-full border-2 border-black flex items-center justify-center bg-white shadow-sm">
-                    <UtensilsCrossed className="w-8 h-8 text-black" />
-                  </div>
-                </div>
+            {/* Individual Item Cards */}
+            <div className="w-full flex flex-col gap-4">
+              {trackingDishes.map((dish, idx) => {
+                const numericDishId = dish.id.replace('dish-', '');
+                const dishDetails = getMenuItemById(numericDishId);
 
-                <div className="flex-1 flex flex-col gap-0.5 min-w-0 pt-1">
-                  <h3 className="text-sm font-black truncate">
-                    Military Kitchen Order
-                  </h3>
-                  <span className="text-[11px] text-zinc-700 font-bold">
-                    Ticket #{session?.ticketNumber}
-                  </span>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">
-                    Fresh donne biryani steamed in herbal spices. Hot and authentic.
-                  </p>
-                </div>
+                // Determine this item's specific stage
+                const itemKey1 = dish.id;
+                const itemKey2 = `dish-${numericDishId}`;
+                const itemKey3 = `${session?.ticketNumber}-${idx}`;
+                const stageRaw =
+                  isDispatched
+                    ? 'SERVED'
+                    : itemStages[itemKey1] ||
+                      itemStages[itemKey2] ||
+                      itemStages[itemKey3] ||
+                      'REC';
 
-                <div className="flex flex-col items-end gap-1.5 shrink-0 pt-1">
-                  <span className="text-sm font-black">₹ {session?.totalAmount}</span>
-                  <span className="text-[9px] font-bold border border-black px-2 py-0.5 rounded uppercase bg-emerald-50 text-emerald-800">
-                    {currentStep >= 4 ? 'Ready' : currentStep === 3 ? 'Preparing' : 'In Kitchen'}
-                  </span>
-                </div>
-              </div>
+                // Map stage to numeric step 1..5
+                let currentStepNum = 2; // Default Received
+                let badgeLabel = 'IN KITCHEN';
+                let badgeClass = 'bg-amber-50 text-amber-900 border-amber-300';
 
-              {/* 5-Step Horizontal Progress Tracker */}
-              <div className="w-full pt-2 border-t border-zinc-200">
-                <div className="flex items-center justify-between relative px-2">
-                  <div className="absolute top-3.5 left-6 right-6 h-0.5 bg-zinc-200 -z-10" />
+                if (stageRaw === 'SERVED') {
+                  currentStepNum = 5;
+                  badgeLabel = 'SERVED AT TABLE';
+                  badgeClass = 'bg-zinc-950 text-white border-zinc-950';
+                } else if (stageRaw === 'READY') {
+                  currentStepNum = 4;
+                  badgeLabel = 'READY TO SERVE';
+                  badgeClass = 'bg-emerald-50 text-emerald-900 border-emerald-400';
+                } else if (stageRaw === 'PREP') {
+                  currentStepNum = 3;
+                  badgeLabel = 'COOKING IN WOK';
+                  badgeClass = 'bg-orange-50 text-orange-950 border-orange-400';
+                }
+
+                // 5-Step tracking points for this specific dish
+                const dishSteps = [
+                  { label: 'Placed', sub: placedTimeStr },
+                  { label: 'Received', sub: 'Pass Sync' },
+                  { label: 'Preparing', sub: 'In Wok' },
+                  { label: 'Ready', sub: 'Pass Ready' },
+                  { label: 'Served', sub: 'At Table' },
+                ];
+
+                const progressPercent = ((currentStepNum - 1) / (dishSteps.length - 1)) * 88;
+
+                return (
                   <div
-                    className="absolute top-3.5 left-6 h-0.5 bg-black -z-10 transition-all duration-500"
-                    style={{
-                      width: `${((currentStep - 1) / (steps.length - 1)) * 88}%`,
-                    }}
-                  />
-
-                  {steps.map((st, idx) => {
-                    const stepNumber = idx + 1;
-                    const isCompleted = stepNumber < currentStep;
-                    const isCurrent = stepNumber === currentStep;
-
-                    return (
-                      <div
-                        key={st.label}
-                        className="flex flex-col items-center gap-1 min-w-[48px]"
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-full border-2 border-black flex items-center justify-center text-xs font-bold transition-all ${
-                            isCompleted
-                              ? 'bg-black text-white'
-                              : isCurrent
-                              ? 'bg-white text-black ring-2 ring-black scale-105'
-                              : 'bg-white text-zinc-400 border-zinc-300'
-                          }`}
-                        >
-                          {isCompleted ? '✓' : stepNumber}
+                    key={dish.id || idx}
+                    className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-3 bg-white shadow-sm transition-all"
+                  >
+                    {/* Dish Header Info */}
+                    <div className="w-full flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Circular Dish Image */}
+                        <div className="w-14 h-14 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100 shadow-2xs">
+                          <img
+                            src={dishDetails.imageUrl}
+                            alt={dish.title}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
                         </div>
 
-                        <span className="text-[9px] font-bold tracking-tight text-center">
-                          {st.label}
-                        </span>
-                        <span className="text-[8px] text-zinc-500 text-center">
-                          {st.time}
-                        </span>
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-md bg-zinc-950 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                              {dish.quantity}x
+                            </span>
+                            <h3 className="text-xs font-black truncate text-zinc-950">
+                              {dish.title}
+                            </h3>
+                          </div>
+                          <span className="text-[11px] font-bold text-zinc-600 mt-0.5">
+                            ₹ {dish.price * dish.quantity}
+                          </span>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+
+                      {/* Live State Badge */}
+                      <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border shrink-0 ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                    </div>
+
+                    {/* Individual Dish 5-Step Progress Stepper */}
+                    <div className="w-full pt-2 border-t border-zinc-200">
+                      <div className="flex items-center justify-between relative px-1">
+                        {/* Gray background track line */}
+                        <div className="absolute top-3.5 left-5 right-5 h-0.5 bg-zinc-200 -z-10" />
+                        {/* Active black track line */}
+                        <div
+                          className="absolute top-3.5 left-5 h-0.5 bg-black -z-10 transition-all duration-500"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+
+                        {dishSteps.map((st, stepIdx) => {
+                          const stepNumber = stepIdx + 1;
+                          const isCompleted = stepNumber < currentStepNum;
+                          const isCurrent = stepNumber === currentStepNum;
+
+                          return (
+                            <div
+                              key={st.label}
+                              className="flex flex-col items-center gap-1 min-w-[46px]"
+                            >
+                              <div
+                                className={`w-7 h-7 rounded-full border-2 border-black flex items-center justify-center text-xs font-bold transition-all ${
+                                  isCompleted
+                                    ? 'bg-black text-white'
+                                    : isCurrent
+                                    ? 'bg-white text-black ring-2 ring-black scale-105'
+                                    : 'bg-white text-zinc-400 border-zinc-300'
+                                }`}
+                              >
+                                {isCompleted ? '✓' : stepNumber}
+                              </div>
+
+                              <span className="text-[9px] font-bold tracking-tight text-center">
+                                {st.label}
+                              </span>
+                              <span className="text-[8px] text-zinc-500 text-center">
+                                {st.sub}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Add More Items Button */}
