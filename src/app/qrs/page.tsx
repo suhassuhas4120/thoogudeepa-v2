@@ -9,12 +9,12 @@ import {
   ExternalLink, 
   Search, 
   QrCode, 
-  SlidersHorizontal, 
   ChefHat, 
-  Layers, 
-  Check, 
-  Sparkles,
-  ArrowRight
+  Globe,
+  Wifi,
+  Laptop,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface SeatQR {
@@ -25,24 +25,21 @@ interface SeatQR {
 }
 
 export default function SeatQRsPage() {
-  const [origin, setOrigin] = useState<string>('https://thoogudeepa-v2.netlify.app');
+  const [hostPreset, setHostPreset] = useState<'cloud' | 'wifi' | 'local' | 'custom'>('cloud');
   const [customOrigin, setCustomOrigin] = useState<string>('');
-  const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [seatRange, setSeatRange] = useState<'all' | '1-25' | '26-50' | '51-75' | '76-100'>('1-25');
   const [cardLayout, setCardLayout] = useState<'stand' | 'compact'>('stand');
   const [generatedQRs, setGeneratedQRs] = useState<SeatQR[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Set default window origin once loaded in browser
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const currentHost = window.location.origin;
-      setOrigin(currentHost);
-    }
-  }, []);
-
-  const effectiveBaseUrl = isCustomMode && customOrigin.trim() ? customOrigin.trim().replace(/\/$/, '') : origin;
+  const effectiveBaseUrl = useMemo(() => {
+    if (hostPreset === 'cloud') return 'https://thoogudeepa-v2.netlify.app';
+    if (hostPreset === 'wifi') return 'http://192.168.0.4:3005';
+    if (hostPreset === 'local') return 'http://localhost:3005';
+    if (hostPreset === 'custom' && customOrigin.trim()) return customOrigin.trim().replace(/\/$/, '');
+    return 'https://thoogudeepa-v2.netlify.app';
+  }, [hostPreset, customOrigin]);
 
   // Generate 100 QR codes
   useEffect(() => {
@@ -144,7 +141,7 @@ export default function SeatQRsPage() {
                 </span>
               </div>
               <p className="text-xs text-zinc-500 font-medium">
-                Customer camera scan auto-routes to each seat's digital ordering menu & bill
+                Customer camera scan auto-routes to each seat's digital ordering menu &amp; bill
               </p>
             </div>
           </div>
@@ -168,6 +165,97 @@ export default function SeatQRsPage() {
             </button>
           </div>
         </div>
+
+        {/* Host Domain Preset Selector Bar */}
+        <div className="max-w-7xl mx-auto mt-3 pt-3 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-black text-zinc-700 uppercase tracking-wider">
+              Host Destination:
+            </span>
+            <div className="flex items-center bg-zinc-100 p-0.5 rounded-lg border border-zinc-200">
+              <button
+                type="button"
+                onClick={() => setHostPreset('cloud')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  hostPreset === 'cloud'
+                    ? 'bg-zinc-950 text-white shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-950'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Cloud Live (Recommended)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHostPreset('wifi')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  hostPreset === 'wifi'
+                    ? 'bg-zinc-950 text-white shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-950'
+                }`}
+              >
+                <Wifi className="w-3.5 h-3.5 text-amber-500" />
+                <span>Local Wi-Fi LAN</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHostPreset('local')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  hostPreset === 'local'
+                    ? 'bg-zinc-950 text-white shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-950'
+                }`}
+              >
+                <Laptop className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Localhost</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHostPreset('custom');
+                  if (!customOrigin) setCustomOrigin(effectiveBaseUrl);
+                }}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  hostPreset === 'custom'
+                    ? 'bg-zinc-950 text-white shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-950'
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+
+            {hostPreset === 'custom' && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  placeholder="https://your-custom-domain.com"
+                  value={customOrigin}
+                  onChange={(e) => setCustomOrigin(e.target.value)}
+                  className="px-2.5 py-1 text-xs rounded-md border border-zinc-300 w-64 bg-white focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Current URL Tag */}
+          <div className="text-[11px] text-zinc-500 flex items-center gap-1.5 truncate">
+            <span className="font-bold text-zinc-700">Scan Destination:</span>
+            <code className="bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded font-mono font-semibold text-zinc-800 text-[11px]">
+              {effectiveBaseUrl}/seat/[seatId]
+            </code>
+          </div>
+        </div>
+
+        {/* Informational Guidance Notice */}
+        {hostPreset === 'local' && (
+          <div className="max-w-7xl mx-auto mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>
+              <strong>Note:</strong> Scanning "localhost" on a phone camera fails because mobile devices cannot resolve your PC's localhost. Switch to <strong>Cloud Live</strong> or <strong>Local Wi-Fi LAN</strong> for phone camera scanning.
+            </span>
+          </div>
+        )}
 
         {/* Controls Bar */}
         <div className="max-w-7xl mx-auto mt-3 pt-3 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-3">
@@ -197,7 +285,7 @@ export default function SeatQRsPage() {
             ))}
           </div>
 
-          {/* Search & Base Domain Switcher */}
+          {/* Search & Layout Switcher */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Search Input */}
             <div className="relative flex-1 sm:w-44">
@@ -216,7 +304,7 @@ export default function SeatQRsPage() {
               <button
                 type="button"
                 onClick={() => setCardLayout('stand')}
-                className={`px-2.5 py-1 text-xs font-bold ${
+                className={`px-2.5 py-1 text-xs font-bold cursor-pointer ${
                   cardLayout === 'stand' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
                 }`}
               >
@@ -225,54 +313,13 @@ export default function SeatQRsPage() {
               <button
                 type="button"
                 onClick={() => setCardLayout('compact')}
-                className={`px-2.5 py-1 text-xs font-bold ${
+                className={`px-2.5 py-1 text-xs font-bold cursor-pointer ${
                   cardLayout === 'compact' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
                 }`}
               >
-                Sticker / Compact
+                Sticker
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Base URL indicator & Editor */}
-        <div className="max-w-7xl mx-auto mt-2 flex flex-wrap items-center justify-between text-[11px] text-zinc-500 gap-2">
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="font-bold text-zinc-700 uppercase">Target Link:</span>
-            <code className="bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-800 font-mono font-semibold truncate max-w-sm sm:max-w-md">
-              {effectiveBaseUrl}/seat/[seatId]
-            </code>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isCustomMode ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomOrigin(effectiveBaseUrl);
-                  setIsCustomMode(true);
-                }}
-                className="text-amber-700 font-bold hover:underline cursor-pointer"
-              >
-                Change Host Domain
-              </button>
-            ) : (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  placeholder="https://thoogudeepa.com"
-                  value={customOrigin}
-                  onChange={(e) => setCustomOrigin(e.target.value)}
-                  className="px-2 py-0.5 text-[11px] rounded border border-zinc-300 w-48 bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsCustomMode(false)}
-                  className="px-2 py-0.5 rounded bg-zinc-200 text-zinc-700 font-bold text-[10px]"
-                >
-                  Reset
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </header>
@@ -299,8 +346,8 @@ export default function SeatQRsPage() {
                 </p>
               </div>
               <div className="text-xs font-bold text-zinc-600 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                <span>Error Correction Level: High (smudge & spill resistant)</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                <span>Error Correction Level: High (smudge &amp; spill resistant)</span>
               </div>
             </div>
 
@@ -377,9 +424,9 @@ export default function SeatQRsPage() {
                     </Link>
                   </div>
 
-                  {/* Printable Cut / Table Guideline */}
+                  {/* Printable Table Guideline */}
                   <div className="hidden print:block w-full pt-1 border-t border-dashed border-zinc-300 text-[8px] text-zinc-400 font-mono">
-                    thoogudeepa-v2 • seat-{qr.seatId} • tabletop tent fold line
+                    thoogudeepa-v2 • seat-{qr.seatId} • tabletop fold line
                   </div>
                 </div>
               ))}

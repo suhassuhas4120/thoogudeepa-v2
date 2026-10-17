@@ -2,15 +2,19 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Heart, Minus, Plus, Bell } from 'lucide-react';
 import { useCart } from '../../../../lib/context/CartContext';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
+import { realtimeBridge } from '../../../../lib/supabase';
+import { setActiveDiningSession } from '../../../../lib/session/diningSession';
 
 export default function CustomerCartPage() {
   const params = useParams();
+  const router = useRouter();
   const chairId = (params?.chairId as string) || '12';
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Device hardware back button & swipe back: return to menu
   useHardwareBack(`/seat/${chairId}/menu`);
@@ -30,6 +34,58 @@ export default function CustomerCartPage() {
 
   // Additional items for the horizontal slidable row
   const extraItems = ['6', '7', '8', '9', '10'];
+
+  const handlePlaceOrder = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const ticketNum = `TK-${chairId}-${Math.floor(1000 + Math.random() * 9000)}`;
+      
+      const orderItems = activeItemIds.map((id, index) => {
+        const qty = getItemQuantity(id) || 1;
+        const price = 240 + (index * 20);
+        return {
+          chair_id: chairId,
+          seat_label: `SEAT ${chairId}`,
+          dish_id: `dish-${id}`,
+          dish_name: `Military Dish #${id}`,
+          quantity: qty,
+          price: price,
+          stage: 'REC' as const,
+        };
+      });
+
+      const totalAmt = orderItems.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+
+      const orderRecord = {
+        ticket_number: ticketNum,
+        chair_id: chairId,
+        seat_label: `SEAT ${chairId}`,
+        status: 'pending' as const,
+        total_amount: totalAmt,
+      };
+
+      const result = await realtimeBridge.placeOrder(orderRecord, orderItems);
+      const generatedOrderId = result.orderId || `ord-${Date.now()}`;
+
+      setActiveDiningSession({
+        seatId: chairId,
+        ticketNumber: ticketNum,
+        orderId: generatedOrderId,
+        orderStatus: 'pending',
+        paymentStatus: 'unpaid',
+        orderedAt: Date.now(),
+        totalAmount: totalAmt,
+      });
+
+      router.push(`/seat/${chairId}/tracking`);
+    } catch (err) {
+      console.error('Order dispatch error:', err);
+      router.push(`/seat/${chairId}/tracking`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-36">
@@ -210,15 +266,17 @@ export default function CustomerCartPage() {
 
       {/* Sticky Bottom Place Order Button above the bottom nav icons */}
       <div className="sticky bottom-16 z-30 w-full bg-white/95 backdrop-blur-sm pt-2 pb-2">
-        <Link
-          href={`/seat/${chairId}/tracking`}
-          className="w-full flex items-center justify-center gap-2.5 border-2 border-black bg-black text-white py-3.5 text-sm font-bold uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 transition-opacity shadow-md"
+        <button
+          type="button"
+          onClick={handlePlaceOrder}
+          disabled={isSubmitting}
+          className="w-full flex items-center justify-center gap-2.5 border-2 border-black bg-black text-white py-3.5 text-sm font-bold uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 transition-opacity shadow-md disabled:opacity-50"
         >
-          <span>Place Order</span>
+          <span>{isSubmitting ? 'Placing Order...' : 'Place Order'}</span>
           <span className="w-5 h-5 rounded-full bg-white text-black text-xs font-black flex items-center justify-center shrink-0">
             {activeItemIds.length}
           </span>
-        </Link>
+        </button>
       </div>
 
       {/* Fixed Bottom Navigation Bar */}

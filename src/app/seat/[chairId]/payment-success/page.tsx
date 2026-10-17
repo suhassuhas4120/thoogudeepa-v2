@@ -6,16 +6,26 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Check } from 'lucide-react';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
+import { clearActiveDiningSession, updateActiveDiningSession } from '../../../../lib/session/diningSession';
+import { useCart } from '../../../../lib/context/CartContext';
 
 function PaymentSuccessContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const chairId = (params?.chairId as string) || '12';
+  const { clearCart } = useCart();
 
   // Device hardware back button & swipe back: return to profile
   useHardwareBack(`/seat/${chairId}/profile`);
 
   const modeParam = searchParams?.get('mode') || 'Card';
+
+  // Mark session as paid and release anti-cheat lock
+  useEffect(() => {
+    updateActiveDiningSession({ paymentStatus: 'paid' });
+    clearActiveDiningSession();
+    clearCart();
+  }, [clearCart]);
 
   // Fixed completion timestamp recorded once and persisted permanently
   const [completionTimestamp, setCompletionTimestamp] = useState<{ date: string; time: string }>({

@@ -19,6 +19,7 @@ interface CartContextType {
     selectedOption?: string,
     addOns?: string[]
   ) => void;
+  clearCart: () => void;
   totalItemCount: number;
   likedItems: Record<string, boolean>;
   toggleLike: (itemId: string) => void;
@@ -124,6 +125,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const clearCart = () => {
+    setItems({});
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
   const totalItemCount = Object.values(items).reduce(
     (total, entry) => total + (entry.quantity || 0),
     0
@@ -136,6 +146,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         getItemQuantity,
         updateQuantity,
         addItemWithDetails,
+        clearCart,
         totalItemCount,
         likedItems,
         toggleLike,
