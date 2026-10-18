@@ -128,11 +128,11 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           >
             {/* Logo / Waiter Avatar Chip */}
             <div className="relative shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-black text-xs flex items-center justify-center shadow-xs border border-amber-600/20 overflow-hidden ring-2 ring-amber-400/20">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-white font-black text-xs flex items-center justify-center shadow-xs border border-amber-600/20 overflow-hidden ring-2 ring-amber-400/30">
                 <img 
-                  src="logo.jpg" 
+                  src="/logo.jpg" 
                   alt="Logo" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover rounded-full"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = 'none';
                   }}

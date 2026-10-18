@@ -196,15 +196,15 @@ export const DEFAULT_STAFF_ACCOUNTS: WaiterAuthAccount[] = [
   },
   {
     id: '2',
-    name: 'Suresh M',
-    initials: 'SM',
+    name: 'Suresh Gowda',
+    initials: 'SG',
     seatRange: 'Seats 11 to 20',
     passcode: '2345',
     zone: 'Zone 2'
   },
   {
     id: '3',
-    name: 'Anand K',
+    name: 'Anand Kumar',
     initials: 'AK',
     seatRange: 'Seats 21 to 30',
     passcode: '3456',
@@ -212,13 +212,98 @@ export const DEFAULT_STAFF_ACCOUNTS: WaiterAuthAccount[] = [
   },
   {
     id: '4',
-    name: 'Dinesh N',
+    name: 'Deepa Naik',
     initials: 'DN',
     seatRange: 'Seats 31 to 40',
     passcode: '4567',
     zone: 'Zone 4'
   }
 ];
+
+/**
+ * Dynamically generate assigned seat entities per staff member (10 Seats: 4 Dining, 6 Vacant)
+ */
+export const generateSeatsForStaff = (account: WaiterAuthAccount): SeatEntity[] => {
+  let baseNumber = 1;
+  if (account.id === '2' || account.name.includes('Suresh')) baseNumber = 11;
+  else if (account.id === '3' || account.name.includes('Anand')) baseNumber = 21;
+  else if (account.id === '4' || account.name.includes('Deepa') || account.name.includes('Dinesh')) baseNumber = 31;
+
+  const mockGuests = [
+    { name: 'Karthik R', total: 850, duration: '24m', status: 'occupied' as const },
+    { name: 'Suhas M', total: 1030, duration: '42m', status: 'billing' as const },
+    { name: 'Pooja S', total: 480, duration: '15m', status: 'occupied' as const },
+    { name: 'Vikas G', total: 620, duration: '31m', status: 'occupied' as const },
+  ];
+
+  return Array.from({ length: 10 }, (_, idx) => {
+    const num = baseNumber + idx;
+    const numStr = num < 10 ? `0${num}` : `${num}`;
+    const seatNumber = `Seat ${numStr}`;
+    
+    // Seat pattern: 4 occupied / billing, 6 vacant
+    if (idx === 2) {
+      return {
+        id: `seat-${numStr}`,
+        seatNumber,
+        numericId: num,
+        status: mockGuests[0].status,
+        guestName: mockGuests[0].name,
+        runningTotal: mockGuests[0].total,
+        diningDuration: mockGuests[0].duration,
+        itemCount: 3,
+        zone: account.zone
+      };
+    }
+    if (idx === 3) {
+      return {
+        id: `seat-${numStr}`,
+        seatNumber,
+        numericId: num,
+        status: mockGuests[1].status,
+        guestName: mockGuests[1].name,
+        runningTotal: mockGuests[1].total,
+        diningDuration: mockGuests[1].duration,
+        itemCount: 4,
+        zone: account.zone
+      };
+    }
+    if (idx === 5) {
+      return {
+        id: `seat-${numStr}`,
+        seatNumber,
+        numericId: num,
+        status: mockGuests[2].status,
+        guestName: mockGuests[2].name,
+        runningTotal: mockGuests[2].total,
+        diningDuration: mockGuests[2].duration,
+        itemCount: 2,
+        zone: account.zone
+      };
+    }
+    if (idx === 7) {
+      return {
+        id: `seat-${numStr}`,
+        seatNumber,
+        numericId: num,
+        status: mockGuests[3].status,
+        guestName: mockGuests[3].name,
+        runningTotal: mockGuests[3].total,
+        diningDuration: mockGuests[3].duration,
+        itemCount: 3,
+        zone: account.zone
+      };
+    }
+
+    return {
+      id: `seat-${numStr}`,
+      seatNumber,
+      numericId: num,
+      status: 'vacant' as const,
+      zone: account.zone
+    };
+  });
+};
 
 /**
  * Initial Zone 1 seat matrix (10 Seats: 4 Occupied, 6 Vacant)

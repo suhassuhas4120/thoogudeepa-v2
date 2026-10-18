@@ -154,57 +154,67 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
           </div>
         </div>
 
-        {/* PROMINENT ENLARGED LOGO CONTAINER (Proper Smartphone Proportions) */}
-        <div className="mt-1 mb-2 flex flex-col items-center">
+        {/* PROMINENT CIRCULAR LOGO CONTAINER (Authentic Rounded Brand Emblem) */}
+        <div className="mt-1 mb-2.5 flex flex-col items-center">
           <div className="relative">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white border border-slate-200/90 shadow-md p-2 flex items-center justify-center overflow-hidden ring-4 ring-amber-500/20">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white border-2 border-amber-400/60 shadow-md p-1.5 flex items-center justify-center overflow-hidden ring-4 ring-amber-500/20">
               <img 
-                src="logo.jpg" 
+                src="/logo.jpg" 
                 alt="ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ" 
-                className="w-full h-full object-cover rounded-2xl"
+                className="w-full h-full object-cover rounded-full"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23B91C1C"/><text x="50" y="55" font-size="38" text-anchor="middle" fill="white">👑</text></svg>';
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="%23B91C1C"/><text x="50" y="58" font-size="38" text-anchor="middle" fill="white">👑</text></svg>';
                 }}
               />
             </div>
             {/* Online Indicator Badge */}
-            <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-2xs" />
+            <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-2xs" />
           </div>
 
-          {/* ONLY KANNADA BRAND TITLE (No English Brand Title!) */}
+          {/* BRAND TITLE IN DEEP DARK COLOR */}
           <div className="text-center mt-2.5">
-            <h1 className="text-xl font-black text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
               ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
             </h1>
-            <span className="text-xs font-bold text-amber-700 tracking-wider block mt-0.5">
+            <span className="text-xs sm:text-sm font-extrabold text-amber-800 tracking-wider block mt-0.5">
               ಮಿಲಿಟರಿ ಹೋಟೆಲ್
             </span>
           </div>
         </div>
 
-        {/* Waiter Identification with Proper Placeholder (NO DROPDOWNS / TABS) */}
-        <div className="w-full max-w-[330px] mb-2.5">
-          <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-            Assigned Waiter / Staff ID
+        {/* Waiter Staff Selection Dropdown (Dynamic Seats Range) */}
+        <div className="w-full max-w-[330px] mb-3">
+          <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            Select Shift Waiter / Staff
           </label>
           <div className="relative flex items-center">
-            <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
-            <input
-              type="text"
-              defaultValue="Ramesh Kumar (Seats 01 – 10)"
-              placeholder="Enter Staff ID / Name (e.g. Ramesh - #TH-104)"
-              className="w-full h-11 pl-9 pr-3 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 shadow-2xs transition-all"
-            />
+            <UserCheck className="w-5 h-5 text-amber-600 absolute left-3.5 pointer-events-none" />
+            <select
+              value={selectedStaffId}
+              onChange={(e) => {
+                setSelectedStaffId(e.target.value);
+                setPin('');
+                setHasError(false);
+              }}
+              className="w-full h-12 pl-11 pr-9 rounded-xl bg-white border-2 border-slate-300 text-sm font-black text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs transition-all appearance-none cursor-pointer"
+            >
+              {DEFAULT_STAFF_ACCOUNTS.map(staff => (
+                <option key={staff.id} value={staff.id} className="text-xs font-bold py-1">
+                  {staff.name} ({staff.seatRange})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 pointer-events-none stroke-[2.5]" />
           </div>
         </div>
 
-        {/* Pre-Shift Section Status Preview (Zone 1: 4 Occupied, 6 Vacant) */}
-        <div className="w-full max-w-[330px] mb-2.5 p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-[10px] font-semibold text-slate-600 shadow-2xs">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-amber-600" />
-            <span>Zone 1 Section:</span>
+        {/* Pre-Shift Section Status Preview */}
+        <div className="w-full max-w-[330px] mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-700 shadow-2xs">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800">
+            <Layers className="w-4 h-4 text-amber-600" />
+            <span>{currentStaff.zone} ({currentStaff.seatRange}):</span>
           </div>
-          <div className="flex items-center gap-2 font-bold">
+          <div className="flex items-center gap-2 font-black text-xs">
             <span className="text-amber-700">4 Occupied</span>
             <span className="text-slate-300">•</span>
             <span className="text-emerald-700">6 Vacant</span>

@@ -42,7 +42,8 @@ import {
   INITIAL_SEAT_DATA,
   DEFAULT_STAFF_ACCOUNTS,
   SAMPLE_MENU_ITEMS,
-  RESTAURANT_CONSTANTS
+  RESTAURANT_CONSTANTS,
+  generateSeatsForStaff
 } from './types';
 import MobileLogin from './MobileLogin';
 import MobileHeader from './MobileHeader';
@@ -60,8 +61,8 @@ export const MobileCockpitMaster: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(DEFAULT_STAFF_ACCOUNTS[0]);
 
-  // Floor Seats State (Zone 1: 10 Seats)
-  const [seats, setSeats] = useState<SeatEntity[]>(INITIAL_SEAT_DATA);
+  // Floor Seats State (Dynamically populated based on active waiter's seat assignment)
+  const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
   const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
@@ -148,10 +149,22 @@ export const MobileCockpitMaster: React.FC = () => {
   // Handle successful staff PIN login
   const handleLoginSuccess = useCallback((account: WaiterAuthAccount) => {
     setActiveWaiterAccount(account);
+    setSeats(generateSeatsForStaff(account));
     setIsAuthenticated(true);
     setActiveScreen('seats');
     showToast(`Shift Authenticated: Welcome ${account.name}!`);
   }, [showToast]);
+
+  // Handle dynamic zone change
+  const handleZoneChange = useCallback((zoneLabel: string) => {
+    const staff = DEFAULT_STAFF_ACCOUNTS.find(s => 
+      zoneLabel.toLowerCase().includes(s.seatRange.toLowerCase()) || 
+      zoneLabel.toLowerCase().includes(s.zone.toLowerCase())
+    ) || activeWaiterAccount;
+    setActiveWaiterAccount(staff);
+    setSeats(generateSeatsForStaff(staff));
+    showToast(`Switched to ${staff.seatRange}`);
+  }, [activeWaiterAccount, showToast]);
 
   // Handle waiter logout / end shift
   const handleEndShift = useCallback(() => {
@@ -294,9 +307,12 @@ export const MobileCockpitMaster: React.FC = () => {
                   pendingAlertCount={alerts.length}
                   onOpenAlerts={() => setActiveScreen('alerts')}
                   onOpenProfile={() => setActiveScreen('profile')}
+                  onZoneChange={handleZoneChange}
                 />
                 <MobileSeatGrid
                   seats={seats}
+                  seatRange={activeWaiterAccount.seatRange}
+                  waiterName={activeWaiterAccount.name}
                   onOpenTakeOrder={handleOpenTakeOrder}
                   onOpenViewOrder={handleOpenViewOrder}
                   onOpenSeatOrder={handleOpenTakeOrder}
