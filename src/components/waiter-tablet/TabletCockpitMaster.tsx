@@ -14,7 +14,7 @@
  * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { 
   ScreenId, 
   PaymentMode, 
@@ -45,6 +45,9 @@ export const TabletCockpitMaster: React.FC = () => {
   // Navigation & Screen View State
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('login');
   const [profile, setProfile] = useState(INITIAL_WAITER_PROFILE);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+
   const [seats, setSeats] = useState<SeatItem[]>(INITIAL_SEATS);
   const [ticketItems, setTicketItems] = useState<TicketItem[]>(INITIAL_TICKET_ITEMS);
   const [alerts, setAlerts] = useState<ServiceAlert[]>(INITIAL_ALERTS);
@@ -72,11 +75,12 @@ export const TabletCockpitMaster: React.FC = () => {
     setTimeout(() => { setToastMessage(null); }, 2400);
   }, []);
 
-  const refreshSeats = useCallback(async () => {
+  const refreshSeats = useCallback(async (waiterIdOverride?: string) => {
+    const currentId = waiterIdOverride || profileRef.current.id;
     try {
-      const startSeat = profile.id === 'w2' ? 11 : profile.id === 'w3' ? 21 : profile.id === 'w4' ? 31 : 1;
+      const startSeat = currentId === 'w2' ? 11 : currentId === 'w3' ? 21 : currentId === 'w4' ? 31 : 1;
       const floorData = await realtimeBridge.getFloorSeats(startSeat, 10);
-      const defaultWaiterSeats = getSeatsForWaiter(profile.id);
+      const defaultWaiterSeats = getSeatsForWaiter(currentId);
 
       setSeats(floorData.map(f => {
         const fallback = defaultWaiterSeats.find(s => s.seatNumber === f.seatNumber);
@@ -96,7 +100,7 @@ export const TabletCockpitMaster: React.FC = () => {
     } catch (err) {
       console.error('Error loading tablet seats:', err);
     }
-  }, [profile.id]);
+  }, []);
 
   const refreshAlerts = useCallback(async () => {
     try {
@@ -200,6 +204,10 @@ export const TabletCockpitMaster: React.FC = () => {
       assignedZone: waiter.assignedZone || 'Zone 1 (Seats 01-10)',
       avatarInitials: waiter.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)
     }));
+    profileRef.current = {
+      ...profileRef.current,
+      id: waiter.id
+    };
     const newSeats = getSeatsForWaiter(waiter.id);
     setSeats(newSeats);
     if (newSeats.length > 0) {
@@ -208,6 +216,7 @@ export const TabletCockpitMaster: React.FC = () => {
       setActiveSeatAmount(newSeats[0].totalAmount);
     }
     setCurrentScreen('seats');
+    refreshSeats(waiter.id);
     showToast(`Shift Started: ${waiter.name} (${waiter.assignedZone || 'Seats 01-10'})`);
   };
 

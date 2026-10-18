@@ -20,7 +20,7 @@
  * - Strict Line Count: Maintained strictly between 300 and 400 lines
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   Info, 
   CheckCircle2, 
@@ -61,9 +61,11 @@ export const MobileCockpitMaster: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState<MobileScreenId>('login');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(DEFAULT_STAFF_ACCOUNTS[0]);
+  const activeAccountRef = useRef<WaiterAuthAccount>(activeWaiterAccount);
+  activeAccountRef.current = activeWaiterAccount;
 
-  // Floor Seats State (Zone 1: 10 Seats)
-  const [seats, setSeats] = useState<SeatEntity[]>(INITIAL_SEAT_DATA);
+  // Floor Seats State (Generated for active waiter)
+  const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
   const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
@@ -88,15 +90,16 @@ export const MobileCockpitMaster: React.FC = () => {
     }, 2600);
   }, []);
 
-  const refreshSeats = useCallback(async () => {
+  const refreshSeats = useCallback(async (accountOverride?: WaiterAuthAccount) => {
+    const account = accountOverride || activeAccountRef.current;
     try {
       let baseNumber = 1;
-      if (activeWaiterAccount.id === '2' || activeWaiterAccount.name.includes('Suresh')) baseNumber = 11;
-      else if (activeWaiterAccount.id === '3' || activeWaiterAccount.name.includes('Anand')) baseNumber = 21;
-      else if (activeWaiterAccount.id === '4' || activeWaiterAccount.name.includes('Deepa') || activeWaiterAccount.name.includes('Dinesh')) baseNumber = 31;
+      if (account.id === '2' || account.name.includes('Suresh')) baseNumber = 11;
+      else if (account.id === '3' || account.name.includes('Anand')) baseNumber = 21;
+      else if (account.id === '4' || account.name.includes('Deepa') || account.name.includes('Dinesh')) baseNumber = 31;
 
       const floorData = await realtimeBridge.getFloorSeats(baseNumber, 10);
-      const defaultStaffSeats = generateSeatsForStaff(activeWaiterAccount);
+      const defaultStaffSeats = generateSeatsForStaff(account);
 
       setSeats(floorData.map(f => {
         const fallback = defaultStaffSeats.find(s => s.seatNumber === f.seatNumber);
@@ -111,13 +114,13 @@ export const MobileCockpitMaster: React.FC = () => {
           itemCount: !isVacant ? f.itemCount : (fallback?.itemCount || 0),
           runningTotal: !isVacant ? f.runningTotal : (fallback?.runningTotal || 0),
           hasBillRequest: f.hasBillRequest || Boolean(fallback?.hasBillRequest),
-          zone: activeWaiterAccount.zone
+          zone: account.zone
         };
       }));
     } catch (err) {
       console.error('Error loading seats:', err);
     }
-  }, [activeWaiterAccount]);
+  }, []);
 
   const refreshAlerts = useCallback(async () => {
     try {
@@ -206,6 +209,7 @@ export const MobileCockpitMaster: React.FC = () => {
   // Handle successful staff PIN login
   const handleLoginSuccess = useCallback((account: WaiterAuthAccount) => {
     setActiveWaiterAccount(account);
+    activeAccountRef.current = account;
     setIsAuthenticated(true);
     const newSeats = generateSeatsForStaff(account);
     setSeats(newSeats);
@@ -215,16 +219,18 @@ export const MobileCockpitMaster: React.FC = () => {
       setSelectedBillAmount(newSeats[0].runningTotal || 0);
     }
     setActiveScreen('seats');
+    refreshSeats(account);
     showToast(`Shift Authenticated: Welcome ${account.name}!`);
-  }, [showToast]);
+  }, [refreshSeats, showToast]);
 
   // Handle dynamic zone change
   const handleZoneChange = useCallback((zoneLabel: string) => {
     const staff = DEFAULT_STAFF_ACCOUNTS.find(s => 
       zoneLabel.toLowerCase().includes(s.seatRange.toLowerCase()) || 
       zoneLabel.toLowerCase().includes(s.zone.toLowerCase())
-    ) || activeWaiterAccount;
+    ) || activeAccountRef.current;
     setActiveWaiterAccount(staff);
+    activeAccountRef.current = staff;
     const newSeats = generateSeatsForStaff(staff);
     setSeats(newSeats);
     if (newSeats.length > 0) {
@@ -232,8 +238,9 @@ export const MobileCockpitMaster: React.FC = () => {
       setSelectedGuestName(newSeats[0].guestName || 'Walk-In Guest');
       setSelectedBillAmount(newSeats[0].runningTotal || 0);
     }
+    refreshSeats(staff);
     showToast(`Switched to ${staff.seatRange}`);
-  }, [activeWaiterAccount, showToast]);
+  }, [refreshSeats, showToast]);
 
   // Handle waiter logout / end shift
   const handleEndShift = useCallback(() => {
