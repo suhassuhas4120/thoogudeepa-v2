@@ -45,8 +45,10 @@ export default function CustomerReceiptPage() {
 
   const [receipt, setReceipt] = useState<SettledReceipt | null>(null);
   const [selectedRating, setSelectedRating] = useState<string>('opt-1');
+  const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
+    setMounted(true);
     try {
       const stored = localStorage.getItem(`thoogudeepa_settled_receipt_${chairId}`);
       if (stored) {
@@ -73,13 +75,29 @@ export default function CustomerReceiptPage() {
     : Math.max(0, Math.round((totalAmount - tipAmount) / 1.05)));
   const cgst = Math.round(subtotal * 0.025);
   const sgst = Math.round(subtotal * 0.025);
-  const settleDate = receipt?.settledAt ? new Date(receipt.settledAt) : new Date();
 
-  const formattedDate = `${String(settleDate.getDate()).padStart(2, '0')}/${String(
-    settleDate.getMonth() + 1
-  ).padStart(2, '0')}/${settleDate.getFullYear()}`;
+  const settleTimestamp = receipt?.settledAt;
+  const settleDate = settleTimestamp ? new Date(settleTimestamp) : null;
 
-  const formattedTime = settleDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formattedDate = settleDate
+    ? `${String(settleDate.getDate()).padStart(2, '0')}/${String(
+        settleDate.getMonth() + 1
+      ).padStart(2, '0')}/${settleDate.getFullYear()}`
+    : mounted
+    ? `${String(new Date().getDate()).padStart(2, '0')}/${String(
+        new Date().getMonth() + 1
+      ).padStart(2, '0')}/${new Date().getFullYear()}`
+    : '19/10/2026';
+
+  const formattedTime = settleDate
+    ? `${String(settleDate.getHours()).padStart(2, '0')}:${String(
+        settleDate.getMinutes()
+      ).padStart(2, '0')}`
+    : mounted
+    ? `${String(new Date().getHours()).padStart(2, '0')}:${String(
+        new Date().getMinutes()
+      ).padStart(2, '0')}`
+    : '04:25';
 
   const handleShareWhatsApp = () => {
     let text = `*THOOGUDEEPA MILITARY HOTEL*\n`;
@@ -197,7 +215,7 @@ export default function CustomerReceiptPage() {
                   </div>
                   <div className="flex flex-col text-left">
                     <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Date</span>
-                    <span className="text-xs font-bold">{formattedDate}</span>
+                    <span className="text-xs font-bold" suppressHydrationWarning>{formattedDate}</span>
                   </div>
                 </div>
 
@@ -207,7 +225,7 @@ export default function CustomerReceiptPage() {
                   </div>
                   <div className="flex flex-col text-left">
                     <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Time</span>
-                    <span className="text-xs font-bold">{formattedTime}</span>
+                    <span className="text-xs font-bold" suppressHydrationWarning>{formattedTime}</span>
                   </div>
                 </div>
 
@@ -347,8 +365,8 @@ export default function CustomerReceiptPage() {
             <span>Invoice: #{receipt?.ticketNumber || seatNumber}</span>
           </div>
           <div className="flex justify-between">
-            <span>Date: {formattedDate}</span>
-            <span>Time: {formattedTime}</span>
+            <span suppressHydrationWarning>Date: {formattedDate}</span>
+            <span suppressHydrationWarning>Time: {formattedTime}</span>
           </div>
           <div className="flex justify-between">
             <span>Mode: {receipt?.mode || 'UPI'}</span>

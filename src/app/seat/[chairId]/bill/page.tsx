@@ -438,8 +438,8 @@ export default function OrderSummaryBillPage() {
           <span>Ticket: #{session?.ticketNumber || seatNumber}</span>
         </div>
         <div className="flex justify-between">
-          <span>Date: {new Date().toLocaleDateString('en-IN')}</span>
-          <span>Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+          <span suppressHydrationWarning>Date: {new Date().toLocaleDateString('en-IN')}</span>
+          <span suppressHydrationWarning>Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
         <div className="border-b border-black my-2" />
         <div className="flex justify-between font-bold">
