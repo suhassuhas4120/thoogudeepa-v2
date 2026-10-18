@@ -33,7 +33,7 @@ export default function LiveOrderTrackingPage() {
 
   const [session, setSession] = useState<ActiveDiningSession | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [itemStages, setItemStages] = useState<Record<string, 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
+  const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
   const [isDispatched, setIsDispatched] = useState<boolean>(false);
 
   useEffect(() => {
@@ -70,14 +70,49 @@ export default function LiveOrderTrackingPage() {
       // Ignore storage errors
     }
 
+    // Also fetch latest stages from remote active order if available
+    realtimeBridge.getOrderForSeat(chairId).then((res) => {
+      if (res.items && res.items.length > 0) {
+        setItemStages((prev) => {
+          const updated = { ...prev };
+          res.items.forEach((it, idx) => {
+            const itemKey1 = it.dish_id;
+            const itemKey2 = `dish-${it.dish_id}`;
+            const itemKey3 = `${res.order?.ticket_number || 'T'}-${idx}`;
+            if (it.stage) {
+              updated[itemKey1] = it.stage;
+              updated[itemKey2] = it.stage;
+              updated[itemKey3] = it.stage;
+            }
+          });
+          return updated;
+        });
+      }
+    }).catch(() => {});
+
     setIsLoaded(true);
+
+    const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        // Isolate updates: ignore stage events meant for other dining seats
+        if (targetChair && targetChair !== cleanCurrentChair) {
+          return;
+        }
+
         setItemStages((prev) => {
           const nextStages = { ...prev };
           if (data.key) nextStages[data.key] = data.stage;
-          if (data.dishId) nextStages[data.dishId] = data.stage;
+          if (data.dishId) {
+            nextStages[data.dishId] = data.stage;
+            nextStages[`dish-${data.dishId.replace('dish-', '')}`] = data.stage;
+            nextStages[data.dishId.replace('dish-', '')] = data.stage;
+          }
+          if (data.dishName) {
+            nextStages[data.dishName.toLowerCase()] = data.stage;
+          }
           return nextStages;
         });
       },
@@ -223,12 +258,12 @@ export default function LiveOrderTrackingPage() {
                     : itemStages[itemKey1] ||
                       itemStages[itemKey2] ||
                       itemStages[itemKey3] ||
-                      'REC';
+                      'PLACED';
 
                 // Map stage to numeric step 1..5
-                let currentStepNum = 2; // Default Received
-                let badgeLabel = 'IN KITCHEN';
-                let badgeClass = 'bg-amber-50 text-amber-900 border-amber-300';
+                let currentStepNum = 1; // Default Placed
+                let badgeLabel = 'ORDER PLACED';
+                let badgeClass = 'bg-sky-50 text-sky-900 border-sky-300';
 
                 if (stageRaw === 'SERVED') {
                   currentStepNum = 5;
@@ -242,6 +277,10 @@ export default function LiveOrderTrackingPage() {
                   currentStepNum = 3;
                   badgeLabel = 'COOKING IN WOK';
                   badgeClass = 'bg-orange-50 text-orange-950 border-orange-400';
+                } else if (stageRaw === 'REC') {
+                  currentStepNum = 2;
+                  badgeLabel = 'RECEIVED IN KITCHEN';
+                  badgeClass = 'bg-amber-50 text-amber-900 border-amber-300';
                 }
 
                 // 5-Step tracking points for this specific dish

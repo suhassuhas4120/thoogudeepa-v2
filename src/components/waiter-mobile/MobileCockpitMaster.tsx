@@ -20,7 +20,7 @@
  * - Strict Line Count: Maintained strictly between 300 and 400 lines
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   Info, 
   CheckCircle2, 
@@ -41,10 +41,12 @@ import {
   PaymentMethod,
   INITIAL_SEAT_DATA,
   DEFAULT_STAFF_ACCOUNTS,
+  generateSeatsForStaff,
   SAMPLE_MENU_ITEMS,
   RESTAURANT_CONSTANTS,
   generateSeatsForStaff
 } from './types';
+import { realtimeBridge } from '../../lib/supabase';
 import MobileLogin from './MobileLogin';
 import MobileHeader from './MobileHeader';
 import MobileSeatGrid from './MobileSeatGrid';
@@ -57,66 +59,58 @@ import MobileBottomNav from './MobileBottomNav';
 
 export const MobileCockpitMaster: React.FC = () => {
   // Navigation & Screen State
-  const [activeScreen, setActiveScreen] = useState<MobileScreenId>('login');
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(DEFAULT_STAFF_ACCOUNTS[0]);
+  const [activeScreen, setActiveScreen] = useState<MobileScreenId>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('thoogudeepa_waiter_mobile_screen') as MobileScreenId;
+      if (saved && ['seats', 'order', 'cart', 'bill', 'alerts', 'profile'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'login';
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('thoogudeepa_waiter_mobile_auth') === 'true';
+    }
+    return false;
+  });
+  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return DEFAULT_STAFF_ACCOUNTS[0];
+  });
+  const activeAccountRef = useRef<WaiterAuthAccount>(activeWaiterAccount);
+  activeAccountRef.current = activeWaiterAccount;
 
+<<<<<<< HEAD
   // Floor Seats State (Dynamically populated based on active waiter's seat assignment)
   const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
   const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
+=======
+  // Floor Seats State (Generated for active waiter)
+  const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
+  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('thoogudeepa_waiter_mobile_seat') || 'Seat 02';
+    }
+    return 'Seat 02';
+  });
+  const selectedSeatRef = useRef<string>(selectedSeatNumber);
+  selectedSeatRef.current = selectedSeatNumber;
+  const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
+>>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
 
   // Cart & KOT State
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { menuItem: SAMPLE_MENU_ITEMS[0], quantity: 2, lineTotal: 520 },
-    { menuItem: SAMPLE_MENU_ITEMS[2], quantity: 1, lineTotal: 220 }
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   // Floor Service Alerts State
-  const [alerts, setAlerts] = useState<FloorAlert[]>([
-    {
-      id: 'call-1',
-      type: 'customer_call',
-      seatNumber: 'Seat 03',
-      guestName: 'Rajesh V',
-      title: 'Water Refill Requested',
-      message: 'Water Refill Requested',
-      timeAgo: '2 mins ago',
-      isUrgent: false
-    },
-    {
-      id: 'call-2',
-      type: 'customer_call',
-      seatNumber: 'Seat 04',
-      guestName: 'Kiran R',
-      title: 'Bill Requested (₹840)',
-      message: 'Bill Requested (₹840)',
-      timeAgo: '1 min ago',
-      billAmount: 840,
-      isUrgent: true
-    },
-    {
-      id: 'kitchen-1',
-      type: 'kitchen_ready',
-      seatNumber: 'Seat 01',
-      title: '2x Chicken Donne Biryani',
-      message: 'Freshly cooked & plated in donne pot',
-      timeAgo: '1 min ago',
-      kotNumber: 'KOT #108',
-      isUrgent: false
-    },
-    {
-      id: 'kitchen-2',
-      type: 'kitchen_ready',
-      seatNumber: 'Seat 05',
-      title: '1x Chilli Chicken Dry',
-      message: 'Pass counter ready',
-      timeAgo: 'Just now',
-      kotNumber: 'KOT #109',
-      isUrgent: false
-    }
-  ]);
+  const [alerts, setAlerts] = useState<FloorAlert[]>([]);
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -129,13 +123,181 @@ export const MobileCockpitMaster: React.FC = () => {
     }, 2600);
   }, []);
 
+  const refreshSeats = useCallback(async (accountOverride?: WaiterAuthAccount) => {
+    const account = accountOverride || activeAccountRef.current;
+    try {
+      let baseNumber = 1;
+      if (account.id === '2' || account.name.includes('Suresh')) baseNumber = 11;
+      else if (account.id === '3' || account.name.includes('Anand')) baseNumber = 21;
+      else if (account.id === '4' || account.name.includes('Deepa') || account.name.includes('Dinesh')) baseNumber = 31;
+
+      const floorData = await realtimeBridge.getFloorSeats(baseNumber, 10);
+      const defaultStaffSeats = generateSeatsForStaff(account);
+
+      setSeats(floorData.map(f => {
+        const fallback = defaultStaffSeats.find(s => s.seatNumber === f.seatNumber);
+        const isVacant = f.status === 'vacant';
+        return {
+          id: f.id,
+          seatNumber: f.seatNumber,
+          numericId: f.numericId,
+          status: !isVacant ? f.status : (fallback ? fallback.status : f.status),
+          guestName: !isVacant ? f.guestName : (fallback?.guestName || 'Walk-In Guest'),
+          diningDuration: !isVacant ? f.diningDuration : (fallback?.diningDuration || '--'),
+          itemCount: !isVacant ? f.itemCount : (fallback?.itemCount || 0),
+          runningTotal: !isVacant ? f.runningTotal : (fallback?.runningTotal || 0),
+          hasBillRequest: f.hasBillRequest || Boolean(fallback?.hasBillRequest),
+          zone: account.zone
+        };
+      }));
+    } catch (err) {
+      console.error('Error loading seats:', err);
+    }
+  }, []);
+
+  const refreshAlerts = useCallback(async () => {
+    try {
+      const activeAlerts = await realtimeBridge.getServiceAlerts();
+      setAlerts(activeAlerts.filter(a => !a.isResolved).map(a => ({
+        id: a.id,
+        type: a.type,
+        seatNumber: a.seatNumber,
+        guestName: a.guestName,
+        title: a.title,
+        message: a.message,
+        timeAgo: a.timeAgo,
+        billAmount: a.billAmount,
+        kotNumber: a.kotNumber,
+        isUrgent: a.isUrgent
+      })));
+    } catch (err) {
+      console.error('Error loading alerts:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSeats();
+    refreshAlerts();
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onNewOrder: () => { refreshSeats(); refreshAlerts(); },
+      onStageChange: (data) => {
+        refreshAlerts();
+        const curSeat = selectedSeatRef.current || '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+
+        // Only update cartItems if the event belongs to the currently opened seat
+        if (targetChair && cleanCurSeat && targetChair !== cleanCurSeat) {
+          return;
+        }
+
+        const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
+        const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+        setCartItems(prev => prev.map(item => {
+          const itemNum = String(item.menuItem.id).replace(/[^0-9]/g, '');
+          const itemName = item.menuItem.name.toLowerCase().replace(/donne\s*/i, '').trim();
+
+          const matches =
+            String(item.menuItem.id) === data.dishId ||
+            data.key === String(item.menuItem.id) ||
+            (targetNum && itemNum === targetNum) ||
+            (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
+
+          if (matches) {
+            return { ...item, stage: data.stage };
+          }
+          return item;
+        }));
+      },
+      onTicketDispatched: () => { refreshAlerts(); },
+      onSeatOccupancyChange: () => { refreshSeats(); },
+      onNewAlert: (alert) => {
+        setAlerts(prev => {
+          if (prev.some(a => a.id === alert.id)) return prev;
+          return [{
+            id: alert.id,
+            type: alert.type,
+            seatNumber: alert.seatNumber,
+            guestName: alert.guestName,
+            title: alert.title,
+            message: alert.message,
+            timeAgo: alert.timeAgo,
+            billAmount: alert.billAmount,
+            kotNumber: alert.kotNumber,
+            isUrgent: alert.isUrgent
+          }, ...prev];
+        });
+      },
+      onResolveAlert: (alertId) => { setAlerts(prev => prev.filter(a => a.id !== alertId)); },
+      onBillRequested: () => { refreshSeats(); refreshAlerts(); },
+      onBillSettled: () => { refreshSeats(); refreshAlerts(); },
+      onClearAll: () => { refreshSeats(); refreshAlerts(); }
+    });
+
+    return () => unsub();
+  }, [refreshSeats, refreshAlerts]);
+
+  // Persist navigation and auth state to survive browser refresh
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_screen', activeScreen);
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_auth', String(isAuthenticated));
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_seat', selectedSeatNumber);
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_account', JSON.stringify(activeWaiterAccount));
+    }
+  }, [activeScreen, isAuthenticated, selectedSeatNumber, activeWaiterAccount]);
+
+  // Synchronize cart items with seat order data on mount or when seat changes
+  useEffect(() => {
+    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
+    if (!cleanChair) return;
+
+    let isMounted = true;
+    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
+      if (!isMounted) return;
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      }
+      if (details.items && details.items.length > 0) {
+        setCartItems(details.items.map(it => {
+          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+            id: String(it.dish_id || '999'),
+            name: it.dish_name,
+            kannadaName: '',
+            price: it.price,
+            category: 'biryani',
+            dietary: 'non_veg',
+            description: 'Authentic preparation',
+            prepTimeMinutes: 15,
+            isAvailable: true,
+            isBestseller: false
+          };
+          return {
+            menuItem: {
+              ...foundMenu,
+              id: it.dish_id || foundMenu.id,
+              name: it.dish_name || foundMenu.name
+            },
+            quantity: it.quantity,
+            lineTotal: it.price * it.quantity,
+            stage: it.stage as any
+          };
+        }));
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [selectedSeatNumber]);
+
   // Waiter Profile Telemetry
   const waiterProfile: WaiterProfile = useMemo(() => ({
     staffId: RESTAURANT_CONSTANTS.DEFAULT_WAITER_ID,
     name: activeWaiterAccount.name,
     initials: activeWaiterAccount.initials,
-    assignedSection: 'Zone 1 (Seats 01 – 10)',
-    assignedSeats: activeWaiterAccount.seatRange,
+    assignedSection: `${activeWaiterAccount.zone} (${activeWaiterAccount.seatRange})`,
+    assignedSeats: `${activeWaiterAccount.zone} (${activeWaiterAccount.seatRange})`,
     clockInTime: '11:00 AM',
     activeDuration: '4h 15m active',
     totalSales: 14850,
@@ -149,11 +311,42 @@ export const MobileCockpitMaster: React.FC = () => {
   // Handle successful staff PIN login
   const handleLoginSuccess = useCallback((account: WaiterAuthAccount) => {
     setActiveWaiterAccount(account);
+<<<<<<< HEAD
     setSeats(generateSeatsForStaff(account));
+=======
+    activeAccountRef.current = account;
+>>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
     setIsAuthenticated(true);
+    const newSeats = generateSeatsForStaff(account);
+    setSeats(newSeats);
+    if (newSeats.length > 0) {
+      setSelectedSeatNumber(newSeats[0].seatNumber);
+      setSelectedGuestName(newSeats[0].guestName || 'Walk-In Guest');
+      setSelectedBillAmount(newSeats[0].runningTotal || 0);
+    }
     setActiveScreen('seats');
+    refreshSeats(account);
     showToast(`Shift Authenticated: Welcome ${account.name}!`);
-  }, [showToast]);
+  }, [refreshSeats, showToast]);
+
+  // Handle dynamic zone change
+  const handleZoneChange = useCallback((zoneLabel: string) => {
+    const staff = DEFAULT_STAFF_ACCOUNTS.find(s => 
+      zoneLabel.toLowerCase().includes(s.seatRange.toLowerCase()) || 
+      zoneLabel.toLowerCase().includes(s.zone.toLowerCase())
+    ) || activeAccountRef.current;
+    setActiveWaiterAccount(staff);
+    activeAccountRef.current = staff;
+    const newSeats = generateSeatsForStaff(staff);
+    setSeats(newSeats);
+    if (newSeats.length > 0) {
+      setSelectedSeatNumber(newSeats[0].seatNumber);
+      setSelectedGuestName(newSeats[0].guestName || 'Walk-In Guest');
+      setSelectedBillAmount(newSeats[0].runningTotal || 0);
+    }
+    refreshSeats(staff);
+    showToast(`Switched to ${staff.seatRange}`);
+  }, [refreshSeats, showToast]);
 
   // Handle dynamic zone change
   const handleZoneChange = useCallback((zoneLabel: string) => {
@@ -177,14 +370,50 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleOpenTakeOrder = useCallback((seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Walk-In Guest');
+    setCartItems([]);
     setActiveScreen('order');
     showToast(`Taking new order for ${seatNum}`);
   }, [showToast]);
 
   // Handle viewing live cart for occupied seat
-  const handleOpenViewOrder = useCallback((seatNum: string, guest?: string) => {
+  const handleOpenViewOrder = useCallback(async (seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Dining Guest');
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    try {
+      const details = await realtimeBridge.getOrderForSeat(cleanChair);
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      }
+      if (details.items && details.items.length > 0) {
+        setCartItems(details.items.map(it => {
+          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+            id: String(it.dish_id || '999'),
+            name: it.dish_name,
+            kannadaName: '',
+            price: it.price,
+            category: 'biryani',
+            dietary: 'non_veg',
+            description: 'Authentic preparation',
+            prepTimeMinutes: 15,
+            isAvailable: true,
+            isBestseller: false
+          };
+          return {
+            menuItem: {
+              ...foundMenu,
+              id: it.dish_id || foundMenu.id,
+              name: it.dish_name || foundMenu.name
+            },
+            quantity: it.quantity,
+            lineTotal: it.price * it.quantity,
+            stage: it.stage as any
+          };
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching order for seat:', err);
+    }
     setActiveScreen('cart');
     showToast(`Viewing live order cart for ${seatNum}`);
   }, [showToast]);
@@ -204,7 +433,7 @@ export const MobileCockpitMaster: React.FC = () => {
       const existing = prev.find(i => i.menuItem.id === menuItem.id);
       if (!existing && change > 0) {
         showToast(`Added ${menuItem.name} to order`);
-        return [...prev, { menuItem, quantity: 1, lineTotal: menuItem.price }];
+        return [...prev, { menuItem, quantity: 1, lineTotal: menuItem.price, stage: 'PLACED' }];
       }
       if (existing) {
         const newQty = existing.quantity + change;
@@ -223,33 +452,107 @@ export const MobileCockpitMaster: React.FC = () => {
     });
   }, [showToast]);
 
-  // Fire KOT submission
+  // Fire KOT submission to Kitchen and update seat
   const handleFireKOT = useCallback((instructions: string) => {
-    showToast(`KOT #110 successfully sent to Kitchen printer!`);
-    // Update seat status to occupied
+    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
+    const ticketNum = String(Date.now()).slice(-4);
+    const totalAmount = cartItems.reduce((acc, c) => acc + c.lineTotal, 0);
+
+    const orderRecord = {
+      ticket_number: ticketNum,
+      chair_id: cleanChair,
+      seat_label: selectedSeatNumber,
+      status: 'pending' as const,
+      total_amount: totalAmount,
+      device_token: `waiter-${activeWaiterAccount.name}`,
+    };
+
+    const orderItems = cartItems.map((c) => ({
+      chair_id: cleanChair,
+      seat_label: selectedSeatNumber,
+      dish_id: String(c.menuItem.id),
+      dish_name: c.menuItem.name,
+      quantity: c.quantity,
+      price: c.menuItem.price,
+      stage: 'PLACED' as const,
+      notes: instructions || '',
+      addons: ['PLACED'],
+    }));
+
+    realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
+      refreshSeats();
+    });
+
+    setCartItems(prev => prev.map(c => ({ ...c, stage: 'PLACED' })));
+    showToast(`KOT #${ticketNum} successfully sent to Kitchen printer!`);
     setSeats(prev => prev.map(s => s.seatNumber === selectedSeatNumber ? {
       ...s,
       status: 'occupied',
       guestName: selectedGuestName,
       itemCount: cartItems.length,
-      runningTotal: cartItems.reduce((acc, c) => acc + c.lineTotal, 0)
+      runningTotal: totalAmount
     } : s));
-  }, [selectedSeatNumber, selectedGuestName, cartItems, showToast]);
+  }, [selectedSeatNumber, selectedGuestName, cartItems, activeWaiterAccount, refreshSeats, showToast]);
 
   // Resolve Customer Call
   const handleAttendCall = useCallback((alertId: string) => {
+    realtimeBridge.resolveServiceAlert(alertId);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
     showToast('Customer call marked as Attended!');
   }, [showToast]);
 
   // Serve Kitchen Dish
   const handleServeDish = useCallback((alertId: string, dishName: string) => {
+    realtimeBridge.resolveServiceAlert(alertId);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
     showToast(`Served ${dishName} to table!`);
   }, [showToast]);
 
-  // Settle Bill
+  // Handle serving an item from live cart
+  const handleServeItemMobile = useCallback((dishId: string) => {
+    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
+    const dish = cartItems.find(i => String(i.menuItem.id) === dishId);
+    const cleanDishNum = dishId.replace(/[^0-9]/g, '');
+
+    setCartItems(prev => prev.map(i => String(i.menuItem.id) === dishId ? { ...i, stage: 'SERVED' } : i));
+
+    realtimeBridge.updateStage(dishId, 'SERVED', {
+      chairId: cleanChair,
+      ticketNumber: activeTicketNumber || undefined,
+      dishId: dishId,
+      dishName: dish?.menuItem?.name
+    });
+
+    if (cleanDishNum) {
+      realtimeBridge.updateStage(`dish-${cleanDishNum}`, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: activeTicketNumber || undefined,
+        dishId: `dish-${cleanDishNum}`,
+        dishName: dish?.menuItem?.name
+      });
+      realtimeBridge.updateStage(cleanDishNum, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: activeTicketNumber || undefined,
+        dishId: cleanDishNum,
+        dishName: dish?.menuItem?.name
+      });
+    }
+
+    const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === selectedSeatNumber) && a.type === 'kitchen_ready');
+    if (matchingAlert) {
+      realtimeBridge.resolveServiceAlert(matchingAlert.id);
+      setAlerts(prev => prev.filter(a => a.id !== matchingAlert.id));
+    }
+
+    showToast(`Marked ${dish?.menuItem?.name || 'dish'} as served!`);
+  }, [selectedSeatNumber, cartItems, alerts, activeTicketNumber, showToast]);
+
+  // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    realtimeBridge.settleBill(cleanChair, method, amount).then(() => {
+      refreshSeats();
+    });
     setSeats(prev => prev.map(s => s.seatNumber === seatNum ? {
       ...s,
       status: 'vacant',
@@ -259,7 +562,7 @@ export const MobileCockpitMaster: React.FC = () => {
     } : s));
     setActiveScreen('seats');
     showToast(`${seatNum} settled via ${method.toUpperCase()} & marked clean!`);
-  }, [showToast]);
+  }, [refreshSeats, showToast]);
 
   // Cart Subtotal for Peek Pill
   const cartSubtotal = useMemo(() => {
@@ -317,7 +620,10 @@ export const MobileCockpitMaster: React.FC = () => {
                   onOpenViewOrder={handleOpenViewOrder}
                   onOpenSeatOrder={handleOpenTakeOrder}
                   onOpenSeatBill={handleOpenSeatBill}
-                  onRefreshSeats={() => showToast('Floor seats refreshed from cloud!')}
+                  onRefreshSeats={() => {
+                    refreshSeats();
+                    showToast('Floor seats refreshed from cloud!');
+                  }}
                 />
               </>
             )}
@@ -355,6 +661,7 @@ export const MobileCockpitMaster: React.FC = () => {
                 onOpenAlerts={() => setActiveScreen('alerts')}
                 onModifyQuantity={handleModifyCartQuantity}
                 onRemoveItem={(id) => setCartItems(prev => prev.filter(i => i.menuItem.id !== id))}
+                onServeItem={handleServeItemMobile}
                 onFireKOT={handleFireKOT}
                 onClearCart={() => setCartItems([])}
               />

@@ -271,9 +271,15 @@ export default function CustomerSeatPage() {
     <div className="min-h-screen w-full bg-white text-black flex flex-col items-center justify-between px-6 py-12 max-w-md mx-auto">
       {/* Upper area with enlarged circular logo */}
       <div className="w-full flex flex-col items-center pt-4 sm:pt-8">
-        <div className="w-36 h-36 sm:w-40 sm:h-40 rounded-full border-2 border-black flex flex-col items-center justify-center shadow-xs bg-white">
-          <span className="text-xs font-black tracking-widest uppercase text-zinc-400">THOOGUDEEPA</span>
-          <span className="text-base font-black uppercase tracking-tight">DONNE BIRYANI</span>
+        <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border-2 border-black p-1 bg-white shadow-md flex items-center justify-center overflow-hidden">
+          <img
+            src="/logo.jpg"
+            alt="ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ ಮನೆ"
+            className="w-full h-full object-cover rounded-full"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
         </div>
       </div>
 

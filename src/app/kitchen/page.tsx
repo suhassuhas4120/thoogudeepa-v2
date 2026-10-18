@@ -22,7 +22,8 @@ import {
   RotateCcw, 
   QrCode,
   Trash2,
-  Sparkles
+  Sparkles,
+  Flame
 } from 'lucide-react';
 
 export default function KitchenDisplaySystemPage() {
@@ -33,7 +34,7 @@ export default function KitchenDisplaySystemPage() {
 
   // Real incoming active orders from seats 01-100 (clean zero-order start)
   const [activeOrders, setActiveOrders] = useState<{ order: OrderRecord; items: OrderItemRecord[] }[]>([]);
-  const [itemStages, setItemStages] = useState<Record<string, 'REC' | 'PREP' | 'READY'>>({});
+  const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
 
   // Screen 3 Item availability with Lock/Unlock and Reset/Update protection
   const defaultStockStatus: Record<string, boolean> = MENU_ITEMS.reduce(
@@ -84,11 +85,42 @@ export default function KitchenDisplaySystemPage() {
       const orders = await realtimeBridge.getActiveOrders();
       if (!isCancelled) {
         setActiveOrders(orders || []);
-        const stages: Record<string, 'REC' | 'PREP' | 'READY'> = {};
+        const stages: Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'> = {};
         (orders || []).forEach((o) => {
+          const chair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
+          const tNum = o.order.ticket_number || '';
+          let cachedStages: Record<string, string> = {};
+          if (typeof window !== 'undefined' && chair) {
+            try {
+              cachedStages = JSON.parse(localStorage.getItem(`thoogudeepa_item_stages_${chair}`) || '{}');
+            } catch {}
+          }
+
           o.items.forEach((it) => {
-            const key = it.id || `${it.dish_id}-${it.chair_id}`;
-            stages[key] = it.stage || 'REC';
+            const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+            const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' =
+              (chair && tNum && it.dish_id && cachedStages[`${chair}-${tNum}-${it.dish_id}`] as any) ||
+              (chair && it.dish_id && cachedStages[`${chair}-${it.dish_id}`] as any) ||
+              (chair && dNum && cachedStages[`${chair}-${dNum}`] as any) ||
+              (chair && dName && cachedStages[`${chair}-${dName}`] as any) ||
+              (it.dish_id && cachedStages[it.dish_id] as any) ||
+              (dNum && cachedStages[dNum] as any) ||
+              (dName && cachedStages[dName] as any) ||
+              it.stage ||
+              'PLACED';
+
+            it.stage = effStage;
+
+            if (chair) {
+              if (tNum && it.dish_id) stages[`${chair}-${tNum}-${it.dish_id}`] = effStage;
+              if (tNum && dNum) stages[`${chair}-${tNum}-${dNum}`] = effStage;
+              if (it.dish_id) stages[`${chair}-${it.dish_id}`] = effStage;
+              if (dNum) stages[`${chair}-${dNum}`] = effStage;
+              if (dName) stages[`${chair}-${dName}`] = effStage;
+              if (it.id) stages[`${chair}-${it.id}`] = effStage;
+            }
           });
         });
         setItemStages(stages);
@@ -109,7 +141,68 @@ export default function KitchenDisplaySystemPage() {
         });
       },
       onStageChange: (data) => {
-        setItemStages((prev) => ({ ...prev, [data.key]: data.stage }));
+        const chair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        const tNum = data.ticketNumber || '';
+        const dId = data.dishId || data.key || '';
+        const num = dId.replace(/[^0-9]/g, '');
+        const cleanName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+        // Update itemStages strictly under chair-scoped keys to isolate seats
+        setItemStages((prev) => {
+          const next = { ...prev };
+          if (chair) {
+            if (tNum && dId) next[`${chair}-${tNum}-${dId}`] = data.stage;
+            if (tNum && num) next[`${chair}-${tNum}-${num}`] = data.stage;
+            if (dId) {
+              next[`${chair}-${dId}`] = data.stage;
+              next[`${chair}-dish-${dId.replace('dish-', '')}`] = data.stage;
+              next[`${chair}-${dId.replace('dish-', '')}`] = data.stage;
+            }
+            if (num) {
+              next[`${chair}-${num}`] = data.stage;
+              next[`${chair}-dish-${num}`] = data.stage;
+            }
+            if (cleanName) {
+              next[`${chair}-${cleanName}`] = data.stage;
+            }
+            if (data.key) {
+              next[`${chair}-${data.key}`] = data.stage;
+            }
+          }
+          return next;
+        });
+
+        // Update activeOrders items strictly for the matching seat and ticket
+        setActiveOrders((prev) =>
+          prev.map((o) => {
+            const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
+            if (chair && oChair !== chair) return o;
+            if (tNum && o.order.ticket_number && o.order.ticket_number !== tNum) return o;
+
+            const targetNum = num;
+            const targetName = cleanName;
+
+            const updatedItems = o.items.map((it) => {
+              const itNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+              const itName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+              const matches =
+                it.id === data.key ||
+                it.dish_id === data.key ||
+                it.dish_id === data.dishId ||
+                `dish-${it.dish_id}` === data.key ||
+                `dish-${data.dishId}` === it.dish_id ||
+                (targetNum && itNum === targetNum) ||
+                (targetName && (itName === targetName || itName.includes(targetName) || targetName.includes(itName)));
+
+              if (matches) {
+                return { ...it, stage: data.stage };
+              }
+              return it;
+            });
+
+            return { ...o, items: updatedItems };
+          })
+        );
       },
       onAvailabilityChange: (data) => {
         setStockStatus((prev) => ({ ...prev, [data.dishId]: data.isAvailable }));
@@ -153,10 +246,66 @@ export default function KitchenDisplaySystemPage() {
 
   const updateItemStage = (
     itemKey: string,
-    stage: 'REC' | 'PREP' | 'READY',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string }
+    stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
   ) => {
-    setItemStages((prev) => ({ ...prev, [itemKey]: stage }));
+    const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
+    const tNum = meta?.ticketNumber || '';
+    const dId = meta?.dishId || itemKey;
+    const num = dId.replace(/[^0-9]/g, '');
+    const cleanName = meta?.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+    // 1. Update React itemStages using strict chair-scoped keys
+    setItemStages((prev) => {
+      const next = { ...prev };
+      if (chair) {
+        if (tNum && dId) next[`${chair}-${tNum}-${dId}`] = stage;
+        if (tNum && num) next[`${chair}-${tNum}-${num}`] = stage;
+        if (dId) {
+          next[`${chair}-${dId}`] = stage;
+          next[`${chair}-dish-${dId.replace('dish-', '')}`] = stage;
+          next[`${chair}-${dId.replace('dish-', '')}`] = stage;
+        }
+        if (num) {
+          next[`${chair}-${num}`] = stage;
+          next[`${chair}-dish-${num}`] = stage;
+        }
+        if (cleanName) {
+          next[`${chair}-${cleanName}`] = stage;
+        }
+        next[`${chair}-${itemKey}`] = stage;
+      }
+      return next;
+    });
+
+    // 2. Update activeOrders items strictly for this chair and ticket
+    setActiveOrders((prev) =>
+      prev.map((o) => {
+        const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
+        if (chair && oChair !== chair) return o;
+        if (tNum && o.order.ticket_number && o.order.ticket_number !== tNum) return o;
+
+        const updatedItems = o.items.map((it) => {
+          const itNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+          const itName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+          const matches =
+            it.id === itemKey ||
+            it.dish_id === itemKey ||
+            it.dish_id === dId ||
+            (num && itNum === num) ||
+            (cleanName && (itName === cleanName || itName.includes(cleanName) || cleanName.includes(itName)));
+
+          if (matches) {
+            return { ...it, stage };
+          }
+          return it;
+        });
+
+        return { ...o, items: updatedItems };
+      })
+    );
+
+    // 3. Broadcast to all other devices with full seat, ticket, and dish metadata
     realtimeBridge.updateStage(itemKey, stage, meta);
   };
 
@@ -449,16 +598,45 @@ export default function KitchenDisplaySystemPage() {
         );
 
         {/* SCREEN 2: All Seats & Feeds (Dynamic Orders) */}
+        const activeTicketsToDisplay = activeOrders
+          .map((active) => {
+            const order = active.order;
+            const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
+
+            const tNum = order.ticket_number || '';
+            const unservedItems = active.items.filter((it, idx) => {
+              const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
+              const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+              const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+              const isServed =
+                it.stage === 'SERVED' ||
+                (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`] === 'SERVED') ||
+                (cleanChair && tNum && dNum && itemStages[`${cleanChair}-${tNum}-${dNum}`] === 'SERVED') ||
+                (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`] === 'SERVED') ||
+                (cleanChair && dNum && itemStages[`${cleanChair}-${dNum}`] === 'SERVED') ||
+                (cleanChair && dNum && itemStages[`${cleanChair}-dish-${dNum}`] === 'SERVED') ||
+                (cleanChair && dName && itemStages[`${cleanChair}-${dName}`] === 'SERVED') ||
+                (cleanChair && it.dish_name && itemStages[`${cleanChair}-${it.dish_name.toLowerCase()}`] === 'SERVED') ||
+                (cleanChair && itemStages[`${cleanChair}-${itemKey}`] === 'SERVED');
+
+              return !isServed;
+            });
+
+            return { ...active, unservedItems };
+          })
+          .filter((active) => active.items.length === 0 || active.unservedItems.length > 0);
+
         const screen2Content = (
           <div className="flex-1 flex flex-col justify-between w-full h-full overflow-hidden">
             {/* Header Status */}
             <div className="flex items-center justify-between pb-1 shrink-0 border-b border-zinc-200">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                  ALL SEATS ({activeOrders.length} ACTIVE {activeOrders.length === 1 ? 'TICKET' : 'TICKETS'})
+                  ALL SEATS ({activeTicketsToDisplay.length} ACTIVE {activeTicketsToDisplay.length === 1 ? 'TICKET' : 'TICKETS'})
                 </h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {activeOrders.length > 0 && (
+                {activeTicketsToDisplay.length > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAllOrders}
@@ -476,7 +654,7 @@ export default function KitchenDisplaySystemPage() {
             </div>
 
             {/* Zero Orders Fresh State */}
-            {activeOrders.length === 0 ? (
+            {activeTicketsToDisplay.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-300 rounded-2xl bg-white/60 my-auto">
                 <div className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-600 flex items-center justify-center text-emerald-700 mb-2.5 shadow-2xs">
                   <CheckCircle2 className="w-7 h-7" />
@@ -495,9 +673,8 @@ export default function KitchenDisplaySystemPage() {
             ) : (
               /* Grid of Active Orders (Content-fitting, compact, neatly aligned) */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 w-full flex-1 overflow-y-auto py-1 items-start content-start">
-                {activeOrders.map((active) => {
+                {activeTicketsToDisplay.map((active) => {
                   const order = active.order;
-                  const items = active.items;
                   const chairId = order.chair_id || '12';
 
                   return (
@@ -517,14 +694,28 @@ export default function KitchenDisplaySystemPage() {
 
                       {/* Items List (Tight spacing, no excessive gaps) */}
                       <div className="flex flex-col gap-1.5 py-0.5">
-                        {items.length === 0 ? (
+                        {active.items.length === 0 ? (
                           <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
                             Order received (compiling line items...)
                           </div>
                         ) : (
-                          items.map((it, idx) => {
+                          active.unservedItems.map((it, idx) => {
                             const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
-                            const currentStage = itemStages[itemKey] || it.stage || 'REC';
+                            const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
+                            const tNum = order.ticket_number || '';
+                            const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+                            const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+                            const currentStage =
+                              it.stage ||
+                              (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`]) ||
+                              (cleanChair && tNum && dNum && itemStages[`${cleanChair}-${tNum}-${dNum}`]) ||
+                              (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`]) ||
+                              (cleanChair && dNum && itemStages[`${cleanChair}-${dNum}`]) ||
+                              (cleanChair && dNum && itemStages[`${cleanChair}-dish-${dNum}`]) ||
+                              (cleanChair && dName && itemStages[`${cleanChair}-${dName}`]) ||
+                              (cleanChair && itemStages[`${cleanChair}-${itemKey}`]) ||
+                              'PLACED';
 
                             return (
                               <div
@@ -542,14 +733,43 @@ export default function KitchenDisplaySystemPage() {
                                 </div>
 
                                 {/* Customizations & Add-ons Clearly Visible */}
-                                {(it.notes || (it.addons && it.addons.length > 0)) && (
+                                {(it.notes || (it.addons && it.addons.length > 0 && !it.addons.every((a) => a === 'PLACED'))) && (
                                   <div className="text-[10px] font-bold text-amber-950 bg-amber-50/90 border border-amber-300 rounded px-2 py-1 leading-snug">
                                     <span className="font-black text-[9px] uppercase tracking-wide text-amber-800 block">
                                       ADD-ONS &amp; CUSTOMIZATION:
                                     </span>
-                                    <span>{it.notes || it.addons?.join(', ')}</span>
+                                    <span>{(it.notes || it.addons?.filter((a) => a !== 'PLACED').join(', '))}</span>
                                   </div>
                                 )}
+
+                                {/* Dish Stage Status Indicator */}
+                                <div className="flex items-center justify-between text-[9px] font-bold">
+                                  <span className="text-zinc-500 font-extrabold uppercase tracking-tight">Status:</span>
+                                  {currentStage === 'PLACED' && (
+                                    <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                      PLACED (Tap 1.REC to accept)
+                                    </span>
+                                  )}
+                                  {currentStage === 'REC' && (
+                                    <span className="text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <Check className="w-3 h-3 text-sky-600" />
+                                      RECEIVED IN KITCHEN
+                                    </span>
+                                  )}
+                                  {currentStage === 'PREP' && (
+                                    <span className="text-orange-900 bg-orange-50 px-2 py-0.5 rounded border border-orange-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <Flame className="w-3 h-3 text-orange-600" />
+                                      COOKING IN WOK
+                                    </span>
+                                  )}
+                                  {currentStage === 'READY' && (
+                                    <span className="text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      PASS READY TO SERVE
+                                    </span>
+                                  )}
+                                </div>
 
                                 {/* Interactive 3-Stage Stepper: REC -> PREP -> READY */}
                                 <div className="grid grid-cols-3 gap-1 pt-0.5">
@@ -564,6 +784,7 @@ export default function KitchenDisplaySystemPage() {
                                             chairId: order.chair_id,
                                             dishId: it.dish_id,
                                             ticketNumber: order.ticket_number,
+                                            dishName: it.dish_name,
                                           })
                                         }
                                         className={`h-7 rounded-md text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${
