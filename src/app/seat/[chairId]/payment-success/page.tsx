@@ -8,6 +8,7 @@ import CustomerBottomNav from '../../../../components/navigation/CustomerBottomN
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, clearActiveDiningSession, updateActiveDiningSession } from '../../../../lib/session/diningSession';
 import { useCart } from '../../../../lib/context/CartContext';
+import { realtimeBridge } from '../../../../lib/supabase';
 
 function PaymentSuccessContent() {
   const params = useParams();
@@ -29,7 +30,7 @@ function PaymentSuccessContent() {
   // Mark session as paid, save settled receipt record, and release anti-cheat lock
   useEffect(() => {
     const s = getActiveDiningSession();
-    let finalAmount = settledAmount;
+    let finalAmount = Number(amountParam) || 0;
     if (s && s.seatId === chairId) {
       finalAmount = s.totalAmount || finalAmount;
       setSettledAmount(finalAmount);
@@ -76,9 +77,11 @@ function PaymentSuccessContent() {
     setTransactionId(txn);
 
     updateActiveDiningSession({ paymentStatus: 'paid' });
+    realtimeBridge.releaseSeat(chairId);
     clearActiveDiningSession();
     clearCart();
-  }, [chairId, clearCart, modeParam, settledAmount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chairId, modeParam, amountParam]);
 
   // Completion timestamp recorded once and persisted permanently
   const [completionTimestamp, setCompletionTimestamp] = useState<{ date: string; time: string }>({

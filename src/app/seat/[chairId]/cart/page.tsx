@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Heart, Minus, Plus, Bell, ShoppingBag, ArrowRight } from 'lucide-react';
@@ -8,7 +8,12 @@ import { useCart } from '../../../../lib/context/CartContext';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { realtimeBridge } from '../../../../lib/supabase';
-import { setActiveDiningSession } from '../../../../lib/session/diningSession';
+import { 
+  setActiveDiningSession, 
+  getActiveDiningSession,
+  getDeviceToken, 
+  isDeviceLockedToDifferentSeat 
+} from '../../../../lib/session/diningSession';
 import { getMenuItemById } from '../../../../lib/data/menuData';
 
 export default function CustomerCartPage() {
@@ -17,10 +22,30 @@ export default function CustomerCartPage() {
   const chairId = (params?.chairId as string) || '12';
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Anti-Cheat & Seat Occupancy Guard on mount
+  useEffect(() => {
+    // 1. Device Lockout check
+    const lock = isDeviceLockedToDifferentSeat(chairId);
+    if (lock.isLocked && lock.activeSeatId) {
+      router.replace(`/seat/${lock.activeSeatId}/tracking`);
+      return;
+    }
+
+    // 2. Seat Occupancy Anti-Hijack check
+    async function checkOccupancy() {
+      const token = getDeviceToken();
+      const occ = await realtimeBridge.getSeatOccupancy(chairId, token);
+      if (occ.isOccupied && !occ.isOwner) {
+        router.replace(`/seat/${chairId}`);
+      }
+    }
+    checkOccupancy();
+  }, [chairId, router]);
+
   // Device hardware back button & swipe back: return to menu
   useHardwareBack(`/seat/${chairId}/menu`);
 
-  const { items, getItemQuantity, updateQuantity, likedItems } = useCart();
+  const { items, getItemQuantity, updateQuantity, likedItems, clearCart } = useCart();
   const likedCount = Object.values(likedItems).filter(Boolean).length;
 
   // Real items present in cart with quantity > 0 (strictly zero dummy items)
@@ -52,6 +77,16 @@ export default function CustomerCartPage() {
       const orderItems = activeItemIds.map((id) => {
         const qty = items[id]?.quantity || 1;
         const catalogEntry = getMenuItemById(id);
+        const cartEntry = items[id];
+        const notesParts: string[] = [];
+        if (cartEntry?.selectedOption) {
+          notesParts.push(`Option: ${cartEntry.selectedOption}`);
+        }
+        if (cartEntry?.addOns && cartEntry.addOns.length > 0) {
+          notesParts.push(`Add-ons: ${cartEntry.addOns.join(', ')}`);
+        }
+        const notes = notesParts.length > 0 ? notesParts.join(' • ') : undefined;
+
         return {
           chair_id: chairId,
           seat_label: `SEAT ${chairId}`,
@@ -60,35 +95,77 @@ export default function CustomerCartPage() {
           quantity: qty,
           price: catalogEntry.price,
           stage: 'REC' as const,
+          notes,
+          addons: cartEntry?.addOns,
         };
       });
 
+      // 1. Anti-Cheat Check: Cannot place order for another seat if device owes a different seat
+      const lockCheck = isDeviceLockedToDifferentSeat(chairId);
+      if (lockCheck.isLocked && lockCheck.activeSeatId) {
+        router.replace(`/seat/${lockCheck.activeSeatId}/tracking`);
+        return;
+      }
+
+      // 2. Anti-Hijack Check: Verify seat is not occupied by another customer
+      const deviceToken = getDeviceToken();
+      const occupancy = await realtimeBridge.getSeatOccupancy(chairId, deviceToken);
+      if (occupancy.isOccupied && !occupancy.isOwner) {
+        router.replace(`/seat/${chairId}`);
+        return;
+      }
+
+      const existingSession = getActiveDiningSession();
+      const isSameSession =
+        existingSession &&
+        existingSession.seatId === chairId &&
+        existingSession.paymentStatus === 'unpaid';
+
+      const activeTicketNumber = isSameSession ? existingSession.ticketNumber : ticketNum;
+
       const orderRecord = {
-        ticket_number: ticketNum,
+        ticket_number: activeTicketNumber,
         chair_id: chairId,
         seat_label: `SEAT ${chairId}`,
         status: 'pending' as const,
         total_amount: grandTotal,
+        device_token: deviceToken,
       };
 
       const result = await realtimeBridge.placeOrder(orderRecord, orderItems);
       const generatedOrderId = result.orderId || `ord-${Date.now()}`;
 
+      const newDishes = orderItems.map((oi) => ({
+        id: oi.dish_id,
+        title: oi.dish_name,
+        quantity: oi.quantity,
+        price: oi.price,
+        notes: oi.notes,
+        addons: oi.addons,
+      }));
+
+      const mergedDishes =
+        isSameSession && existingSession.items && existingSession.items.length > 0
+          ? [...existingSession.items, ...newDishes]
+          : newDishes;
+
+      const mergedTotal =
+        (isSameSession && existingSession.totalAmount ? existingSession.totalAmount : 0) + grandTotal;
+
       setActiveDiningSession({
         seatId: chairId,
-        ticketNumber: ticketNum,
-        orderId: generatedOrderId,
+        ticketNumber: activeTicketNumber,
+        orderId: isSameSession ? existingSession.orderId : generatedOrderId,
         orderStatus: 'pending',
         paymentStatus: 'unpaid',
-        orderedAt: Date.now(),
-        totalAmount: grandTotal,
-        items: orderItems.map((oi) => ({
-          id: oi.dish_id,
-          title: oi.dish_name,
-          quantity: oi.quantity,
-          price: oi.price,
-        })),
+        orderedAt: isSameSession ? existingSession.orderedAt : Date.now(),
+        totalAmount: mergedTotal,
+        deviceToken,
+        items: mergedDishes,
       });
+
+      // Clear tray after dispatch
+      clearCart();
 
       router.push(`/seat/${chairId}/tracking`);
     } catch (err) {
@@ -162,11 +239,11 @@ export default function CustomerCartPage() {
                   className="w-full border border-black rounded-2xl p-3 flex items-center justify-between bg-white shadow-sm gap-3"
                 >
                   {/* Circular Image Container */}
-                  <div className="w-16 h-16 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100 shadow-2xs">
+                  <div className="w-16 h-16 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
                     <img
                       src={dish.imageUrl}
                       alt={dish.title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-center rounded-full"
                       loading="lazy"
                     />
                   </div>

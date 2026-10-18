@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   ChevronLeft,
   Clock,
@@ -17,12 +17,13 @@ import {
 } from 'lucide-react';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
-import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
+import { getActiveDiningSession, ActiveDiningSession, getDeviceToken } from '../../../../lib/session/diningSession';
 import { realtimeBridge } from '../../../../lib/supabase';
 import { getMenuItemById } from '../../../../lib/data/menuData';
 
 export default function LiveOrderTrackingPage() {
   const params = useParams();
+  const router = useRouter();
   const chairId = (params?.chairId as string) || '12';
 
   // Device hardware back button & swipe back: return to cart
@@ -36,8 +37,22 @@ export default function LiveOrderTrackingPage() {
   const [isDispatched, setIsDispatched] = useState<boolean>(false);
 
   useEffect(() => {
+    // Verify occupancy: if occupied by someone else, redirect to seat entrance
+    async function checkAccess() {
+      const token = getDeviceToken();
+      const occ = await realtimeBridge.getSeatOccupancy(chairId, token);
+      if (occ.isOccupied && !occ.isOwner) {
+        router.replace(`/seat/${chairId}`);
+      }
+    }
+    checkAccess();
+
     const s = getActiveDiningSession();
-    if (s && s.seatId === chairId && s.paymentStatus === 'unpaid') {
+    if (s && s.paymentStatus === 'unpaid') {
+      if (s.seatId !== chairId) {
+        router.replace(`/seat/${s.seatId}/tracking`);
+        return;
+      }
       setSession(s);
     }
 
@@ -249,11 +264,11 @@ export default function LiveOrderTrackingPage() {
                     <div className="w-full flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Circular Dish Image */}
-                        <div className="w-14 h-14 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100 shadow-2xs">
+                        <div className="w-14 h-14 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
                           <img
                             src={dishDetails.imageUrl}
                             alt={dish.title}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-center rounded-full"
                             loading="lazy"
                           />
                         </div>

@@ -1,0 +1,6 @@
+{
+  "gitGraph.showStatusBarItem": true,
+  "gitGraph.repository.showCommitsOnlyReferencedByTags": false,
+  "git.enableSmartCommit": true,
+  "git.autofetch": true
+}

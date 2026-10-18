@@ -21,7 +21,11 @@ export default function CustomerSelfPaymentPage() {
 
   useEffect(() => {
     const s = getActiveDiningSession();
-    if (s && s.seatId === chairId) {
+    if (s && s.paymentStatus === 'unpaid') {
+      if (s.seatId !== chairId) {
+        window.location.replace(`/seat/${s.seatId}/payment`);
+        return;
+      }
       setSession(s);
     }
   }, [chairId]);

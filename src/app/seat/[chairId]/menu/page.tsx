@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   ChevronLeft,
   Bell,
@@ -17,10 +17,33 @@ import { useCart } from '../../../../lib/context/CartContext';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { MENU_CATEGORIES, MENU_ITEMS } from '../../../../lib/data/menuData';
+import { isDeviceLockedToDifferentSeat, getDeviceToken } from '../../../../lib/session/diningSession';
+import { realtimeBridge } from '../../../../lib/supabase';
 
 export default function CustomerMenuPage() {
   const params = useParams();
+  const router = useRouter();
   const chairId = (params?.chairId as string) || '12';
+
+  // Anti-Cheat & Seat Occupancy Guard
+  useEffect(() => {
+    // 1. Device Lockout check
+    const lock = isDeviceLockedToDifferentSeat(chairId);
+    if (lock.isLocked && lock.activeSeatId) {
+      router.replace(`/seat/${lock.activeSeatId}/tracking`);
+      return;
+    }
+
+    // 2. Seat Occupancy Anti-Hijack check
+    async function checkOccupancy() {
+      const token = getDeviceToken();
+      const occ = await realtimeBridge.getSeatOccupancy(chairId, token);
+      if (occ.isOccupied && !occ.isOwner) {
+        router.replace(`/seat/${chairId}`);
+      }
+    }
+    checkOccupancy();
+  }, [chairId, router]);
 
   // Device hardware back button & swipe back: return to seat entrance
   useHardwareBack(`/seat/${chairId}`);
@@ -159,7 +182,7 @@ export default function CustomerMenuPage() {
           </div>
         ) : (
           /* 2-Column Product Cards Grid with circular image area */
-          <div className="w-full grid grid-cols-2 gap-x-3.5 gap-y-20 mt-18">
+          <div className="w-full grid grid-cols-2 gap-x-3.5 gap-y-24 mt-20">
             {filteredDishes.map((item) => {
               const currentQty = getItemQuantity(item.id);
               const isLiked = isItemLiked(item.id);
@@ -167,7 +190,7 @@ export default function CustomerMenuPage() {
               return (
                 <div
                   key={item.id}
-                  className="relative border border-black rounded-2xl pt-18 sm:pt-20 pb-3.5 px-3 flex flex-col items-center text-center bg-white shadow-2xs"
+                  className="relative border border-black rounded-2xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-white shadow-2xs"
                 >
                   {/* Clickable Card Body opening Item Details */}
                   <Link
@@ -175,11 +198,11 @@ export default function CustomerMenuPage() {
                     className="w-full flex flex-col items-center cursor-pointer active:opacity-75"
                   >
                     {/* Circular Image Container */}
-                    <div className="absolute -top-14 sm:-top-16 w-28 h-28 sm:w-32 sm:h-32 rounded-full border-2 border-black bg-white overflow-hidden shadow-sm flex items-center justify-center">
+                    <div className="absolute -top-16 sm:-top-18 w-32 h-32 sm:w-36 sm:h-36 rounded-full border-2 border-black bg-[#fbf9f5] overflow-hidden shadow-sm flex items-center justify-center p-0.5">
                       <img
                         src={item.imageUrl}
                         alt={item.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover object-center rounded-full"
                         loading="lazy"
                       />
                     </div>

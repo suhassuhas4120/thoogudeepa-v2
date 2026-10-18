@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { realtimeBridge, OrderRecord, OrderItemRecord } from '@/lib/supabase';
+import { MENU_ITEMS } from '@/lib/data/menuData';
 import { 
   ShieldCheck, 
   Tablet, 
@@ -35,21 +36,45 @@ export default function KitchenDisplaySystemPage() {
   const [itemStages, setItemStages] = useState<Record<string, 'REC' | 'PREP' | 'READY'>>({});
 
   // Screen 3 Item availability with Lock/Unlock and Reset/Update protection
-  const defaultStockStatus: Record<string, boolean> = {
-    'chicken-biryani': true,
-    'mutton-biryani': true,
-    'donne-egg-biryani': true,
-    'gunfire-kebab': true,
-    'chicken-sukka': true,
-    'donne-khushka': true,
-    'mutton-chukka': true,
-    'guntur-chicken': true,
-  };
+  const defaultStockStatus: Record<string, boolean> = MENU_ITEMS.reduce(
+    (acc, it) => {
+      acc[it.id] = true;
+      return acc;
+    },
+    {} as Record<string, boolean>
+  );
 
   const [stockStatus, setStockStatus] = useState<Record<string, boolean>>(defaultStockStatus);
   const [committedStockStatus, setCommittedStockStatus] = useState<Record<string, boolean>>(defaultStockStatus);
   const [isStockLocked, setIsStockLocked] = useState<boolean>(true);
   const [stockNotice, setStockNotice] = useState<string>('');
+
+  // Auditory chime notification on incoming kitchen ticket
+  const playKitchenChime = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.6);
+    } catch {
+      // Ignore audio policy before user interaction
+    }
+  };
 
   // Fetch active orders and subscribe to real-time updates
   useEffect(() => {
@@ -57,10 +82,10 @@ export default function KitchenDisplaySystemPage() {
 
     async function loadOrders() {
       const orders = await realtimeBridge.getActiveOrders();
-      if (!isCancelled && orders.length > 0) {
-        setActiveOrders(orders);
+      if (!isCancelled) {
+        setActiveOrders(orders || []);
         const stages: Record<string, 'REC' | 'PREP' | 'READY'> = {};
-        orders.forEach((o) => {
+        (orders || []).forEach((o) => {
           o.items.forEach((it) => {
             const key = it.id || `${it.dish_id}-${it.chair_id}`;
             stages[key] = it.stage || 'REC';
@@ -74,6 +99,7 @@ export default function KitchenDisplaySystemPage() {
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onNewOrder: (newOrder) => {
+        playKitchenChime();
         setActiveOrders((prev) => {
           const exists = prev.some(
             (o) => o.order.ticket_number === newOrder.order.ticket_number || (o.order.id && o.order.id === newOrder.order.id)
@@ -140,10 +166,41 @@ export default function KitchenDisplaySystemPage() {
   };
 
   const handleClearAllOrders = async () => {
-    if (window.confirm('Reset kitchen display and remove all orders for a fresh start?')) {
+    // 1. Immediately wipe React state so UI updates to 0 orders instantly
+    setActiveOrders([]);
+    setItemStages({});
+    setStockNotice('All kitchen orders deleted');
+    setTimeout(() => setStockNotice(''), 3500);
+
+    // 2. Wipe browser storage synchronously
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('thoogudeepa_v2_active_orders_list');
+        localStorage.removeItem('thoogudeepa_v2_seat_occupancy_registry');
+        const keys = Object.keys(localStorage);
+        for (const k of keys) {
+          if (
+            k.startsWith('thoogudeepa') ||
+            k.includes('order') ||
+            k.includes('session') ||
+            k.includes('cart') ||
+            k.includes('stage') ||
+            k.includes('ticket')
+          ) {
+            localStorage.removeItem(k);
+          }
+        }
+        sessionStorage.clear();
+      } catch (err) {
+        console.error('Storage clear error:', err);
+      }
+    }
+
+    // 3. Clear remote database and broadcast
+    try {
       await realtimeBridge.clearAllOrders();
-      setActiveOrders([]);
-      setItemStages({});
+    } catch (err) {
+      console.error('Realtime clear error:', err);
     }
   };
 
@@ -232,11 +289,11 @@ export default function KitchenDisplaySystemPage() {
           <button
             type="button"
             onClick={handleClearAllOrders}
-            className="px-3 py-1.5 rounded-full text-red-700 hover:text-white hover:bg-red-700 border border-red-300 text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Remove all orders for a clean slate"
+            className="px-3.5 py-1.5 rounded-full bg-red-50 text-red-700 hover:text-white hover:bg-red-700 border border-red-300 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+            title="Delete all kitchen orders"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Reset Orders</span>
+            <span>Delete All Orders</span>
           </button>
 
           {/* Role Pills */}
@@ -401,6 +458,17 @@ export default function KitchenDisplaySystemPage() {
                   ALL SEATS ({activeOrders.length} ACTIVE {activeOrders.length === 1 ? 'TICKET' : 'TICKETS'})
                 </h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {activeOrders.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllOrders}
+                    className="ml-2 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-50 text-red-700 hover:bg-red-700 hover:text-white border border-red-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                    title="Delete all active orders"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete All</span>
+                  </button>
+                )}
               </div>
               <span className="text-[10px] text-zinc-500 font-bold uppercase">
                 Real-Time Pass Queue
@@ -426,7 +494,7 @@ export default function KitchenDisplaySystemPage() {
               </div>
             ) : (
               /* Grid of Active Orders (Content-fitting, compact, neatly aligned) */
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 w-full flex-1 overflow-y-auto py-1 items-start content-start">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 w-full flex-1 overflow-y-auto py-1 items-start content-start">
                 {activeOrders.map((active) => {
                   const order = active.order;
                   const items = active.items;
@@ -435,20 +503,15 @@ export default function KitchenDisplaySystemPage() {
                   return (
                     <div
                       key={order.ticket_number || order.id}
-                      className="w-full h-fit bg-white rounded-xl border-2 border-zinc-950 shadow-xs p-2.5 flex flex-col gap-2"
+                      className="w-full h-fit bg-white rounded-xl border-2 border-zinc-950 shadow-xs p-3 flex flex-col gap-2.5"
                     >
-                      {/* Ticket Header */}
-                      <div className="pb-1.5 border-b border-zinc-200 flex items-center justify-between shrink-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-black text-xs text-zinc-950 uppercase tracking-tight bg-zinc-100 px-2 py-0.5 rounded border border-zinc-300">
-                            SEAT {chairId}
-                          </span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded text-zinc-600 font-mono">
-                            #{order.ticket_number}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase">
-                          ₹ {order.total_amount}
+                      {/* Ticket Header (Seat & KOT on Same Line) */}
+                      <div className="pb-2 border-b border-zinc-200 flex items-center gap-2 shrink-0">
+                        <span className="font-black text-xs text-zinc-950 uppercase tracking-tight bg-zinc-100 px-2 py-0.5 rounded border border-zinc-300 whitespace-nowrap shrink-0">
+                          SEAT {chairId}
+                        </span>
+                        <span className="text-[11px] font-bold text-zinc-700 font-mono whitespace-nowrap">
+                          KOT: #{order.ticket_number}
                         </span>
                       </div>
 
@@ -466,26 +529,25 @@ export default function KitchenDisplaySystemPage() {
                             return (
                               <div
                                 key={itemKey}
-                                className="bg-[#fbf9f5] rounded-lg border border-zinc-200 px-2.5 py-1.5 flex flex-col gap-1.5"
+                                className="bg-[#fbf9f5] rounded-lg border border-zinc-200 p-2 flex flex-col gap-1.5"
                               >
-                                <div className="flex items-center justify-between gap-1.5">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="w-5 h-5 rounded bg-zinc-900 text-white text-[10px] font-black flex items-center justify-center shrink-0">
-                                      {it.quantity}x
-                                    </span>
-                                    <span className="font-black text-xs text-zinc-900 truncate">
-                                      {it.dish_name}
-                                    </span>
-                                  </div>
-                                  <span className="text-[11px] font-bold text-zinc-700 shrink-0">
-                                    ₹ {it.price * it.quantity}
+                                {/* Full Dish Title and Multiplier (Zero Prices) */}
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <span className="w-5 h-5 rounded bg-zinc-900 text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                                    {it.quantity}x
+                                  </span>
+                                  <span className="font-black text-xs text-zinc-950 leading-snug break-words flex-1">
+                                    {it.dish_name}
                                   </span>
                                 </div>
 
-                                {/* Notes if present */}
-                                {it.notes && (
-                                  <div className="text-[9px] font-semibold text-zinc-500 truncate pl-7">
-                                    Note: {it.notes}
+                                {/* Customizations & Add-ons Clearly Visible */}
+                                {(it.notes || (it.addons && it.addons.length > 0)) && (
+                                  <div className="text-[10px] font-bold text-amber-950 bg-amber-50/90 border border-amber-300 rounded px-2 py-1 leading-snug">
+                                    <span className="font-black text-[9px] uppercase tracking-wide text-amber-800 block">
+                                      ADD-ONS &amp; CUSTOMIZATION:
+                                    </span>
+                                    <span>{it.notes || it.addons?.join(', ')}</span>
                                   </div>
                                 )}
 
@@ -520,16 +582,6 @@ export default function KitchenDisplaySystemPage() {
                           })
                         )}
                       </div>
-
-                      {/* Ticket Dispatch Action */}
-                      <button
-                        type="button"
-                        onClick={() => handleCompleteOrder(order.ticket_number, order.chair_id)}
-                        className="w-full py-2 rounded-lg bg-zinc-900 hover:bg-black text-white font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0 border border-zinc-900 mt-0.5 active:scale-[0.99]"
-                      >
-                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3]" />
-                        <span>DISPATCH / DISMISS</span>
-                      </button>
                     </div>
                   );
                 })}
@@ -555,25 +607,16 @@ export default function KitchenDisplaySystemPage() {
 
             {/* Dish Toggles Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 overflow-y-auto py-2">
-              {[
-                { key: 'chicken-biryani', name: 'Chicken Donne Biryani' },
-                { key: 'mutton-biryani', name: 'Mutton Donne Biryani' },
-                { key: 'donne-egg-biryani', name: 'Egg Donne Biryani' },
-                { key: 'gunfire-kebab', name: 'Gunfire Chicken Kebab' },
-                { key: 'chicken-sukka', name: 'Chicken Sukka' },
-                { key: 'donne-khushka', name: 'Donne Khushka Rice' },
-                { key: 'mutton-chukka', name: 'Mutton Chukka' },
-                { key: 'guntur-chicken', name: 'Guntur Chilli Chicken' },
-              ].map((dish) => {
-                const isAvailable = stockStatus[dish.key] !== false;
+              {MENU_ITEMS.map((dish) => {
+                const isAvailable = stockStatus[dish.id] !== false;
                 return (
                   <div
-                    key={dish.key}
+                    key={dish.id}
                     className="p-2 rounded-xl border border-zinc-300 bg-white shadow-2xs flex flex-col justify-between gap-2"
                   >
                     <div>
                       <span className="text-xs font-bold text-zinc-900 block leading-tight">
-                        {dish.name}
+                        {dish.title}
                       </span>
                       <span className={`text-[10px] font-black uppercase tracking-wider mt-0.5 inline-block ${
                         isAvailable ? 'text-emerald-700' : 'text-red-600 line-through'
@@ -585,7 +628,7 @@ export default function KitchenDisplaySystemPage() {
                     <button
                       type="button"
                       disabled={isStockLocked}
-                      onClick={() => toggleStock(dish.key)}
+                      onClick={() => toggleStock(dish.id)}
                       className={`w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer transition-all ${
                         isAvailable
                           ? 'bg-zinc-900 hover:bg-black text-white'

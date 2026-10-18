@@ -25,7 +25,11 @@ export default function OrderSummaryBillPage() {
 
   useEffect(() => {
     const s = getActiveDiningSession();
-    if (s && s.seatId === chairId && s.paymentStatus === 'unpaid') {
+    if (s && s.paymentStatus === 'unpaid') {
+      if (s.seatId !== chairId) {
+        window.location.replace(`/seat/${s.seatId}/bill`);
+        return;
+      }
       setSession(s);
     }
   }, [chairId]);

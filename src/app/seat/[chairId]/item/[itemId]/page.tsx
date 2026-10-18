@@ -1,18 +1,38 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Heart, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../../../../lib/context/CartContext';
 import { useHardwareBack } from '../../../../../lib/hooks/useHardwareBack';
 import { getMenuItemById, MENU_CATEGORIES } from '../../../../../lib/data/menuData';
+import { realtimeBridge } from '../../../../../lib/supabase';
+import { getDeviceToken, isDeviceLockedToDifferentSeat } from '../../../../../lib/session/diningSession';
 
 export default function ItemCustomizationPage() {
   const router = useRouter();
   const params = useParams();
   const chairId = (params?.chairId as string) || '12';
   const itemId = (params?.itemId as string) || '1';
+
+  // Anti-Cheat & Seat Occupancy Guard
+  useEffect(() => {
+    const lock = isDeviceLockedToDifferentSeat(chairId);
+    if (lock.isLocked && lock.activeSeatId) {
+      router.replace(`/seat/${lock.activeSeatId}/tracking`);
+      return;
+    }
+
+    async function checkOccupancy() {
+      const token = getDeviceToken();
+      const occ = await realtimeBridge.getSeatOccupancy(chairId, token);
+      if (occ.isOccupied && !occ.isOwner) {
+        router.replace(`/seat/${chairId}`);
+      }
+    }
+    checkOccupancy();
+  }, [chairId, router]);
 
   // Device hardware back button & swipe back: return to menu
   useHardwareBack(`/seat/${chairId}/menu`);
@@ -65,13 +85,13 @@ export default function ItemCustomizationPage() {
     },
     {
       id: 2,
-      url: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=800&auto=format&fit=crop&q=80',
-      alt: `${dish.title} - Military Preparation`,
+      url: '/images/dishes/chicken-kabab.jpg',
+      alt: `Authentic Kebab Starter Pairing`,
     },
     {
       id: 3,
-      url: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&auto=format&fit=crop&q=80',
-      alt: `${dish.title} - Fresh Spices`,
+      url: '/images/dishes/donne-khushka.jpg',
+      alt: `Seeraga Samba Herbal Rice`,
     },
   ], [dish]);
 
@@ -145,11 +165,11 @@ export default function ItemCustomizationPage() {
             </button>
 
             {/* Sliding Dish Circle Display */}
-            <div className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border-2 border-black flex items-center justify-center bg-white shadow-md">
+            <div className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border-2 border-black flex items-center justify-center bg-[#fbf9f5] shadow-md p-1">
               <img
                 src={dishVisuals[activeImageIndex].url}
                 alt={dishVisuals[activeImageIndex].alt}
-                className="w-full h-full object-cover transition-opacity duration-300"
+                className="w-full h-full object-cover object-center rounded-full transition-opacity duration-300"
               />
             </div>
 
