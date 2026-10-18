@@ -128,18 +128,30 @@ export const MobileCockpitMaster: React.FC = () => {
       const defaultStaffSeats = generateSeatsForStaff(account);
 
       setSeats(floorData.map(f => {
-        const fallback = defaultStaffSeats.find(s => s.seatNumber === f.seatNumber);
-        const isVacant = f.status === 'vacant';
+        if (f.status === 'vacant') {
+          return {
+            id: f.id,
+            seatNumber: f.seatNumber,
+            numericId: f.numericId,
+            status: 'vacant' as const,
+            guestName: 'Walk-In Guest',
+            diningDuration: '--',
+            itemCount: 0,
+            runningTotal: 0,
+            hasBillRequest: false,
+            zone: account.zone
+          };
+        }
         return {
           id: f.id,
           seatNumber: f.seatNumber,
           numericId: f.numericId,
-          status: !isVacant ? f.status : (fallback ? fallback.status : f.status),
-          guestName: !isVacant ? f.guestName : (fallback?.guestName || 'Walk-In Guest'),
-          diningDuration: !isVacant ? f.diningDuration : (fallback?.diningDuration || '--'),
-          itemCount: !isVacant ? f.itemCount : (fallback?.itemCount || 0),
-          runningTotal: !isVacant ? f.runningTotal : (fallback?.runningTotal || 0),
-          hasBillRequest: f.hasBillRequest || Boolean(fallback?.hasBillRequest),
+          status: f.status,
+          guestName: f.guestName,
+          diningDuration: f.diningDuration,
+          itemCount: f.itemCount,
+          runningTotal: f.runningTotal,
+          hasBillRequest: f.hasBillRequest,
           zone: account.zone
         };
       }));
@@ -205,7 +217,18 @@ export const MobileCockpitMaster: React.FC = () => {
         }));
       },
       onTicketDispatched: () => { refreshAlerts(); },
-      onSeatOccupancyChange: () => { refreshSeats(); },
+      onSeatOccupancyChange: (data) => {
+        refreshSeats();
+        if (data && !data.isOccupied) {
+          const curSeat = selectedSeatRef.current || '';
+          const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+          const targetChair = (data.chairId || '').replace(/[^0-9]/g, '');
+          if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
+            setCartItems([]);
+            setActiveTicketNumber('');
+          }
+        }
+      },
       onNewAlert: (alert) => {
         setAlerts(prev => {
           if (prev.some(a => a.id === alert.id)) return prev;
@@ -225,7 +248,17 @@ export const MobileCockpitMaster: React.FC = () => {
       },
       onResolveAlert: (alertId) => { setAlerts(prev => prev.filter(a => a.id !== alertId)); },
       onBillRequested: () => { refreshSeats(); refreshAlerts(); },
-      onBillSettled: () => { refreshSeats(); refreshAlerts(); },
+      onBillSettled: (data) => {
+        refreshSeats();
+        refreshAlerts();
+        const curSeat = selectedSeatRef.current || '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = (data?.chairId || '').replace(/[^0-9]/g, '');
+        if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
+          setCartItems([]);
+          setActiveTicketNumber('');
+        }
+      },
       onClearAll: () => { refreshSeats(); refreshAlerts(); }
     });
 
@@ -252,6 +285,8 @@ export const MobileCockpitMaster: React.FC = () => {
       if (!isMounted) return;
       if (details.order?.ticket_number) {
         setActiveTicketNumber(details.order.ticket_number);
+      } else {
+        setActiveTicketNumber('');
       }
       if (details.items && details.items.length > 0) {
         setCartItems(details.items.map(it => {
@@ -278,6 +313,8 @@ export const MobileCockpitMaster: React.FC = () => {
             stage: it.stage as any
           };
         }));
+      } else {
+        setCartItems([]);
       }
     });
 

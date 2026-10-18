@@ -77,7 +77,7 @@ function PaymentSuccessContent() {
     setTransactionId(txn);
 
     updateActiveDiningSession({ paymentStatus: 'paid' });
-    realtimeBridge.releaseSeat(chairId);
+    realtimeBridge.settleBill(chairId, modeParam, finalAmount);
     clearActiveDiningSession();
     clearCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
