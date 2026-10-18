@@ -9,7 +9,7 @@ export interface OrderItemRecord {
   dish_name: string;
   quantity: number;
   price: number;
-  stage: 'REC' | 'PREP' | 'READY';
+  stage: 'PLACED' | 'REC' | 'PREP' | 'READY';
   notes?: string;
   addons?: string[];
 }
@@ -153,7 +153,13 @@ export const realtimeBridge = {
 
       // 2. Record order locally for offline / local resilience
       const currentOrders = getLocalOrdersList();
-      const newEntry = { order: { ...order, id: generatedId }, items };
+      const newEntry = {
+        order: { ...order, id: generatedId },
+        items: items.map((it) => ({
+          ...it,
+          stage: it.stage || 'PLACED',
+        })),
+      };
       const updatedOrders = [newEntry, ...currentOrders.filter((x) => x.order.ticket_number !== order.ticket_number)];
       setLocalOrdersList(updatedOrders);
 
@@ -167,7 +173,7 @@ export const realtimeBridge = {
         localChannel.postMessage({
           type: 'NEW_ORDER',
           order: { ...order, id: generatedId },
-          items,
+          items: newEntry.items,
         });
       }
 
@@ -188,18 +194,25 @@ export const realtimeBridge = {
         if (orderErr) throw orderErr;
 
         const orderId = orderData.id;
-        const itemsToInsert = items.map((it) => ({
-          order_id: orderId,
-          chair_id: it.chair_id,
-          seat_label: it.seat_label,
-          dish_id: it.dish_id,
-          dish_name: it.dish_name,
-          quantity: it.quantity,
-          price: it.price,
-          stage: it.stage || 'REC',
-          notes: it.notes || '',
-          addons: it.addons || [],
-        }));
+        const itemsToInsert = items.map((it) => {
+          const isPlaced = it.stage === 'PLACED' || !it.stage;
+          const addonsList = Array.isArray(it.addons) ? [...it.addons] : [];
+          if (isPlaced && !addonsList.includes('PLACED')) {
+            addonsList.push('PLACED');
+          }
+          return {
+            order_id: orderId,
+            chair_id: it.chair_id,
+            seat_label: it.seat_label,
+            dish_id: it.dish_id,
+            dish_name: it.dish_name,
+            quantity: it.quantity,
+            price: it.price,
+            stage: 'REC' as const,
+            notes: it.notes || '',
+            addons: addonsList,
+          };
+        });
 
         const { error: itemsErr } = await supabase.from('order_items').insert(itemsToInsert);
         if (itemsErr) throw itemsErr;
@@ -209,7 +222,7 @@ export const realtimeBridge = {
         liveChannel.send({
           type: 'broadcast',
           event: 'NEW_ORDER',
-          payload: { order: { ...order, id: orderId }, items: itemsToInsert },
+          payload: { order: { ...order, id: orderId }, items: newEntry.items },
         });
 
         return { success: true, orderId };
@@ -314,8 +327,8 @@ export const realtimeBridge = {
   // Update item stage with seat and dish metadata
   async updateStage(
     itemIdOrKey: string,
-    stage: 'REC' | 'PREP' | 'READY',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string }
+    stage: 'PLACED' | 'REC' | 'PREP' | 'READY',
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
   ): Promise<boolean> {
     try {
       // 1. Update in local orders list
@@ -354,11 +367,31 @@ export const realtimeBridge = {
 
       // 3. Remote update if Supabase is connected
       if (supabase) {
+        const dbStage = stage === 'PLACED' ? 'REC' : stage;
         if (itemIdOrKey.includes('-') && itemIdOrKey.length === 36) {
-          await supabase.from('order_items').update({ stage, updated_at: new Date().toISOString() }).eq('id', itemIdOrKey);
+          const { data: cur } = await supabase.from('order_items').select('addons').eq('id', itemIdOrKey).maybeSingle();
+          const curAddons: string[] = cur?.addons || [];
+          const nextAddons = stage === 'PLACED'
+            ? (curAddons.includes('PLACED') ? curAddons : [...curAddons, 'PLACED'])
+            : curAddons.filter((x: string) => x !== 'PLACED');
+          await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', itemIdOrKey);
         } else if (meta?.chairId) {
           const dId = meta.dishId || itemIdOrKey;
-          await supabase.from('order_items').update({ stage, updated_at: new Date().toISOString() }).match({ chair_id: meta.chairId, dish_id: dId });
+          const { data: curList } = await supabase.from('order_items').select('id, addons').match({ chair_id: meta.chairId, dish_id: dId });
+          if (curList && curList.length > 0) {
+            for (const c of curList) {
+              const curAddons: string[] = c.addons || [];
+              const nextAddons = stage === 'PLACED'
+                ? (curAddons.includes('PLACED') ? curAddons : [...curAddons, 'PLACED'])
+                : curAddons.filter((x: string) => x !== 'PLACED');
+              await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', c.id);
+            }
+          }
+        }
+
+        // Advance order status from pending to in_progress when kitchen accepts
+        if (meta?.chairId && stage !== 'PLACED') {
+          await supabase.from('orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('chair_id', meta.chairId).eq('status', 'pending');
         }
 
         const liveChannel = supabase.channel('kitchen_realtime_feed');
@@ -510,7 +543,13 @@ export const realtimeBridge = {
 
           const remoteOrders = orders.map((o) => ({
             order: o,
-            items: (items || []).filter((it) => it.order_id === o.id),
+            items: (items || []).filter((it) => it.order_id === o.id).map((it) => {
+              const hasPlacedAddon = it.addons && Array.isArray(it.addons) && it.addons.includes('PLACED');
+              return {
+                ...it,
+                stage: hasPlacedAddon ? ('PLACED' as const) : (it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY'),
+              };
+            }),
           }));
 
           const remoteTickets = new Set(remoteOrders.map((ro) => ro.order.ticket_number));
@@ -817,7 +856,7 @@ export const realtimeBridge = {
   // Subscribe to KDS & Seat Occupancy changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-    onStageChange?: (data: { key: string; stage: 'REC' | 'PREP' | 'READY'; dishId?: string; chairId?: string; ticketNumber?: string }) => void;
+    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string }) => void;
     onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
     onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
@@ -898,8 +937,10 @@ export const realtimeBridge = {
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, (payload) => {
           if (callbacks.onStageChange) {
-            const row = payload.new as OrderItemRecord;
-            callbacks.onStageChange({ key: row.id || row.dish_id, stage: row.stage, dishId: row.dish_id, chairId: row.chair_id });
+            const row = payload.new as any;
+            const hasPlacedAddon = row.addons && Array.isArray(row.addons) && row.addons.includes('PLACED');
+            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' = hasPlacedAddon ? 'PLACED' : row.stage;
+            callbacks.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id });
           }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'dish_inventory' }, (payload) => {

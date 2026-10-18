@@ -22,7 +22,8 @@ import {
   RotateCcw, 
   QrCode,
   Trash2,
-  Sparkles
+  Sparkles,
+  Flame
 } from 'lucide-react';
 
 export default function KitchenDisplaySystemPage() {
@@ -33,7 +34,7 @@ export default function KitchenDisplaySystemPage() {
 
   // Real incoming active orders from seats 01-100 (clean zero-order start)
   const [activeOrders, setActiveOrders] = useState<{ order: OrderRecord; items: OrderItemRecord[] }[]>([]);
-  const [itemStages, setItemStages] = useState<Record<string, 'REC' | 'PREP' | 'READY'>>({});
+  const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY'>>({});
 
   // Screen 3 Item availability with Lock/Unlock and Reset/Update protection
   const defaultStockStatus: Record<string, boolean> = MENU_ITEMS.reduce(
@@ -84,11 +85,11 @@ export default function KitchenDisplaySystemPage() {
       const orders = await realtimeBridge.getActiveOrders();
       if (!isCancelled) {
         setActiveOrders(orders || []);
-        const stages: Record<string, 'REC' | 'PREP' | 'READY'> = {};
+        const stages: Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY'> = {};
         (orders || []).forEach((o) => {
           o.items.forEach((it) => {
             const key = it.id || `${it.dish_id}-${it.chair_id}`;
-            stages[key] = it.stage || 'REC';
+            stages[key] = it.stage || 'PLACED';
           });
         });
         setItemStages(stages);
@@ -153,8 +154,8 @@ export default function KitchenDisplaySystemPage() {
 
   const updateItemStage = (
     itemKey: string,
-    stage: 'REC' | 'PREP' | 'READY',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string }
+    stage: 'PLACED' | 'REC' | 'PREP' | 'READY',
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
   ) => {
     setItemStages((prev) => ({ ...prev, [itemKey]: stage }));
     realtimeBridge.updateStage(itemKey, stage, meta);
@@ -524,7 +525,7 @@ export default function KitchenDisplaySystemPage() {
                         ) : (
                           items.map((it, idx) => {
                             const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
-                            const currentStage = itemStages[itemKey] || it.stage || 'REC';
+                            const currentStage = itemStages[itemKey] || it.stage || 'PLACED';
 
                             return (
                               <div
@@ -542,14 +543,43 @@ export default function KitchenDisplaySystemPage() {
                                 </div>
 
                                 {/* Customizations & Add-ons Clearly Visible */}
-                                {(it.notes || (it.addons && it.addons.length > 0)) && (
+                                {(it.notes || (it.addons && it.addons.length > 0 && !it.addons.every(a => a === 'PLACED'))) && (
                                   <div className="text-[10px] font-bold text-amber-950 bg-amber-50/90 border border-amber-300 rounded px-2 py-1 leading-snug">
                                     <span className="font-black text-[9px] uppercase tracking-wide text-amber-800 block">
                                       ADD-ONS &amp; CUSTOMIZATION:
                                     </span>
-                                    <span>{it.notes || it.addons?.join(', ')}</span>
+                                    <span>{(it.notes || it.addons?.filter(a => a !== 'PLACED').join(', '))}</span>
                                   </div>
                                 )}
+
+                                {/* Dish Stage Status Indicator */}
+                                <div className="flex items-center justify-between text-[9px] font-bold">
+                                  <span className="text-zinc-500 font-extrabold uppercase tracking-tight">Status:</span>
+                                  {currentStage === 'PLACED' && (
+                                    <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                      PLACED (Tap 1.REC to accept)
+                                    </span>
+                                  )}
+                                  {currentStage === 'REC' && (
+                                    <span className="text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <Check className="w-3 h-3 text-sky-600" />
+                                      RECEIVED IN KITCHEN
+                                    </span>
+                                  )}
+                                  {currentStage === 'PREP' && (
+                                    <span className="text-orange-900 bg-orange-50 px-2 py-0.5 rounded border border-orange-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <Flame className="w-3 h-3 text-orange-600" />
+                                      COOKING IN WOK
+                                    </span>
+                                  )}
+                                  {currentStage === 'READY' && (
+                                    <span className="text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-black flex items-center gap-1 shadow-2xs">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      PASS READY TO SERVE
+                                    </span>
+                                  )}
+                                </div>
 
                                 {/* Interactive 3-Stage Stepper: REC -> PREP -> READY */}
                                 <div className="grid grid-cols-3 gap-1 pt-0.5">
@@ -564,6 +594,7 @@ export default function KitchenDisplaySystemPage() {
                                             chairId: order.chair_id,
                                             dishId: it.dish_id,
                                             ticketNumber: order.ticket_number,
+                                            dishName: it.dish_name,
                                           })
                                         }
                                         className={`h-7 rounded-md text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${

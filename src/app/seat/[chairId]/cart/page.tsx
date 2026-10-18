@@ -94,7 +94,7 @@ export default function CustomerCartPage() {
           dish_name: catalogEntry.title,
           quantity: qty,
           price: catalogEntry.price,
-          stage: 'REC' as const,
+          stage: 'PLACED' as const,
           notes,
           addons: cartEntry?.addOns,
         };

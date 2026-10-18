@@ -26,7 +26,8 @@ import {
   MENU_DISHES,
   SeatItem,
   ServiceAlert,
-  TicketItem
+  TicketItem,
+  KitchenStatus
 } from './types';
 import { realtimeBridge } from '../../lib/supabase';
 import { TabletLogin } from './TabletLogin';
@@ -114,7 +115,23 @@ export const TabletCockpitMaster: React.FC = () => {
 
     const unsub = realtimeBridge.subscribeKDS({
       onNewOrder: () => { refreshSeats(); refreshAlerts(); },
-      onStageChange: () => { refreshAlerts(); },
+      onStageChange: (data) => {
+        refreshAlerts();
+        setTicketItems(prev => prev.map(item => {
+          if (
+            String(item.id) === data.dishId ||
+            (data.dishName && item.name.toLowerCase() === data.dishName.toLowerCase()) ||
+            data.key === String(item.id)
+          ) {
+            const nextStatus: KitchenStatus =
+              data.stage === 'READY' ? 'READY' :
+              data.stage === 'PREP' ? 'PREPARING' :
+              data.stage === 'REC' ? 'RECEIVED' : 'PLACED';
+            return { ...item, status: nextStatus };
+          }
+          return item;
+        }));
+      },
       onTicketDispatched: () => { refreshAlerts(); },
       onSeatOccupancyChange: () => { refreshSeats(); },
       onNewAlert: (alert) => {
@@ -197,13 +214,19 @@ export const TabletCockpitMaster: React.FC = () => {
             const numId = Number(it.dish_id) || (idx + 1);
             qtyMap[numId] = it.quantity;
             const dish = MENU_DISHES.find(d => d.id === numId);
+            const itStage = it.stage as string;
+            const currentItemStage: KitchenStatus =
+              itStage === 'READY' ? 'READY' :
+              itStage === 'PREP' ? 'PREPARING' :
+              itStage === 'REC' ? 'RECEIVED' :
+              itStage === 'SERVED' ? 'SERVED' : 'PLACED';
             return {
               id: numId,
               name: it.dish_name,
               quantity: it.quantity,
               price: it.price,
               imageUrl: dish?.imageUrl || '/logo.jpg',
-              status: it.stage === 'READY' ? 'READY' : 'RECEIVED'
+              status: currentItemStage
             };
           });
           setDishQuantities(qtyMap);
@@ -297,16 +320,16 @@ export const TabletCockpitMaster: React.FC = () => {
       dish_name: item.name,
       quantity: item.quantity,
       price: item.price,
-      stage: 'REC' as const,
+      stage: 'PLACED' as const,
       notes: '',
-      addons: [],
+      addons: ['PLACED'],
     }));
 
     realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
       refreshSeats();
     });
 
-    setTicketItems(prev => prev.map(item => (item.status === 'PLACED' ? { ...item, status: 'RECEIVED' } : item)));
+    setTicketItems(prev => prev.map(item => ({ ...item, status: 'PLACED' })));
     setSeats(prev => prev.map(s => s.seatNumber === activeSeatNum ? { ...s, status: 'occupied', totalAmount: grandTotal, orderCount: cartCount } : s));
     setIsDining(true);
     showToast(`KOT #${ticketNum} fired to kitchen for ${activeSeatNum}`);

@@ -133,7 +133,19 @@ export const MobileCockpitMaster: React.FC = () => {
 
     const unsub = realtimeBridge.subscribeKDS({
       onNewOrder: () => { refreshSeats(); refreshAlerts(); },
-      onStageChange: () => { refreshAlerts(); },
+      onStageChange: (data) => {
+        refreshAlerts();
+        setCartItems(prev => prev.map(item => {
+          if (
+            String(item.menuItem.id) === data.dishId ||
+            (data.dishName && item.menuItem.name.toLowerCase() === data.dishName.toLowerCase()) ||
+            data.key === String(item.menuItem.id)
+          ) {
+            return { ...item, stage: data.stage };
+          }
+          return item;
+        }));
+      },
       onTicketDispatched: () => { refreshAlerts(); },
       onSeatOccupancyChange: () => { refreshSeats(); },
       onNewAlert: (alert) => {
@@ -227,7 +239,8 @@ export const MobileCockpitMaster: React.FC = () => {
           return {
             menuItem: foundMenu,
             quantity: it.quantity,
-            lineTotal: it.price * it.quantity
+            lineTotal: it.price * it.quantity,
+            stage: it.stage as any
           };
         }));
       }
@@ -253,7 +266,7 @@ export const MobileCockpitMaster: React.FC = () => {
       const existing = prev.find(i => i.menuItem.id === menuItem.id);
       if (!existing && change > 0) {
         showToast(`Added ${menuItem.name} to order`);
-        return [...prev, { menuItem, quantity: 1, lineTotal: menuItem.price }];
+        return [...prev, { menuItem, quantity: 1, lineTotal: menuItem.price, stage: 'PLACED' }];
       }
       if (existing) {
         const newQty = existing.quantity + change;
@@ -294,15 +307,16 @@ export const MobileCockpitMaster: React.FC = () => {
       dish_name: c.menuItem.name,
       quantity: c.quantity,
       price: c.menuItem.price,
-      stage: 'REC' as const,
+      stage: 'PLACED' as const,
       notes: instructions || '',
-      addons: [],
+      addons: ['PLACED'],
     }));
 
     realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
       refreshSeats();
     });
 
+    setCartItems(prev => prev.map(c => ({ ...c, stage: 'PLACED' })));
     showToast(`KOT #${ticketNum} successfully sent to Kitchen printer!`);
     setSeats(prev => prev.map(s => s.seatNumber === selectedSeatNumber ? {
       ...s,

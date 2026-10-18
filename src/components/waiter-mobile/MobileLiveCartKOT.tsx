@@ -112,17 +112,21 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   }, [cartItems]);
 
   // Dish mode mapper helper
-  const getDishMode = useCallback((index: number): { mode: LiveOrderDishMode; label: string; bg: string; text: string; border: string; icon: React.ReactNode } => {
-    if (index === 0) {
-      return { mode: 'preparing', label: 'Preparing', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-300', icon: <Flame className="w-3 h-3 text-amber-600" /> };
-    }
-    if (index === 1) {
+  const getDishMode = useCallback((item: CartItem, index: number): { mode: LiveOrderDishMode; label: string; bg: string; text: string; border: string; icon: React.ReactNode } => {
+    const s = item.stage;
+    if (s === 'READY') {
       return { mode: 'ready', label: 'Ready', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-300', icon: <CheckCircle className="w-3 h-3 text-emerald-600" /> };
     }
-    if (index === 2) {
-      return { mode: 'placed', label: 'Placed', bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-300', icon: <Clock className="w-3 h-3 text-sky-600" /> };
+    if (s === 'PREP') {
+      return { mode: 'preparing', label: 'Preparing', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-300', icon: <Flame className="w-3 h-3 text-amber-600" /> };
     }
-    return { mode: 'served', label: 'Served', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', icon: <Check className="w-3 h-3 text-slate-500" /> };
+    if (s === 'REC') {
+      return { mode: 'received', label: 'Received', bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-300', icon: <Check className="w-3 h-3 text-sky-600" /> };
+    }
+    if (s === 'SERVED') {
+      return { mode: 'served', label: 'Served', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', icon: <Check className="w-3 h-3 text-slate-500" /> };
+    }
+    return { mode: 'placed', label: 'Placed', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', icon: <Clock className="w-3 h-3 text-slate-500" /> };
   }, []);
 
   // Fire KOT submission handler
@@ -231,7 +235,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
           </div>
 
           {displayItems.map((item, idx) => {
-            const modeInfo = getDishMode(idx);
+            const modeInfo = getDishMode(item, idx);
             const isNonVeg = item.menuItem.dietary === 'non_veg';
 
             return (
