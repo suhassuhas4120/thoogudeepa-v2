@@ -146,9 +146,6 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
               <h1 className="text-xs font-black text-slate-900 tracking-tight truncate leading-tight">
                 ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
               </h1>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300">
-                TAKE ORDER
-              </span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -177,7 +174,7 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
         </button>
       </header>
 
-      {/* Search Input Bar Row: ALWAYS CART ICON BESIDE SEARCH OPTION */}
+      {/* Search Input Bar Row: ONLY CART ICON NOT TEXT WITH NUMBER OF ITEMS */}
       <div className="p-3 bg-white border-b border-slate-100 shrink-0 space-y-2 shadow-2xs z-10">
         <div className="flex items-center gap-2">
           {/* Search Bar with Dedicated ✕ Clear Button */}
@@ -202,17 +199,16 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
             )}
           </div>
 
-          {/* ALWAYS CART ICON BESIDE SEARCH OPTION */}
+          {/* ONLY CART ICON NOT TEXT WITH NUMBER OF ITEMS PLACED */}
           <button
             type="button"
             onClick={onOpenCartSheet}
-            className="relative h-8 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 flex items-center gap-1.5 btn-press shadow-2xs shrink-0"
-            title="View Cart"
+            className="relative w-8 h-8 rounded-xl border border-slate-200 bg-amber-500 hover:bg-amber-600 active:scale-95 flex items-center justify-center btn-press shadow-2xs shrink-0 cursor-pointer"
+            title="Cart"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
-            <span className="text-xs font-black text-slate-900">Cart</span>
+            <ShoppingBag className="w-4 h-4 text-white" />
             {totalCartCount > 0 && (
-              <span className="bg-amber-600 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-2xs">
+              <span className="absolute -top-1 -right-1 bg-slate-900 text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-xs border border-white">
                 {totalCartCount}
               </span>
             )}
@@ -259,8 +255,27 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
             return (
               <div
                 key={dish.id}
-                className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs flex items-center justify-between gap-2.5 hover:border-slate-300 transition-all"
+                className="border border-slate-200 rounded-2xl p-2.5 bg-white shadow-xs flex items-center gap-3 hover:border-slate-300 transition-all"
               >
+                {/* Dish Thumbnail Image */}
+                {dish.image && (
+                  <div className="w-16 h-16 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 relative shadow-2xs">
+                    <img 
+                      src={dish.image} 
+                      alt={dish.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    {dish.isBestseller && (
+                      <span className="absolute top-1 left-1 px-1 py-0.2 rounded text-[7px] font-black uppercase bg-amber-500 text-white shadow-2xs">
+                        ★ Best
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Dish Info */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
@@ -271,18 +286,19 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                     <h4 className="text-xs font-bold text-slate-900 truncate">
                       {dish.name}
                     </h4>
-                    {dish.isBestseller && (
-                      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[7px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-300">
-                        Chef Best
-                      </span>
-                    )}
                   </div>
+
+                  {dish.kannadaName && (
+                    <span className="text-[10px] font-bold text-amber-800 block truncate">
+                      {dish.kannadaName}
+                    </span>
+                  )}
 
                   <p className="text-[10px] text-slate-500 truncate mt-0.5">
                     {dish.description}
                   </p>
 
-                  <span className="text-xs font-black text-amber-700 block mt-1">
+                  <span className="text-xs font-black text-amber-700 block mt-0.5">
                     ₹{dish.price}
                   </span>
                 </div>
@@ -290,11 +306,11 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                 {/* Add / Stepper Controls */}
                 <div className="flex items-center shrink-0">
                   {currentQty > 0 ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => onModifyQuantity(dish, -1)}
-                        className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center font-bold text-slate-800 btn-press shadow-2xs"
+                        className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center font-bold text-slate-800 btn-press shadow-2xs cursor-pointer"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
@@ -304,7 +320,7 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                       <button
                         type="button"
                         onClick={() => onModifyQuantity(dish, 1)}
-                        className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center font-bold btn-press shadow-2xs"
+                        className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center font-bold btn-press shadow-2xs cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -313,9 +329,9 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                     <button
                       type="button"
                       onClick={() => onModifyQuantity(dish, 1)}
-                      className="h-7 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 btn-press flex items-center gap-1 shadow-2xs"
+                      className="h-7 px-3 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-xs font-black text-amber-900 btn-press flex items-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3 h-3 stroke-[2.5]" />
                       <span>Add</span>
                     </button>
                   )}

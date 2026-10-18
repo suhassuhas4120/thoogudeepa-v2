@@ -151,22 +151,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <>
       <div className="w-full select-none shrink-0 relative z-30">
-        
-        {/* Floating Quick Cart Peek Pill (Shown when on other screens and items exist) */}
-        {cartItemsCount > 0 && activeScreen !== 'order' && activeScreen !== 'bill' && (
-          <div className="absolute -top-11 left-3 right-3 flex items-center justify-center animate-in slide-in-from-bottom-2 duration-200">
-            <button
-              type="button"
-              onClick={onOpenCartPeek || (() => onNavigate('order'))}
-              className="h-9 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-full shadow-lg border border-slate-700 text-xs font-bold flex items-center gap-2 btn-press"
-            >
-              <ShoppingBag className="w-3.5 h-3.5 text-amber-400" />
-              <span>Cart: {cartItemsCount} Items (₹{cartSubtotal})</span>
-              <ChevronUp className="w-3.5 h-3.5 text-slate-400 ml-1" />
-            </button>
-          </div>
-        )}
-
         {/* Main Bottom Smartphone Navigation Dock */}
         <nav className="h-16 bg-white border-t border-slate-200 px-3 flex items-center justify-around shadow-xs">
           {navItems.map(item => {

@@ -185,9 +185,6 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
               <h1 className="text-xs font-black text-slate-900 tracking-tight truncate leading-tight">
                 ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
               </h1>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
-                LIVE CART
-              </span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />

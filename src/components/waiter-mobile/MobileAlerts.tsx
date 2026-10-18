@@ -87,14 +87,9 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
           )}
           
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight truncate leading-tight">
-                ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
-              </h1>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 shrink-0">
-                ALERTS
-              </span>
-            </div>
+            <h1 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight truncate leading-tight">
+              ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
+            </h1>
             <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 font-semibold truncate">
               <span>Floor Notifications • Service Pass</span>
             </div>

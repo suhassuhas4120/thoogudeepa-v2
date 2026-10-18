@@ -305,7 +305,6 @@ export const MobileCockpitMaster: React.FC = () => {
                 <MobileHeader
                   profile={waiterProfile}
                   pendingAlertCount={alerts.length}
-                  onBack={() => setActiveScreen('login')}
                   onOpenAlerts={() => setActiveScreen('alerts')}
                   onOpenProfile={() => setActiveScreen('profile')}
                   onZoneChange={handleZoneChange}

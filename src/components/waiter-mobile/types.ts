@@ -58,6 +58,7 @@ export interface MenuItem {
   readonly prepTimeMinutes: number;
   readonly isAvailable: boolean;
   readonly isBestseller?: boolean;
+  readonly image?: string;
 }
 
 /**
@@ -419,7 +420,8 @@ export const SAMPLE_MENU_ITEMS: MenuItem[] = [
     description: 'Cooked with seeraga samba rice, tender country chicken & fragrant herbs.',
     prepTimeMinutes: 8,
     isAvailable: true,
-    isBestseller: true
+    isBestseller: true,
+    image: '/images/dishes/chicken-donne-biryani.jpg'
   },
   {
     id: 'menu-02',
@@ -431,7 +433,8 @@ export const SAMPLE_MENU_ITEMS: MenuItem[] = [
     description: 'Tender local mutton slow-steamed in traditional leaf donne pot.',
     prepTimeMinutes: 10,
     isAvailable: true,
-    isBestseller: true
+    isBestseller: true,
+    image: '/images/dishes/mutton-donne-biryani.jpg'
   },
   {
     id: 'menu-03',
@@ -442,10 +445,48 @@ export const SAMPLE_MENU_ITEMS: MenuItem[] = [
     dietary: 'non_veg',
     description: 'Signature military-style spicy green chilli tossed crisp chicken.',
     prepTimeMinutes: 6,
-    isAvailable: true
+    isAvailable: true,
+    image: '/images/dishes/chilli-chicken.jpg'
   },
   {
     id: 'menu-04',
+    name: 'Chicken Kabab (6 Pcs)',
+    kannadaName: 'ಚಿಕನ್ ಕಬಾಬ್',
+    price: 210,
+    category: 'starters',
+    dietary: 'non_veg',
+    description: 'Crispy marinated bone-in chicken fried with fresh curry leaves.',
+    prepTimeMinutes: 7,
+    isAvailable: true,
+    isBestseller: true,
+    image: '/images/dishes/chicken-kabab.jpg'
+  },
+  {
+    id: 'menu-05',
+    name: 'Chicken Pepper Dry',
+    kannadaName: 'ಪೆಪ್ಪರ್ ಚಿಕನ್ ಡ್ರೈ',
+    price: 230,
+    category: 'starters',
+    dietary: 'non_veg',
+    description: 'Coarsely crushed black pepper & garlic tossed country chicken.',
+    prepTimeMinutes: 8,
+    isAvailable: true,
+    image: '/images/dishes/chicken-pepper-dry.jpg'
+  },
+  {
+    id: 'menu-06',
+    name: 'Mutton Chops',
+    kannadaName: 'ಮಟನ್ ಚಾಪ್ಸ್',
+    price: 320,
+    category: 'starters',
+    dietary: 'non_veg',
+    description: 'Slow-roasted tender mutton rib chops in thick dark brown masala.',
+    prepTimeMinutes: 10,
+    isAvailable: true,
+    image: '/images/dishes/mutton-chops.jpg'
+  },
+  {
+    id: 'menu-07',
     name: 'Gunpowder Ghee Rice',
     kannadaName: 'ತುಪ್ಪದ ಅನ್ನ ಗನ್‌ಪೌಡರ್',
     price: 180,
@@ -453,10 +494,24 @@ export const SAMPLE_MENU_ITEMS: MenuItem[] = [
     dietary: 'veg',
     description: 'Fragrant steamed ghee rice dusted with aromatic podi gunpowder.',
     prepTimeMinutes: 5,
-    isAvailable: true
+    isAvailable: true,
+    image: '/images/dishes/biryani-rice.webp'
   },
   {
-    id: 'menu-05',
+    id: 'menu-08',
+    name: 'Kaalu Soup (Mutton Trotters)',
+    kannadaName: 'ಕಾಲು ಸೂಪ್',
+    price: 140,
+    category: 'drinks',
+    dietary: 'non_veg',
+    description: 'Traditional slow-boiled mutton bone broth infused with black pepper.',
+    prepTimeMinutes: 2,
+    isAvailable: true,
+    isBestseller: true,
+    image: '/images/dishes/kaalu-soup.jpg'
+  },
+  {
+    id: 'menu-09',
     name: 'Masala Buttermilk Chaas',
     kannadaName: 'ಮಸಾಲೆ ಮಜ್ಜಿಗೆ',
     price: 60,
@@ -464,6 +519,7 @@ export const SAMPLE_MENU_ITEMS: MenuItem[] = [
     dietary: 'veg',
     description: 'Chilled spiced curd with fresh ginger, coriander & roasted cumin.',
     prepTimeMinutes: 2,
-    isAvailable: true
+    isAvailable: true,
+    image: '/images/dishes/plain-soup.webp'
   }
 ];
