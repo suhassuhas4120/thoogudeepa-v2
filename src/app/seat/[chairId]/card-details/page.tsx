@@ -118,60 +118,60 @@ function CardDetailsContent() {
     isCurrentExpiryValid;
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#F9F8F5] via-[#F7F5F0] to-[#F3F1EC] text-[#1A2621] flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col gap-6">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+        <header className="w-full flex items-center justify-between py-2 border-b border-[#DCE2DE]/60 pb-3">
           {/* Back Navigation Button to Payments */}
           <Link
             href={`/seat/${chairId}/payment`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[#DCE2DE] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-xs"
             aria-label="Back to Payments"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
           {/* Center Title - Renamed to Card Payment */}
-          <h1 className="text-base font-bold tracking-tight">Card Payment</h1>
+          <h1 className="text-base font-bold tracking-tight text-[#1A2621]">Card Payment</h1>
 
           {/* Spacer to keep title centered */}
           <div className="w-10 h-10" />
         </header>
 
         {/* Selected Card Preview Component */}
-        <div className="w-full border-2 border-black rounded-3xl p-5 flex flex-col justify-between h-48 bg-white shadow-sm">
+        <div className="w-full border border-[#DCE2DE] rounded-3xl p-5 flex flex-col justify-between h-48 bg-gradient-to-br from-[#244436] to-[#1C372B] text-white shadow-[0_8px_24px_rgba(36,68,54,0.18)]">
           {/* Top Row: Title & Logo Placeholder */}
           <div className="w-full flex items-center justify-between">
-            <span className="text-sm font-black tracking-wide">{activeCard.title}</span>
-            <div className="border border-black px-2 py-0.5 rounded text-[10px] font-black uppercase">
+            <span className="text-sm font-black tracking-wide text-white/90">{activeCard.title}</span>
+            <div className="border border-white/30 bg-white/10 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider text-white">
               {activeCard.logo}
             </div>
           </div>
 
           {/* Middle Row: Card Number Digits */}
-          <div className="text-base font-mono font-bold tracking-widest my-auto">
+          <div className="text-base font-mono font-bold tracking-widest my-auto text-white">
             {cardNumber.trim() ? cardNumber : activeCard.number}
           </div>
 
           {/* Bottom Row: Chip Placeholder & Details */}
           <div className="w-full flex items-end justify-between">
             {/* Chip Placeholder */}
-            <div className="w-9 h-7 border border-black rounded-md flex items-center justify-center bg-zinc-100">
-              <div className="w-5 h-4 border border-black rounded-xs" />
+            <div className="w-9 h-7 border border-[#DD6B28]/50 rounded-md flex items-center justify-center bg-gradient-to-tr from-[#DD6B28]/30 to-[#DD6B28]/60">
+              <div className="w-5 h-4 border border-[#DD6B28]/60 rounded-xs" />
             </div>
 
             {/* Holder Name & Expiry Meta */}
             <div className="flex gap-6 text-right">
               <div className="flex flex-col">
-                <span className="text-[9px] text-zinc-500 font-bold uppercase">Card Holder Name</span>
-                <span className="text-xs font-bold">
+                <span className="text-[9px] text-white/60 font-bold uppercase">Card Holder Name</span>
+                <span className="text-xs font-bold text-white">
                   {cardholderName.trim() ? cardholderName : activeCard.holder}
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[9px] text-zinc-500 font-bold uppercase">Expiry Date</span>
-                <span className="text-xs font-bold">
+                <span className="text-[9px] text-white/60 font-bold uppercase">Expiry Date</span>
+                <span className="text-xs font-bold text-white">
                   {expiryDate.trim() ? expiryDate : activeCard.expiry}
                 </span>
               </div>
@@ -185,7 +185,7 @@ function CardDetailsContent() {
           <div className="w-full grid grid-cols-5 gap-3">
             {/* Cardholder Name (3 cols) */}
             <div className="col-span-3 flex flex-col gap-1.5">
-              <label className="text-xs font-black uppercase tracking-wider">
+              <label className="text-xs font-black uppercase tracking-wider text-[#5A6860]">
                 Cardholder Name
               </label>
               <input
@@ -193,28 +193,28 @@ function CardDetailsContent() {
                 placeholder="Full Name"
                 value={cardholderName}
                 onChange={(e) => setCardholderName(e.target.value)}
-                className="w-full border-2 border-black rounded-2xl px-3.5 py-3 text-xs font-bold focus:outline-hidden bg-white shadow-xs"
+                className="w-full border border-[#DCE2DE] rounded-2xl px-3.5 py-3 text-xs font-bold focus:outline-hidden focus:border-[#244436] bg-[#FFFEFC] text-[#1A2621] placeholder-[#5A6860]/40 shadow-xs"
               />
             </div>
 
             {/* CVV (2 cols) with Eye Toggle */}
             <div className="col-span-2 flex flex-col gap-1.5">
-              <label className="text-xs font-black uppercase tracking-wider">
+              <label className="text-xs font-black uppercase tracking-wider text-[#5A6860]">
                 CVV
               </label>
-              <div className="w-full border-2 border-black rounded-2xl px-3 py-3 flex items-center justify-between bg-white shadow-xs">
+              <div className="w-full border border-[#DCE2DE] rounded-2xl px-3 py-3 flex items-center justify-between bg-[#FFFEFC] text-[#1A2621] shadow-xs focus-within:border-[#244436]">
                 <input
                   type={showCvv ? 'text' : 'password'}
                   maxLength={4}
                   placeholder="1234"
                   value={cvv}
                   onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
-                  className="w-full text-xs font-bold focus:outline-hidden bg-transparent tracking-widest text-center"
+                  className="w-full text-xs font-bold focus:outline-hidden bg-transparent tracking-widest text-center text-[#1A2621] placeholder-[#5A6860]/40"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCvv((prev) => !prev)}
-                  className="text-zinc-600 hover:text-black cursor-pointer shrink-0 ml-1.5"
+                  className="text-[#5A6860] hover:text-[#1A2621] cursor-pointer shrink-0 ml-1.5"
                   aria-label={showCvv ? 'Hide CVV' : 'Show CVV'}
                 >
                   {showCvv ? (
@@ -229,26 +229,26 @@ function CardDetailsContent() {
 
           {/* Row 2: Card Number with Auto 4-digit Spacing */}
           <div className="w-full flex flex-col gap-1.5">
-            <label className="text-xs font-black uppercase tracking-wider">
+            <label className="text-xs font-black uppercase tracking-wider text-[#5A6860]">
               Card Number
             </label>
-            <div className="w-full border-2 border-black rounded-2xl px-3.5 py-3 flex items-center justify-between bg-white shadow-xs">
+            <div className="w-full border border-[#DCE2DE] rounded-2xl px-3.5 py-3 flex items-center justify-between bg-[#FFFEFC] text-[#1A2621] shadow-xs focus-within:border-[#244436]">
               <input
                 type="text"
                 maxLength={19}
                 placeholder="1234 5678 9012 3456"
                 value={cardNumber}
                 onChange={(e) => handleCardNumberChange(e.target.value)}
-                className="w-full text-xs font-bold focus:outline-hidden bg-transparent font-mono tracking-wider"
+                className="w-full text-xs font-bold focus:outline-hidden bg-transparent font-mono tracking-wider text-[#1A2621] placeholder-[#5A6860]/40"
               />
-              <CreditCard className="w-4 h-4 text-zinc-700 shrink-0 ml-2" />
+              <CreditCard className="w-4 h-4 text-[#5A6860] shrink-0 ml-2" />
             </div>
           </div>
 
           {/* Row 3: Expire Date with Month/Year Calendar Selector */}
           <div className="w-full flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-black uppercase tracking-wider">
+              <label className="text-xs font-black uppercase tracking-wider text-[#5A6860]">
                 Expire Date
               </label>
               {expiryDate.length === 5 && !isCurrentExpiryValid && (
@@ -258,10 +258,10 @@ function CardDetailsContent() {
               )}
             </div>
             <div
-              className={`w-full border-2 rounded-2xl px-3.5 py-3 flex items-center justify-between bg-white shadow-xs relative transition-colors ${
+              className={`w-full border rounded-2xl px-3.5 py-3 flex items-center justify-between bg-[#FFFEFC] text-[#1A2621] shadow-xs relative transition-colors ${
                 expiryDate.length === 5 && !isCurrentExpiryValid
                   ? 'border-red-600 ring-1 ring-red-600'
-                  : 'border-black'
+                  : 'border-[#DCE2DE] focus-within:border-[#244436]'
               }`}
             >
               <input
@@ -270,7 +270,7 @@ function CardDetailsContent() {
                 placeholder="MM/YY"
                 value={expiryDate}
                 onChange={(e) => handleExpiryManualChange(e.target.value)}
-                className="w-full text-xs font-bold focus:outline-hidden bg-transparent font-mono tracking-wider"
+                className="w-full text-xs font-bold focus:outline-hidden bg-transparent font-mono tracking-wider text-[#1A2621] placeholder-[#5A6860]/40"
               />
 
               {/* Hidden native month picker restricted to current and upcoming months/years */}
@@ -294,7 +294,7 @@ function CardDetailsContent() {
                     monthInputRef.current?.focus();
                   }
                 }}
-                className="text-zinc-700 hover:text-black cursor-pointer shrink-0 ml-2 active:opacity-70"
+                className="text-[#5A6860] hover:text-[#1A2621] cursor-pointer shrink-0 ml-2 active:opacity-70"
                 aria-label="Open Month/Year Picker"
               >
                 <Calendar className="w-4 h-4" />
@@ -305,11 +305,11 @@ function CardDetailsContent() {
       </div>
 
       {/* Bottom Sticky Continue Button - Active only when all details are filled */}
-      <div className="sticky bottom-0 z-30 w-full bg-white/95 backdrop-blur-sm pt-3 pb-4 border-t border-zinc-200">
+      <div className="sticky bottom-0 z-30 w-full bg-[#FFFEFC]/95 backdrop-blur-sm pt-3 pb-4 border-t border-[#DCE2DE]/60">
         {isFormComplete ? (
           <Link
             href={`/seat/${chairId}/payment-success?mode=Card&card=${cardParam}${amountParam ? `&amount=${amountParam}` : ''}${tipParam ? `&tip=${tipParam}` : ''}`}
-            className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
+            className="w-full bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-90 transition-opacity text-center shadow-[0_4px_16px_rgba(36,68,54,0.2)] hover:opacity-95"
           >
             Continue
           </Link>
@@ -317,7 +317,7 @@ function CardDetailsContent() {
           <button
             type="button"
             disabled
-            className="w-full border-2 border-zinc-300 bg-zinc-200 text-zinc-500 py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-not-allowed text-center opacity-70"
+            className="w-full border border-[#DCE2DE] bg-[#F4F1EA] text-[#5A6860] py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-not-allowed text-center opacity-70"
           >
             Continue
           </button>
@@ -329,7 +329,7 @@ function CardDetailsContent() {
 
 export default function CustomerCardDetailsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#F9F8F5]" />}>
       <CardDetailsContent />
     </Suspense>
   );

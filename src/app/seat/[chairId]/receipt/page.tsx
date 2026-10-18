@@ -139,25 +139,25 @@ export default function CustomerReceiptPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-12">
+    <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-12 text-[#1A2621]">
       {/* Scrollable Upper Content Container */}
       <div className="w-full flex flex-col gap-4">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+        <header className="w-full flex items-center justify-between py-2 border-b border-[rgba(220,226,222,0.7)] pb-3">
           <Link
             href={`/seat/${chairId}/profile`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-2xs"
             aria-label="Back to Profile"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
           <div className="text-center flex flex-col items-center">
-            <h1 className="text-sm font-black tracking-wider uppercase">
+            <h1 className="text-sm font-black tracking-wider uppercase text-[#1A2621]">
               Bill Details
             </h1>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-[10px] text-zinc-500 font-bold uppercase">
+              <span className="text-[10px] text-[#5A6860] font-bold uppercase">
                 Seat #{seatNumber}
               </span>
             </div>
@@ -167,21 +167,21 @@ export default function CustomerReceiptPage() {
         </header>
 
         {!receipt ? (
-          <div className="w-full py-16 flex flex-col items-center justify-center text-center gap-3 border-2 border-dashed border-zinc-300 rounded-3xl bg-zinc-50 p-6 my-4">
-            <div className="w-14 h-14 rounded-full border-2 border-black bg-white flex items-center justify-center shadow-xs">
-              <Receipt className="w-6 h-6 text-black" />
+          <div className="w-full py-16 flex flex-col items-center justify-center text-center gap-3 border border-[rgba(220,226,222,0.8)] rounded-3xl bg-[#FFFEFC] p-6 my-4 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)]">
+            <div className="w-14 h-14 rounded-full border border-[rgba(220,226,222,0.9)] bg-[#F9F8F5] flex items-center justify-center shadow-xs">
+              <Receipt className="w-6 h-6 text-[#244436]" />
             </div>
             <div className="flex flex-col gap-1">
-              <h2 className="text-sm font-black uppercase text-zinc-950">
+              <h2 className="text-sm font-black uppercase text-[#1A2621]">
                 No Paid Bills Found
               </h2>
-              <p className="text-xs text-zinc-500 font-medium max-w-xs">
+              <p className="text-xs text-[#5A6860] font-medium max-w-xs">
                 There are no settled invoices on record for Seat #{seatNumber}.
               </p>
             </div>
             <Link
               href={`/seat/${chairId}/menu`}
-              className="mt-2 px-5 py-2 rounded-xl bg-black text-white text-xs font-black uppercase tracking-wider"
+              className="mt-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white text-xs font-black uppercase tracking-wider shadow-md hover:opacity-95"
             >
               Go to Menu
             </Link>
@@ -189,9 +189,9 @@ export default function CustomerReceiptPage() {
         ) : (
           <>
             {/* Card 1: Restaurant Identity & Order Details Card */}
-            <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs">
-              <div className="w-full flex items-center gap-3 pb-3 border-b border-zinc-200">
-                <div className="w-12 h-12 rounded-full border-2 border-black flex items-center justify-center bg-white overflow-hidden shrink-0">
+            <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-4 flex flex-col gap-3 bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)]">
+              <div className="w-full flex items-center gap-3 pb-3 border-b border-[rgba(220,226,222,0.7)]">
+                <div className="w-12 h-12 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center bg-[#FFFEFC] overflow-hidden shrink-0 shadow-2xs">
                   <img
                     src="/logo.jpg"
                     alt="Thoogudeepa"
@@ -202,58 +202,58 @@ export default function CustomerReceiptPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-xs font-black uppercase tracking-wide">THOOGUDEEPA</span>
-                  <span className="text-[10px] text-zinc-500 font-medium uppercase">Authentic Donne Biryani Mane</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-[#1A2621]">THOOGUDEEPA</span>
+                  <span className="text-[10px] text-[#5A6860] font-medium uppercase">Authentic Donne Biryani Mane</span>
                 </div>
               </div>
 
               {/* Meta Grid */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full border border-black flex items-center justify-center shrink-0">
-                    <Calendar className="w-3.5 h-3.5 text-black" />
+                  <div className="w-7 h-7 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center shrink-0 bg-[#F9F8F5]">
+                    <Calendar className="w-3.5 h-3.5 text-[#244436]" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Date</span>
-                    <span className="text-xs font-bold" suppressHydrationWarning>{formattedDate}</span>
+                    <span className="text-[10px] text-[#5A6860] font-bold uppercase tracking-wider">Date</span>
+                    <span className="text-xs font-bold text-[#1A2621]" suppressHydrationWarning>{formattedDate}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full border border-black flex items-center justify-center shrink-0">
-                    <Clock className="w-3.5 h-3.5 text-black" />
+                  <div className="w-7 h-7 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center shrink-0 bg-[#F9F8F5]">
+                    <Clock className="w-3.5 h-3.5 text-[#244436]" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Time</span>
-                    <span className="text-xs font-bold" suppressHydrationWarning>{formattedTime}</span>
+                    <span className="text-[10px] text-[#5A6860] font-bold uppercase tracking-wider">Time</span>
+                    <span className="text-xs font-bold text-[#1A2621]" suppressHydrationWarning>{formattedTime}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full border border-black flex items-center justify-center shrink-0">
-                    <Armchair className="w-3.5 h-3.5 text-black" />
+                  <div className="w-7 h-7 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center shrink-0 bg-[#F9F8F5]">
+                    <Armchair className="w-3.5 h-3.5 text-[#244436]" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Seat</span>
-                    <span className="text-xs font-bold">Seat #{seatNumber}</span>
+                    <span className="text-[10px] text-[#5A6860] font-bold uppercase tracking-wider">Seat</span>
+                    <span className="text-xs font-bold text-[#1A2621]">Seat #{seatNumber}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full border border-black flex items-center justify-center shrink-0">
-                    <UtensilsCrossed className="w-3.5 h-3.5 text-black" />
+                  <div className="w-7 h-7 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center shrink-0 bg-[#F9F8F5]">
+                    <UtensilsCrossed className="w-3.5 h-3.5 text-[#244436]" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Mode</span>
-                    <span className="text-xs font-bold">Dine-In</span>
+                    <span className="text-[10px] text-[#5A6860] font-bold uppercase tracking-wider">Mode</span>
+                    <span className="text-xs font-bold text-[#1A2621]">Dine-In</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Card 2: Items Description & Amount Breakdown */}
-            <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs print:hidden">
-              <div className="w-full flex items-center justify-between pb-2 border-b border-zinc-200 text-[11px] font-black uppercase tracking-wider text-zinc-600">
+            <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-4 flex flex-col gap-3 bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)] print:hidden">
+              <div className="w-full flex items-center justify-between pb-2 border-b border-[rgba(220,226,222,0.7)] text-[11px] font-black uppercase tracking-wider text-[#5A6860]">
                 <span>Item Description</span>
                 <span>Amount</span>
               </div>
@@ -263,14 +263,14 @@ export default function CustomerReceiptPage() {
                   {itemsList.map((it, idx) => (
                     <div key={idx} className="w-full flex items-center justify-between text-xs py-0.5">
                       <div className="flex flex-col min-w-0 pr-2">
-                        <span className="font-bold text-zinc-900 truncate">
+                        <span className="font-bold text-[#1A2621] truncate">
                           {it.quantity} &times; {it.title}
                         </span>
-                        <span className="text-[10px] text-zinc-500 font-semibold">
+                        <span className="text-[10px] text-[#5A6860] font-semibold">
                           ₹ {it.price} each
                         </span>
                       </div>
-                      <span className="font-black text-zinc-950 shrink-0">
+                      <span className="font-black text-[#244436] shrink-0">
                         ₹ {it.price * it.quantity}
                       </span>
                     </div>
@@ -278,55 +278,55 @@ export default function CustomerReceiptPage() {
                 </div>
               ) : (
                 <div className="w-full flex flex-col gap-2.5">
-                  <div className="w-full flex items-center justify-between text-xs font-bold">
+                  <div className="w-full flex items-center justify-between text-xs font-bold text-[#1A2621]">
                     <span>Military Dining (Ticket #{receipt.ticketNumber})</span>
-                    <span>₹ {subtotal}</span>
+                    <span className="text-[#244436]">₹ {subtotal}</span>
                   </div>
                 </div>
               )}
 
               {/* Subtotals & Taxes */}
-              <div className="w-full flex flex-col gap-2 pt-3 border-t border-zinc-200 text-xs font-semibold">
-                <div className="w-full flex items-center justify-between text-zinc-600">
+              <div className="w-full flex flex-col gap-2 pt-3 border-t border-[rgba(220,226,222,0.7)] text-xs font-semibold">
+                <div className="w-full flex items-center justify-between text-[#5A6860]">
                   <span>Item Subtotal ({itemsList.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
-                  <span>₹ {subtotal}</span>
+                  <span className="text-[#1A2621]">₹ {subtotal}</span>
                 </div>
-                <div className="w-full flex items-center justify-between text-zinc-600">
+                <div className="w-full flex items-center justify-between text-[#5A6860]">
                   <span>CGST (2.5%)</span>
-                  <span>₹ {cgst}</span>
+                  <span className="text-[#1A2621]">₹ {cgst}</span>
                 </div>
-                <div className="w-full flex items-center justify-between text-zinc-600">
+                <div className="w-full flex items-center justify-between text-[#5A6860]">
                   <span>SGST (2.5%)</span>
-                  <span>₹ {sgst}</span>
+                  <span className="text-[#1A2621]">₹ {sgst}</span>
                 </div>
                 {tipAmount > 0 && (
-                  <div className="w-full flex items-center justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1.5 rounded-lg border border-emerald-200">
+                  <div className="w-full flex items-center justify-between text-[#244436] font-bold bg-emerald-50/80 px-2.5 py-1.5 rounded-xl border border-emerald-200">
                     <span>Staff Tip (Waiter)</span>
-                    <span>+ ₹ {tipAmount}</span>
+                    <span className="text-[#DD6B28]">+ ₹ {tipAmount}</span>
                   </div>
                 )}
               </div>
 
               {/* Grand Total Amount Paid */}
-              <div className="w-full flex items-center justify-between pt-3 border-t-2 border-black text-sm font-black uppercase tracking-wider">
+              <div className="w-full flex items-center justify-between pt-3 border-t border-[rgba(220,226,222,0.8)] text-sm font-black uppercase tracking-wider text-[#1A2621]">
                 <span>Total Amount Paid</span>
-                <span className="text-base font-black">₹ {totalAmount}</span>
+                <span className="text-base font-black text-[#244436]">₹ {totalAmount}</span>
               </div>
             </div>
 
             {/* Card 3: Payment Method & Settlement Status */}
-            <div className="w-full border-2 border-black rounded-3xl p-3.5 px-4 flex items-center justify-between bg-white shadow-xs print:hidden">
+            <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-3.5 px-4 flex items-center justify-between bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)] print:hidden">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full border border-black flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-full border border-emerald-300 flex items-center justify-center shrink-0 bg-emerald-50">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div className="flex flex-col text-left">
-                  <span className="text-xs font-black uppercase tracking-wide">Paid via {receipt.mode}</span>
-                  <span className="text-[10px] text-zinc-500 font-mono">Invoice #{receipt.ticketNumber}</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-[#1A2621]">Paid via {receipt.mode}</span>
+                  <span className="text-[10px] text-[#5A6860] font-mono">Invoice #{receipt.ticketNumber}</span>
                 </div>
               </div>
 
-              <div className="border border-emerald-600 bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
+              <div className="border border-emerald-500 bg-emerald-50 text-emerald-800 px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
                 <span>Settled</span>
               </div>
@@ -337,15 +337,15 @@ export default function CustomerReceiptPage() {
               <button
                 type="button"
                 onClick={handleDownloadBill}
-                className="w-full border-2 border-black bg-white hover:bg-zinc-50 text-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
+                className="w-full border border-[rgba(220,226,222,0.9)] bg-[#FFFEFC] hover:bg-[#F9F8F5] text-[#1A2621] py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-2xs"
               >
-                <Download className="w-4 h-4 text-black shrink-0" />
+                <Download className="w-4 h-4 text-[#244436] shrink-0" />
                 <span className="text-xs font-black uppercase tracking-wider">Download Bill</span>
               </button>
               <button
                 type="button"
                 onClick={handleShareWhatsApp}
-                className="w-full border-2 border-black bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
+                className="w-full bg-[#244436] hover:bg-[#1e382c] text-white py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-85 transition-all shadow-xs"
               >
                 <MessageCircle className="w-4 h-4 text-white shrink-0" />
                 <span className="text-xs font-black uppercase tracking-wider">Share WhatsApp</span>
@@ -413,9 +413,9 @@ export default function CustomerReceiptPage() {
         </div>
 
         {/* Customer Feedback Card */}
-        <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs">
-          <div className="w-full flex items-center justify-between pb-1 border-b border-zinc-200">
-            <span className="text-xs font-black uppercase tracking-wider">
+        <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-4 flex flex-col gap-3 bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)]">
+          <div className="w-full flex items-center justify-between pb-1 border-b border-[rgba(220,226,222,0.7)]">
+            <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
               Rate Dining Experience
             </span>
           </div>
@@ -431,8 +431,8 @@ export default function CustomerReceiptPage() {
                   onClick={() => setSelectedRating(opt.id)}
                   className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'border-black bg-black text-white shadow-2xs'
-                      : 'border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700'
+                      ? 'border-[#244436] bg-[#244436] text-white shadow-2xs'
+                      : 'border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] hover:bg-[#F9F8F5] text-[#5A6860] hover:text-[#1A2621]'
                   }`}
                 >
                   <Icon className="w-5 h-5" />

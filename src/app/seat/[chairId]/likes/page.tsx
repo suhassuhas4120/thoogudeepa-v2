@@ -24,27 +24,27 @@ export default function CustomerLikesPage() {
   }, [likedItems]);
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-24">
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#F9F8F5] via-[#F7F5F0] to-[#F3F1EC] text-[#1A2621] flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col gap-5">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+        <header className="w-full flex items-center justify-between py-2 border-b border-[#DCE2DE]/60 pb-3">
           {/* Back Navigation Button to Menu */}
           <Link
             href={`/seat/${chairId}/menu`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[#DCE2DE] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-xs"
             aria-label="Back to Menu"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
           {/* Center Title */}
-          <h1 className="text-base font-bold tracking-tight">Liked Items</h1>
+          <h1 className="text-base font-bold tracking-tight text-[#1A2621]">Liked Items</h1>
 
           {/* Right Notification Bell */}
           <Link
             href={`/seat/${chairId}/assistant?from=${encodeURIComponent(`/seat/${chairId}/likes`)}`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[#DCE2DE] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-xs"
             aria-label="Assistant & Call Waiter"
           >
             <Bell className="w-5 h-5" />
@@ -53,17 +53,17 @@ export default function CustomerLikesPage() {
 
         {/* Liked Items Grid / List */}
         {likedDishes.length === 0 ? (
-          <div className="w-full border-2 border-black rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-white mt-8 shadow-sm">
-            <div className="w-16 h-16 rounded-full border-2 border-black flex items-center justify-center bg-zinc-50">
-              <Heart className="w-8 h-8 text-zinc-400" />
+          <div className="w-full border border-[#DCE2DE] rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-[#FFFEFC] mt-8 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)]">
+            <div className="w-16 h-16 rounded-full border border-[#DCE2DE] flex items-center justify-center bg-[#F4F1EA]">
+              <Heart className="w-8 h-8 text-[#5A6860]" />
             </div>
-            <span className="text-sm font-black uppercase tracking-wider">No Liked Items</span>
-            <p className="text-xs text-zinc-500">
+            <span className="text-sm font-black uppercase tracking-wider text-[#1A2621]">No Liked Items</span>
+            <p className="text-xs text-[#5A6860]">
               Tap the heart icon on any dish card in the menu to add it to your liked section.
             </p>
             <Link
               href={`/seat/${chairId}/menu`}
-              className="mt-2 border-2 border-black bg-black text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider"
+              className="mt-2 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm hover:opacity-95"
             >
               Browse Menu
             </Link>
@@ -76,14 +76,14 @@ export default function CustomerLikesPage() {
               return (
                 <div
                   key={item.id}
-                  className="w-full border border-black rounded-2xl p-3 flex flex-col justify-between bg-white shadow-xs"
+                  className="w-full border border-[#DCE2DE] rounded-2xl p-3 flex flex-col justify-between bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)]"
                 >
                   <Link
                     href={`/seat/${chairId}/item/${item.id}`}
                     className="w-full flex flex-col items-center cursor-pointer"
                   >
                     {/* Circular Image Container */}
-                    <div className="w-24 h-24 rounded-full border-2 border-black overflow-hidden flex items-center justify-center mb-2.5 bg-white shadow-xs">
+                    <div className="w-24 h-24 rounded-full border-2 border-[#DCE2DE] overflow-hidden flex items-center justify-center mb-2.5 bg-white shadow-xs">
                       <img
                         src={item.imageUrl}
                         alt={item.title}
@@ -92,27 +92,27 @@ export default function CustomerLikesPage() {
                       />
                     </div>
 
-                    <span className="text-xs font-bold text-center truncate w-full">
+                    <span className="text-xs font-bold text-center truncate w-full text-[#1A2621]">
                       {item.title}
                     </span>
-                    <span className="text-[10px] text-zinc-500 text-center line-clamp-1 w-full mt-0.5">
+                    <span className="text-[10px] text-[#5A6860] text-center line-clamp-1 w-full mt-0.5">
                       {item.description}
                     </span>
-                    <span className="text-xs font-black mt-1">₹ {item.price}</span>
+                    <span className="text-xs font-black mt-1 text-[#244436]">₹ {item.price}</span>
                   </Link>
 
                   {/* Actions Row: Add/Stepper + Unlike Button */}
-                  <div className="w-full flex items-center gap-2 mt-3 pt-2 border-t border-zinc-100">
+                  <div className="w-full flex items-center gap-2 mt-3 pt-2 border-t border-[#DCE2DE]/50">
                     {currentQty === 0 ? (
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.id, 1)}
-                        className="flex-1 py-1.5 border-2 border-black rounded-lg text-xs font-bold uppercase bg-black text-white cursor-pointer active:opacity-80"
+                        className="flex-1 py-1.5 rounded-lg text-xs font-bold uppercase bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white cursor-pointer active:opacity-90 shadow-xs"
                       >
                         Add
                       </button>
                     ) : (
-                      <div className="flex-1 flex items-center justify-between border-2 border-black rounded-lg bg-black text-white px-1.5 py-1">
+                      <div className="flex-1 flex items-center justify-between rounded-lg bg-[#244436] text-white px-1.5 py-1">
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.id, currentQty - 1)}
@@ -137,7 +137,7 @@ export default function CustomerLikesPage() {
                     <button
                       type="button"
                       onClick={() => toggleLike(item.id)}
-                      className="w-7 h-7 shrink-0 border border-black rounded-lg flex items-center justify-center cursor-pointer bg-black text-white active:scale-90"
+                      className="w-7 h-7 shrink-0 border border-[#DD6B28]/30 rounded-lg flex items-center justify-center cursor-pointer bg-[#DD6B28]/10 text-[#DD6B28] active:scale-90"
                       aria-label="Remove from liked"
                     >
                       <Heart className="w-3.5 h-3.5 fill-current" />

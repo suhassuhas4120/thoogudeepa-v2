@@ -119,7 +119,7 @@ export default function ItemCustomizationPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-24 select-none">
+    <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-24 select-none text-[#1A2621]">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col gap-6">
         {/* Top Header */}
@@ -127,14 +127,14 @@ export default function ItemCustomizationPage() {
           {/* Back Button to Menu */}
           <Link
             href={`/seat/${chairId}/menu`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-2xs"
             aria-label="Back to Menu"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
           {/* Title Space */}
-          <div className="text-center font-black text-sm uppercase tracking-wider">
+          <div className="text-center font-black text-sm uppercase tracking-wider text-[#1A2621]">
             Dish Details
           </div>
 
@@ -142,8 +142,10 @@ export default function ItemCustomizationPage() {
           <button
             type="button"
             onClick={() => toggleLike(itemId)}
-            className={`w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:scale-95 transition-all ${
-              isItemLiked(itemId) ? 'bg-black text-white' : 'bg-white text-black'
+            className={`w-10 h-10 border rounded-xl flex items-center justify-center cursor-pointer active:scale-95 transition-all ${
+              isItemLiked(itemId)
+                ? 'border-[#DD6B28] bg-[#DD6B28] text-white shadow-xs'
+                : 'border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] text-[#5A6860] hover:text-[#DD6B28]'
             }`}
             aria-label="Favorite"
           >
@@ -158,14 +160,14 @@ export default function ItemCustomizationPage() {
             <button
               type="button"
               onClick={handlePrevImage}
-              className="w-9 h-9 rounded-full border border-black flex items-center justify-center bg-white cursor-pointer active:scale-90 transition-transform z-10"
+              className="w-9 h-9 rounded-full border border-[rgba(220,226,222,0.8)] flex items-center justify-center bg-[#FFFEFC] text-[#1A2621] cursor-pointer active:scale-90 transition-transform z-10 shadow-xs"
               aria-label="Previous"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
             {/* Sliding Dish Circle Display */}
-            <div className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border-2 border-black flex items-center justify-center bg-[#fbf9f5] shadow-md p-1">
+            <div className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center bg-[#fbf9f5] shadow-[0_8px_30px_rgb(0,0,0,0.08)] p-1">
               <img
                 src={dishVisuals[activeImageIndex].url}
                 alt={dishVisuals[activeImageIndex].alt}
@@ -177,7 +179,7 @@ export default function ItemCustomizationPage() {
             <button
               type="button"
               onClick={handleNextImage}
-              className="w-9 h-9 rounded-full border border-black flex items-center justify-center bg-white cursor-pointer active:scale-90 transition-transform z-10"
+              className="w-9 h-9 rounded-full border border-[rgba(220,226,222,0.8)] flex items-center justify-center bg-[#FFFEFC] text-[#1A2621] cursor-pointer active:scale-90 transition-transform z-10 shadow-xs"
               aria-label="Next"
             >
               <ChevronRight className="w-4 h-4" />
@@ -194,8 +196,8 @@ export default function ItemCustomizationPage() {
                 aria-label={`Go to slide ${idx + 1}`}
                 className={`transition-all rounded-full cursor-pointer ${
                   activeImageIndex === idx
-                    ? 'w-4 h-2 bg-black'
-                    : 'w-2 h-2 border border-black bg-white hover:bg-zinc-200'
+                    ? 'w-4 h-2 bg-[#244436]'
+                    : 'w-2 h-2 border border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] hover:bg-[#F9F8F5]'
                 }`}
               />
             ))}
@@ -203,9 +205,9 @@ export default function ItemCustomizationPage() {
         </div>
 
         {/* Title & Price Section */}
-        <div className="w-full flex items-center justify-between border-b border-black pb-4">
+        <div className="w-full flex items-center justify-between border-b border-[rgba(220,226,222,0.8)] pb-4">
           <div className="flex flex-col gap-1 max-w-[70%]">
-            <div className="text-lg font-black leading-tight">
+            <div className="text-lg font-black leading-tight text-[#1A2621]">
               {dish.title}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
@@ -216,35 +218,35 @@ export default function ItemCustomizationPage() {
                     : 'bg-red-600 border-red-700'
                 }`}
               />
-              <span className="text-xs font-bold text-zinc-600 uppercase tracking-wide">
+              <span className="text-xs font-bold text-[#5A6860] uppercase tracking-wide">
                 {categoryName}
               </span>
               {dish.isSignature && (
-                <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-sm border border-amber-300">
+                <span className="text-[10px] font-black uppercase text-[#DD6B28] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                   Chef Choice
                 </span>
               )}
             </div>
           </div>
-          <div className="text-2xl font-black text-right">
+          <div className="text-2xl font-black text-right text-[#244436]">
             ₹ {dish.price}
           </div>
         </div>
 
         {/* Authentic Description Section */}
-        <div className="w-full flex flex-col gap-1.5">
-          <span className="text-xs font-black uppercase tracking-wider text-zinc-800">
+        <div className="w-full flex flex-col gap-1.5 bg-[#FFFEFC] border border-[rgba(220,226,222,0.7)] p-4 rounded-2xl shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)]">
+          <span className="text-xs font-black uppercase tracking-wider text-[#244436]">
             Heritage Recipe
           </span>
-          <p className="text-xs text-zinc-700 leading-relaxed">
+          <p className="text-xs text-[#5A6860] leading-relaxed">
             {dish.description}
           </p>
         </div>
 
         {/* Customization Options Section */}
         {dish.options && dish.options.length > 0 && (
-          <div className="w-full flex flex-col gap-3 border-t border-black pt-4">
-            <span className="text-xs font-black uppercase tracking-wider">
+          <div className="w-full flex flex-col gap-3 border-t border-[rgba(220,226,222,0.8)] pt-4">
+            <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
               Spice & Preparation
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -253,10 +255,10 @@ export default function ItemCustomizationPage() {
                   key={opt}
                   type="button"
                   onClick={() => setSelectedOption(opt)}
-                  className={`py-2 px-3 border text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                  className={`py-2 px-3 border text-xs font-bold rounded-xl cursor-pointer transition-all ${
                     selectedOption === opt
-                      ? 'border-black bg-black text-white'
-                      : 'border-black bg-white text-black hover:bg-zinc-100'
+                      ? 'border-[#244436] bg-[#244436] text-[#FFFEFC] shadow-2xs'
+                      : 'border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] text-[#5A6860] hover:text-[#1A2621] hover:border-[#244436]/40'
                   }`}
                 >
                   {opt}
@@ -267,8 +269,8 @@ export default function ItemCustomizationPage() {
         )}
 
         {/* Add-ons Options Section */}
-        <div className="w-full flex flex-col gap-2.5 border-t border-black pt-4">
-          <span className="text-xs font-black uppercase tracking-wider">
+        <div className="w-full flex flex-col gap-2.5 border-t border-[rgba(220,226,222,0.8)] pt-4">
+          <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
             Authentic Accompaniments
           </span>
           <div className="flex flex-col gap-2">
@@ -277,10 +279,10 @@ export default function ItemCustomizationPage() {
               return (
                 <label
                   key={addon.name}
-                  className={`flex items-center justify-between border p-2.5 rounded-lg cursor-pointer transition-all ${
+                  className={`flex items-center justify-between border p-3 rounded-xl cursor-pointer transition-all ${
                     isChecked
-                      ? 'border-black bg-zinc-50'
-                      : 'border-black bg-white hover:bg-zinc-50'
+                      ? 'border-[#244436] bg-emerald-50/60 shadow-2xs'
+                      : 'border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] hover:bg-[#F9F8F5]'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -288,11 +290,11 @@ export default function ItemCustomizationPage() {
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => toggleAddOn(addon.name)}
-                      className="w-4 h-4 accent-black cursor-pointer"
+                      className="w-4 h-4 accent-[#244436] cursor-pointer"
                     />
-                    <span className="text-xs font-semibold">{addon.name}</span>
+                    <span className="text-xs font-semibold text-[#1A2621]">{addon.name}</span>
                   </div>
-                  <span className="text-xs font-black">+ ₹ {addon.price}</span>
+                  <span className="text-xs font-black text-[#244436]">+ ₹ {addon.price}</span>
                 </label>
               );
             })}
@@ -300,26 +302,26 @@ export default function ItemCustomizationPage() {
         </div>
 
         {/* Quantity Stepper Section */}
-        <div className="w-full flex items-center justify-between border-t border-black pt-4">
-          <span className="text-xs font-black uppercase tracking-wider">
+        <div className="w-full flex items-center justify-between border-t border-[rgba(220,226,222,0.8)] pt-4">
+          <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
             Quantity
           </span>
-          <div className="flex items-center border-2 border-black rounded-lg overflow-hidden">
+          <div className="flex items-center border border-[#244436] rounded-xl overflow-hidden bg-[#244436] text-white shadow-2xs">
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              className="w-10 h-10 flex items-center justify-center border-r border-black cursor-pointer active:bg-zinc-200"
+              className="w-10 h-10 flex items-center justify-center cursor-pointer active:opacity-75"
               aria-label="Decrease quantity"
             >
               <Minus className="w-4 h-4" />
             </button>
-            <span className="w-12 text-center font-black text-sm">
+            <span className="w-10 text-center font-black text-sm">
               {quantity}
             </span>
             <button
               type="button"
               onClick={() => setQuantity((q) => q + 1)}
-              className="w-10 h-10 flex items-center justify-center border-l border-black cursor-pointer active:bg-zinc-200"
+              className="w-10 h-10 flex items-center justify-center cursor-pointer active:opacity-75"
               aria-label="Increase quantity"
             >
               <Plus className="w-4 h-4" />
@@ -329,15 +331,15 @@ export default function ItemCustomizationPage() {
       </div>
 
       {/* Bottom Sticky Action Bar */}
-      <div className="sticky bottom-0 z-30 w-full max-w-md bg-white border-t-2 border-black pt-3 pb-2 mt-8 flex items-center justify-between gap-4">
+      <div className="sticky bottom-0 z-30 w-full max-w-md bg-[#FFFEFC]/95 backdrop-blur-md border-t border-[rgba(220,226,222,0.8)] pt-3 pb-2 mt-8 flex items-center justify-between gap-4">
         <div className="flex flex-col">
-          <span className="text-[10px] text-zinc-500 uppercase font-bold">Total</span>
-          <span className="text-xl font-black">₹ {calculatedGrandTotal}</span>
+          <span className="text-[10px] text-[#5A6860] uppercase font-bold">Total</span>
+          <span className="text-xl font-black text-[#244436]">₹ {calculatedGrandTotal}</span>
         </div>
         <button
           type="button"
           onClick={handleAddToCart}
-          className="flex-1 border-2 border-black bg-black text-white py-3 px-4 text-sm font-black uppercase tracking-wider cursor-pointer active:opacity-80 transition-opacity rounded-xl"
+          className="flex-1 bg-gradient-to-r from-[#244436] via-[#2d5242] to-[#DD6B28] text-white py-3.5 px-4 text-sm font-black uppercase tracking-wider cursor-pointer active:opacity-90 transition-all rounded-xl shadow-md hover:shadow-lg"
         >
           Add to Cart
         </button>

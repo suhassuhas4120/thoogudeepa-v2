@@ -60,9 +60,9 @@ export default function CustomerBottomNav({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-white h-16 select-none">
-      {/* Continuous horizontal baseline under all icons matching checkmark sketch */}
-      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-black pointer-events-none" />
+    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FFFEFC]/95 backdrop-blur-md h-16 select-none border-t border-[rgba(220,226,222,0.7)] shadow-[0_-4px_20px_-4px_rgba(36,68,54,0.06)]">
+      {/* Continuous horizontal baseline under all icons */}
+      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#244436]/20 pointer-events-none" />
 
       <div className="relative w-full h-full grid grid-cols-4 items-center">
         {navItems.map((item) => {
@@ -75,8 +75,8 @@ export default function CustomerBottomNav({
               {/* Downward indicator arrow pointing at profile icon as shown in sketch */}
               {item.id === 'profile' && showIndicatorArrowOnProfile && (
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-20 animate-bounce">
-                  <div className="w-[5px] h-5 bg-black" />
-                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-black -mt-[1px]" />
+                  <div className="w-[5px] h-5 bg-[#DD6B28]" />
+                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-[#DD6B28] -mt-[1px]" />
                 </div>
               )}
 
@@ -90,29 +90,29 @@ export default function CustomerBottomNav({
                   xmlns="http://www.w3.org/2000/svg"
                   className="absolute bottom-[13px] left-1/2 -translate-x-1/2 pointer-events-none"
                 >
-                  {/* White fill mask that clears the baseline directly under the dome */}
+                  {/* Warm fill mask that clears the baseline directly under the dome */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 L 78,46 L 0,46 Z"
-                    fill="white"
+                    fill="#FFFEFC"
                   />
-                  {/* Black curved arch line running over the selected icon only */}
+                  {/* Curved arch line running over the selected icon in forest green */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42"
-                    stroke="black"
-                    strokeWidth="2"
+                    stroke="#244436"
+                    strokeWidth="2.5"
                     strokeLinecap="round"
                   />
                 </svg>
               )}
 
-              {/* Pure Icon: Sitting on the baseline; framed under the arch when selected without square borders */}
+              {/* Pure Icon: Sitting on the baseline; framed under the arch when selected */}
               <div
                 className={`relative z-10 flex items-center justify-center transition-all duration-200 ${
                   isDisabled ? 'opacity-25 grayscale pointer-events-none' : ''
                 } ${
                   isSelected
-                    ? 'bottom-[6px] p-1.5 text-black'
-                    : 'bottom-[4px] p-1.5 text-black active:scale-95'
+                    ? 'bottom-[6px] p-1.5 text-[#244436]'
+                    : 'bottom-[4px] p-1.5 text-[#5A6860] hover:text-[#244436] active:scale-95'
                 }`}
               >
                 <Icon
@@ -121,9 +121,9 @@ export default function CustomerBottomNav({
                   }`}
                 />
 
-                {/* Live Indicator Dot for Cart / Likes */}
+                {/* Live Indicator Dot for Cart / Likes with warm orange accent */}
                 {item.badge && !isSelected && !isDisabled && (
-                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-black border border-white" />
+                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#DD6B28] border border-[#FFFEFC]" />
                 )}
               </div>
             </div>

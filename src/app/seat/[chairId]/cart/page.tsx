@@ -186,15 +186,15 @@ export default function CustomerCartPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-36">
+    <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-36 text-[#1A2621]">
       {/* Top and Middle Content */}
       <div className="w-full flex flex-col gap-5">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+        <header className="w-full flex items-center justify-between py-2 border-b border-[rgba(220,226,222,0.7)] pb-3">
           {/* Back Navigation Button to Menu */}
           <Link
             href={`/seat/${chairId}/menu`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-2xs"
             aria-label="Back to Menu"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -202,8 +202,8 @@ export default function CustomerCartPage() {
 
           {/* Center Title */}
           <div className="flex flex-col items-center">
-            <h1 className="text-base font-bold tracking-tight">Your Tray</h1>
-            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+            <h1 className="text-base font-bold tracking-tight text-[#1A2621]">Your Tray</h1>
+            <span className="text-[10px] text-[#5A6860] font-bold uppercase tracking-wider">
               Seat #{chairId}
             </span>
           </div>
@@ -211,7 +211,7 @@ export default function CustomerCartPage() {
           {/* Right Notification Bell */}
           <Link
             href={`/seat/${chairId}/assistant?from=${encodeURIComponent(`/seat/${chairId}/cart`)}`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#244436] shadow-2xs"
             aria-label="Assistant & Call Waiter"
           >
             <Bell className="w-5 h-5" />
@@ -220,17 +220,17 @@ export default function CustomerCartPage() {
 
         {/* Empty State Banner (Displayed when activeItemIds is 0) */}
         {activeItemIds.length === 0 ? (
-          <div className="w-full border-2 border-black rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-white mt-4 shadow-sm">
-            <div className="w-16 h-16 rounded-full border-2 border-black flex items-center justify-center bg-zinc-50">
-              <ShoppingBag className="w-8 h-8 text-zinc-400" />
+          <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-[#FFFEFC] mt-4 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)]">
+            <div className="w-16 h-16 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center bg-[#F9F8F5]">
+              <ShoppingBag className="w-8 h-8 text-[#5A6860]" />
             </div>
-            <span className="text-sm font-black uppercase tracking-wider">Your Tray is Empty</span>
-            <p className="text-xs text-zinc-500 max-w-xs">
+            <span className="text-sm font-black uppercase tracking-wider text-[#1A2621]">Your Tray is Empty</span>
+            <p className="text-xs text-[#5A6860] max-w-xs">
               Explore authentic donne biryani, sizzling kebabs, and country curries from the menu.
             </p>
             <Link
               href={`/seat/${chairId}/menu`}
-              className="mt-2 border-2 border-black bg-black text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider"
+              className="mt-2 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-md hover:opacity-95"
             >
               Explore Menu
             </Link>
@@ -245,10 +245,10 @@ export default function CustomerCartPage() {
               return (
                 <div
                   key={itemId}
-                  className="w-full border border-black rounded-2xl p-3 flex items-center justify-between bg-white shadow-sm gap-3"
+                  className="w-full border border-[rgba(220,226,222,0.8)] rounded-2xl p-3 flex items-center justify-between bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)] gap-3"
                 >
                   {/* Circular Image Container */}
-                  <div className="w-16 h-16 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
+                  <div className="w-16 h-16 rounded-full border border-[rgba(220,226,222,0.9)] overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
                     <img
                       src={dish.imageUrl}
                       alt={dish.title}
@@ -259,19 +259,19 @@ export default function CustomerCartPage() {
 
                   {/* Title and Price Section */}
                   <div className="flex-1 flex flex-col gap-0.5 min-w-0">
-                    <span className="text-xs font-bold text-zinc-950 truncate">
+                    <span className="text-xs font-bold text-[#1A2621] truncate">
                       {dish.title}
                     </span>
-                    <span className="text-[11px] font-medium text-zinc-500 line-clamp-1">
+                    <span className="text-[11px] font-medium text-[#5A6860] line-clamp-1">
                       {dish.description}
                     </span>
-                    <span className="text-xs font-black text-zinc-900 mt-0.5">
+                    <span className="text-xs font-black text-[#244436] mt-0.5">
                       ₹ {dish.price}
                     </span>
                   </div>
 
                   {/* Stepper Pill */}
-                  <div className="flex items-center border border-black rounded-xl bg-black text-white px-2 py-1 gap-2 shrink-0">
+                  <div className="flex items-center border border-[#244436] rounded-xl bg-[#244436] text-white px-2 py-1 gap-2 shrink-0 shadow-2xs">
                     <button
                       type="button"
                       onClick={() => updateQuantity(itemId, Math.max(0, qty - 1))}
@@ -302,7 +302,7 @@ export default function CustomerCartPage() {
         {extraItems.length > 0 && (
           <div className="w-full flex flex-col gap-2 pt-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-800">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#1A2621]">
                 Recommended Complements
               </span>
             </div>
@@ -315,9 +315,9 @@ export default function CustomerCartPage() {
                 return (
                   <div
                     key={extraId}
-                    className="w-36 shrink-0 border border-black rounded-xl p-3 flex flex-col items-center text-center bg-white shadow-2xs"
+                    className="w-36 shrink-0 border border-[rgba(220,226,222,0.8)] rounded-2xl p-3 flex flex-col items-center text-center bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)]"
                   >
-                    <div className="w-14 h-14 rounded-full border-2 border-black overflow-hidden flex items-center justify-center mb-1.5 bg-zinc-100 shadow-2xs">
+                    <div className="w-14 h-14 rounded-full border border-[rgba(220,226,222,0.9)] overflow-hidden flex items-center justify-center mb-1.5 bg-zinc-100 shadow-2xs">
                       <img
                         src={dish.imageUrl}
                         alt={dish.title}
@@ -326,10 +326,10 @@ export default function CustomerCartPage() {
                       />
                     </div>
 
-                    <span className="text-xs font-bold truncate w-full">
+                    <span className="text-xs font-bold truncate w-full text-[#1A2621]">
                       {dish.title}
                     </span>
-                    <span className="text-[11px] font-black text-zinc-800 mt-0.5">
+                    <span className="text-[11px] font-black text-[#244436] mt-0.5">
                       ₹ {dish.price}
                     </span>
 
@@ -337,12 +337,12 @@ export default function CustomerCartPage() {
                       <button
                         type="button"
                         onClick={() => updateQuantity(extraId, 1)}
-                        className="w-full mt-2 py-1 border border-black rounded text-[11px] font-black uppercase bg-black text-white cursor-pointer active:opacity-80"
+                        className="w-full mt-2 py-1 border border-[#244436]/30 rounded-lg text-[11px] font-black uppercase bg-[#244436] text-white cursor-pointer active:opacity-85 shadow-2xs"
                       >
                         + Add
                       </button>
                     ) : (
-                      <div className="w-full mt-2 flex items-center justify-between border border-black rounded bg-black text-white px-2 py-0.5">
+                      <div className="w-full mt-2 flex items-center justify-between border border-[#244436] rounded-lg bg-[#244436] text-white px-2 py-0.5">
                         <button
                           type="button"
                           onClick={() => updateQuantity(extraId, extraQty - 1)}
@@ -369,18 +369,18 @@ export default function CustomerCartPage() {
 
         {/* Live Bill Breakdown */}
         {activeItemIds.length > 0 && (
-          <div className="w-full flex flex-col gap-2.5 border-t border-zinc-300 pt-4 text-xs font-semibold">
-            <div className="w-full flex items-center justify-between text-zinc-700">
+          <div className="w-full flex flex-col gap-2.5 border-t border-[rgba(220,226,222,0.8)] pt-4 text-xs font-semibold bg-[#FFFEFC] p-4 rounded-2xl border shadow-[0_4px_20px_-4px_rgba(36,68,54,0.05)]">
+            <div className="w-full flex items-center justify-between text-[#5A6860]">
               <span>Subtotal ({activeItemIds.length} dishes)</span>
-              <span className="font-bold text-zinc-900">₹ {subtotal}</span>
+              <span className="font-bold text-[#1A2621]">₹ {subtotal}</span>
             </div>
-            <div className="w-full flex items-center justify-between text-zinc-700">
+            <div className="w-full flex items-center justify-between text-[#5A6860]">
               <span>GST (5%)</span>
-              <span className="font-bold text-zinc-900">₹ {gstAmount}</span>
+              <span className="font-bold text-[#1A2621]">₹ {gstAmount}</span>
             </div>
-            <div className="w-full flex items-center justify-between text-sm font-black border-t border-zinc-200 pt-2 text-zinc-950">
+            <div className="w-full flex items-center justify-between text-sm font-black border-t border-[rgba(220,226,222,0.8)] pt-2 text-[#1A2621]">
               <span>Grand Total</span>
-              <span className="text-base font-black">₹ {grandTotal}</span>
+              <span className="text-base font-black text-[#244436]">₹ {grandTotal}</span>
             </div>
           </div>
         )}
@@ -388,15 +388,15 @@ export default function CustomerCartPage() {
 
       {/* Floating Order Dispatch Footer */}
       {activeItemIds.length > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 z-30 max-w-md mx-auto px-4 py-2 bg-white/95 backdrop-blur-md border-t border-zinc-200">
+        <div className="fixed bottom-16 left-0 right-0 z-30 max-w-md mx-auto px-4 py-2 bg-[#FFFEFC]/95 backdrop-blur-md border-t border-[rgba(220,226,222,0.7)]">
           <button
             type="button"
             disabled={isSubmitting}
             onClick={handlePlaceOrder}
-            className="w-full border-2 border-black bg-black text-white py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-lg cursor-pointer active:scale-[0.99] transition-transform disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-[#244436] via-[#2d5242] to-[#DD6B28] text-white py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-lg cursor-pointer active:scale-[0.99] transition-all disabled:opacity-50 hover:shadow-xl"
           >
             <div className="flex flex-col items-start">
-              <span className="text-[10px] font-bold tracking-widest uppercase text-zinc-400">
+              <span className="text-[10px] font-bold tracking-widest uppercase text-emerald-100">
                 {activeItemIds.length} Dishes
               </span>
               <span className="text-base font-black">

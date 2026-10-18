@@ -91,15 +91,15 @@ function CustomerSelfPaymentContent() {
   const selectedMethodName = selectedMethodObj?.label || 'UPI';
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
+    <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28 text-[#1A2621]">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col gap-6">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+        <header className="w-full flex items-center justify-between py-2 border-b border-[rgba(220,226,222,0.7)] pb-3">
           {/* Back Navigation Button to Order Summary & Bill */}
           <Link
             href={`/seat/${chairId}/bill`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-2xs"
             aria-label="Back to Bill"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -107,8 +107,8 @@ function CustomerSelfPaymentContent() {
 
           {/* Center Title */}
           <div className="flex flex-col items-center">
-            <h1 className="text-base font-bold tracking-tight">Settle Bill</h1>
-            <span className="text-[10px] text-zinc-500 font-bold uppercase">
+            <h1 className="text-base font-bold tracking-tight text-[#1A2621]">Settle Bill</h1>
+            <span className="text-[10px] text-[#5A6860] font-bold uppercase">
               Seat #{chairId}
             </span>
           </div>
@@ -116,7 +116,7 @@ function CustomerSelfPaymentContent() {
           {/* Right Notification Bell */}
           <Link
             href={`/seat/${chairId}/assistant?from=${encodeURIComponent(`/seat/${chairId}/payment`)}`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#244436] shadow-2xs"
             aria-label="Assistant & Call Waiter"
           >
             <Bell className="w-5 h-5" />
@@ -140,36 +140,36 @@ function CustomerSelfPaymentContent() {
                       setSelectedMethod(null);
                     }
                   }}
-                  className={`w-[300px] border-2 border-black rounded-3xl p-5 flex flex-col justify-between h-44 shadow-sm shrink-0 snap-center cursor-pointer transition-all ${
-                    isSelected ? 'bg-white ring-3 ring-black/80' : 'bg-zinc-50 hover:bg-white'
+                  className={`w-[300px] border rounded-3xl p-5 flex flex-col justify-between h-44 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)] shrink-0 snap-center cursor-pointer transition-all ${
+                    isSelected ? 'bg-[#FFFEFC] border-[#244436] ring-2 ring-[#244436]' : 'border-[rgba(220,226,222,0.8)] bg-[#FFFEFC]/80 hover:bg-[#FFFEFC]'
                   }`}
                 >
                   {/* Top row inside card: Title & Brand / Logo */}
                   <div className="w-full flex items-center justify-between">
-                    <span className="text-sm font-black tracking-wide">{card.title}</span>
-                    <div className="border border-black px-2 py-0.5 rounded text-[10px] font-black uppercase bg-white">
+                    <span className="text-sm font-black tracking-wide text-[#1A2621]">{card.title}</span>
+                    <div className="border border-[rgba(220,226,222,0.9)] px-2 py-0.5 rounded text-[10px] font-black uppercase bg-[#F9F8F5] text-[#244436]">
                       {isSelected ? 'SELECTED' : card.logo}
                     </div>
                   </div>
 
                   {/* Middle row: Card Number / Identifier */}
-                  <div className="text-sm font-mono font-bold tracking-wider my-auto truncate">
+                  <div className="text-sm font-mono font-bold tracking-wider my-auto truncate text-[#1A2621]">
                     {card.number}
                   </div>
 
                   {/* Bottom row: Meta Details */}
                   <div className="w-full flex items-end justify-between">
-                    <div className="w-8 h-6 border border-black rounded-md flex items-center justify-center bg-zinc-100">
-                      <div className="w-4 h-3 border border-black rounded-xs" />
+                    <div className="w-8 h-6 border border-[rgba(220,226,222,0.9)] rounded-md flex items-center justify-center bg-[#F9F8F5]">
+                      <div className="w-4 h-3 border border-[rgba(220,226,222,0.9)] rounded-xs" />
                     </div>
                     <div className="flex gap-4 text-right">
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Customer</span>
-                        <span className="text-xs font-bold">{card.holder}</span>
+                        <span className="text-[9px] text-[#5A6860] font-bold uppercase">Customer</span>
+                        <span className="text-xs font-bold text-[#1A2621]">{card.holder}</span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase">Status</span>
-                        <span className="text-xs font-bold">{card.expiry}</span>
+                        <span className="text-[9px] text-[#5A6860] font-bold uppercase">Status</span>
+                        <span className="text-xs font-bold text-[#1A2621]">{card.expiry}</span>
                       </div>
                     </div>
                   </div>
@@ -181,7 +181,7 @@ function CustomerSelfPaymentContent() {
 
         {/* Section: Choose Method */}
         <div className="w-full flex flex-col gap-3">
-          <span className="text-xs font-black uppercase tracking-wider">
+          <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
             Choose Payment Mode
           </span>
 
@@ -193,10 +193,10 @@ function CustomerSelfPaymentContent() {
                   <button
                     key="add"
                     type="button"
-                    className="w-13 h-13 rounded-full border-2 border-black flex items-center justify-center shrink-0 cursor-pointer active:opacity-70 bg-white"
+                    className="w-13 h-13 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center shrink-0 cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-2xs hover:border-[#244436]"
                     aria-label="Add Method"
                   >
-                    <Plus className="w-5 h-5" />
+                    <Plus className="w-5 h-5 text-[#244436]" />
                   </button>
                 );
               }
@@ -215,8 +215,10 @@ function CustomerSelfPaymentContent() {
                       setSelectedCardId(null);
                     }
                   }}
-                  className={`px-4 py-2.5 rounded-full border-2 border-black flex items-center justify-center shrink-0 cursor-pointer transition-all ${
-                    isSelected ? 'bg-black text-white' : 'bg-white text-black'
+                  className={`px-4 py-2.5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-all ${
+                    isSelected
+                      ? 'border-[#244436] bg-[#244436] text-white shadow-2xs'
+                      : 'border-[rgba(220,226,222,0.9)] bg-[#FFFEFC] text-[#5A6860] hover:text-[#1A2621] hover:border-[#244436]/40'
                   }`}
                   aria-label={method.label}
                 >
@@ -230,13 +232,13 @@ function CustomerSelfPaymentContent() {
         </div>
 
         {/* Items & Price Breakdown Section */}
-        <div className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-4 bg-white shadow-sm">
+        <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-4 flex flex-col gap-4 bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)]">
           {/* Section Header */}
-          <div className="w-full flex items-center justify-between border-b border-zinc-200 pb-2">
-            <span className="text-xs font-black uppercase tracking-wider">
+          <div className="w-full flex items-center justify-between border-b border-[rgba(220,226,222,0.7)] pb-2">
+            <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
               Items &amp; Bill Breakdown
             </span>
-            <span className="text-[10px] font-bold border border-black px-2 py-0.5 rounded-full uppercase bg-zinc-50">
+            <span className="text-[10px] font-bold border border-[#244436]/20 px-2 py-0.5 rounded-full uppercase bg-[#F9F8F5] text-[#244436]">
               {session?.ticketNumber || `Seat #${chairId}`}
             </span>
           </div>
@@ -250,23 +252,23 @@ function CustomerSelfPaymentContent() {
                 return (
                   <div key={idx} className="w-full flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 rounded-full border border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100">
+                      <div className="w-12 h-12 rounded-full border border-[rgba(220,226,222,0.9)] overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
                         <img
                           src={dishData.imageUrl}
                           alt={item.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover object-center rounded-full"
                         />
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-bold truncate">
+                        <span className="text-xs font-bold truncate text-[#1A2621]">
                           {item.title}
                         </span>
-                        <span className="text-[10px] text-zinc-500 font-semibold">
+                        <span className="text-[10px] text-[#5A6860] font-semibold">
                           Qty: {item.quantity} &times; ₹ {item.price}
                         </span>
                       </div>
                     </div>
-                    <span className="text-xs font-black shrink-0">
+                    <span className="text-xs font-black shrink-0 text-[#244436]">
                       ₹ {item.price * item.quantity}
                     </span>
                   </div>
@@ -275,23 +277,23 @@ function CustomerSelfPaymentContent() {
             ) : (
               <div className="w-full flex items-center justify-between gap-3 py-1">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-12 h-12 rounded-full border border-black overflow-hidden flex items-center justify-center shrink-0 bg-zinc-100">
+                  <div className="w-12 h-12 rounded-full border border-[rgba(220,226,222,0.9)] overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
                     <img
                       src="https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop&q=80"
                       alt="Donne Biryani"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-center rounded-full"
                     />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold truncate">
+                    <span className="text-xs font-bold truncate text-[#1A2621]">
                       Authentic Military Dining
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-semibold">
+                    <span className="text-[10px] text-[#5A6860] font-semibold">
                       Dine-in Order Session
                     </span>
                   </div>
                 </div>
-                <span className="text-xs font-black shrink-0">
+                <span className="text-xs font-black shrink-0 text-[#244436]">
                   ₹ {itemsSubtotal}
                 </span>
               </div>
@@ -299,40 +301,40 @@ function CustomerSelfPaymentContent() {
           </div>
 
           {/* Subtotal & Taxes Breakdown */}
-          <div className="w-full border-t border-zinc-200 pt-3 flex flex-col gap-1.5 text-xs text-zinc-700">
+          <div className="w-full border-t border-[rgba(220,226,222,0.7)] pt-3 flex flex-col gap-1.5 text-xs text-[#5A6860]">
             <div className="w-full flex items-center justify-between">
               <span>Item Subtotal ({itemsList.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
-              <span className="font-bold text-zinc-900">₹ {itemsSubtotal}</span>
+              <span className="font-bold text-[#1A2621]">₹ {itemsSubtotal}</span>
             </div>
-            <div className="w-full flex items-center justify-between text-zinc-600">
+            <div className="w-full flex items-center justify-between text-[#5A6860]">
               <span>CGST (2.5%)</span>
-              <span className="font-bold">₹ {cgst}</span>
+              <span className="font-bold text-[#1A2621]">₹ {cgst}</span>
             </div>
-            <div className="w-full flex items-center justify-between text-zinc-600">
+            <div className="w-full flex items-center justify-between text-[#5A6860]">
               <span>SGST (2.5%)</span>
-              <span className="font-bold">₹ {sgst}</span>
+              <span className="font-bold text-[#1A2621]">₹ {sgst}</span>
             </div>
             {tipAmount > 0 && (
-              <div className="w-full flex items-center justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1.5 rounded-lg border border-emerald-200">
+              <div className="w-full flex items-center justify-between text-[#244436] font-bold bg-emerald-50/80 px-2.5 py-1.5 rounded-xl border border-emerald-200">
                 <span>Staff Tip (Waiter)</span>
-                <span>+ ₹ {tipAmount}</span>
+                <span className="text-[#DD6B28]">+ ₹ {tipAmount}</span>
               </div>
             )}
           </div>
 
           {/* Total Payable Box */}
-          <div className="w-full border-t-2 border-black pt-3 flex items-center justify-between">
+          <div className="w-full border-t border-[rgba(220,226,222,0.8)] pt-3 flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-black uppercase tracking-wider">
+              <span className="text-sm font-black uppercase tracking-wider text-[#1A2621]">
                 Total Payable
               </span>
               {tipAmount > 0 && (
-                <span className="text-[10px] text-emerald-700 font-bold">
+                <span className="text-[10px] text-[#DD6B28] font-bold">
                   Includes ₹{tipAmount} Tip
                 </span>
               )}
             </div>
-            <span className="text-xl font-black text-black">
+            <span className="text-xl font-black text-[#244436]">
               ₹ {grandPayable}
             </span>
           </div>
@@ -340,12 +342,12 @@ function CustomerSelfPaymentContent() {
       </div>
 
       {/* Bottom Sticky Continue Button */}
-      <div className="sticky bottom-0 z-30 w-full bg-white/95 backdrop-blur-sm pt-3 pb-4 border-t border-zinc-200">
+      <div className="sticky bottom-0 z-30 w-full bg-[#FFFEFC]/95 backdrop-blur-md pt-3 pb-4 border-t border-[rgba(220,226,222,0.8)]">
         {selectedCardId ? (
           /* Card Selected -> Goes to Card Details */
           <Link
             href={`/seat/${chairId}/card-details?card=${selectedCardId}&amount=${grandPayable}&tip=${tipAmount}`}
-            className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
+            className="w-full bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-90 transition-all text-center shadow-md hover:shadow-lg"
           >
             Continue with Card
           </Link>
@@ -353,7 +355,7 @@ function CustomerSelfPaymentContent() {
           /* Method Selected -> Goes to Payment Success */
           <Link
             href={`/seat/${chairId}/payment-success?mode=${encodeURIComponent(selectedMethodName)}&amount=${grandPayable}&tip=${tipAmount}`}
-            className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
+            className="w-full bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-90 transition-all text-center shadow-md hover:shadow-lg"
           >
             Pay ₹ {grandPayable} via {selectedMethodName}
           </Link>
@@ -362,7 +364,7 @@ function CustomerSelfPaymentContent() {
           <button
             type="button"
             disabled
-            className="w-full border-2 border-zinc-300 bg-zinc-200 text-zinc-500 py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-not-allowed text-center opacity-70"
+            className="w-full border border-zinc-200 bg-zinc-100 text-zinc-400 py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-not-allowed text-center opacity-70"
           >
             Select Payment Method
           </button>
@@ -374,7 +376,7 @@ function CustomerSelfPaymentContent() {
 
 export default function CustomerSelfPaymentPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-b from-[#F9F8F5] to-[#F3F1EC]" />}>
       <CustomerSelfPaymentContent />
     </Suspense>
   );
