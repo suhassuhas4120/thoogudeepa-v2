@@ -413,7 +413,7 @@ export const realtimeBridge = {
   async updateStage(
     itemIdOrKey: string,
     stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string }
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }
   ): Promise<boolean> {
     try {
       // 1. Update in local orders list strictly for matching item
@@ -427,10 +427,11 @@ export const realtimeBridge = {
         const isTargetChair = !cleanChair || oChair === cleanChair || o.order.chair_id === meta?.chairId;
         const isTargetTicket = !tNum || o.order.ticket_number === tNum;
         if (isTargetChair && isTargetTicket) {
-          o.items.forEach((it) => {
+          o.items.forEach((it, idx) => {
             const matches =
               it.id === targetItemId ||
               it.id === itemIdOrKey ||
+              (typeof meta?.itemIndex === 'number' && meta.itemIndex === idx) ||
               (!it.id && it.dish_id === meta?.dishId);
 
             if (matches) {
@@ -457,6 +458,16 @@ export const realtimeBridge = {
             if (tNum) {
               existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
               existing[`${tNum}-${itemIdOrKey}`] = stage;
+              if (typeof meta?.itemIndex === 'number') {
+                existing[`${tNum}-${meta.itemIndex}`] = stage;
+                existing[`${chair}-${tNum}-${meta.itemIndex}`] = stage;
+              }
+              if (meta?.dishId) {
+                existing[`${tNum}-${meta.dishId}`] = stage;
+              }
+              if (meta?.dishName) {
+                existing[`${tNum}-${meta.dishName}`] = stage;
+              }
             }
             localStorage.setItem(key, JSON.stringify(existing));
 
@@ -1212,7 +1223,7 @@ export const realtimeBridge = {
   // Subscribe to KDS & Seat Occupancy changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string; itemId?: string }) => void;
+    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }) => void;
     onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
     onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
@@ -1351,6 +1362,7 @@ export const realtimeBridge = {
           ticketNumber: data.ticketNumber,
           dishName: data.dishName,
           itemId: data.itemId,
+          itemIndex: data.itemIndex,
         });
       } else if (data.type === 'TICKET_DISPATCHED' && callbacks.onTicketDispatched) {
         callbacks.onTicketDispatched({ ticketNumber: data.ticketNumber, chairId: data.chairId });

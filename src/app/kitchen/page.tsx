@@ -305,11 +305,12 @@ export default function KitchenDisplaySystemPage() {
   const updateItemStage = (
     itemKey: string,
     stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string }
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }
   ) => {
     const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
     const tNum = meta?.ticketNumber || '';
     const targetItemId = meta?.itemId || itemKey;
+    const itemIdx = typeof meta?.itemIndex === 'number' ? meta.itemIndex : undefined;
 
     // 1. Update React itemStages using strict item-scoped keys
     setItemStages((prev) => {
@@ -321,6 +322,10 @@ export default function KitchenDisplaySystemPage() {
         next[targetItemId] = stage;
         if (chair) next[`${chair}-${targetItemId}`] = stage;
         if (chair && tNum) next[`${chair}-${tNum}-${targetItemId}`] = stage;
+      }
+      if (typeof itemIdx === 'number' && tNum) {
+        next[`${tNum}-${itemIdx}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${itemIdx}`] = stage;
       }
       return next;
     });
@@ -875,6 +880,7 @@ export default function KitchenDisplaySystemPage() {
                                             ticketNumber: order.ticket_number,
                                             dishName: it.dish_name,
                                             itemId: it.id || itemKey,
+                                            itemIndex: idx,
                                           })
                                         }
                                         className={`h-7 rounded-md text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${
