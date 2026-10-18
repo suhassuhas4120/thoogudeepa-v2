@@ -7,18 +7,17 @@
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
  * - Renders directly inside the right container (NO POPUP MODAL)
  * - Header with [ ← Back ] to Live Ticket and customer context
- * - Itemized tax invoice breakdown: Subtotal, CGST (2.5%), SGST (2.5%), Total
+ * - Itemized tax invoice breakdown: Subtotal, CGST (2.5%), SGST (2.5%), Total Payable
  * - Payment Method Selector:
- *   * Cash Tender with dynamic tip synchronization, exact preset & change return
- *   * Dynamic UPI QR Code for Google Pay, PhonePe, Paytm, and BHIM with tip included
- * - Tip Preset selector (+₹0, +₹20, +₹50, +₹100) that automatically updates cash tender
+ *   * Cash Tender with exact rupee preset & change return calculation
+ *   * Dynamic UPI QR Code for Google Pay, PhonePe, Paytm, and BHIM
+ * - NO TIPS / NO WAITER TIP CONTAINER (Completely removed as requested)
  * - Conditional Payment Settlement Enablement:
- *   * Waiter must toggle/verify "Payment Received" before vacating!
+ *   * Waiter toggles "Payment Received & Verified" before vacating!
  * - Single clean icon per action button:
  *   * [ Print Receipt ] (Printer icon)
  *   * [ Settle & Vacate ] (CheckCircle icon, disabled until payment confirmed)
- * - Standardized badge tokens (uniform 24px height, 10px bold uppercase font)
- * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
+ * - Strict line count maintained between 250 and 350 lines.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -57,33 +56,24 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 }) => {
   // Selected payment method: cash or upi
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
-  const [selectedTip, setSelectedTip] = useState<number>(0);
   const [cashTendered, setCashTendered] = useState<number>(totalAmount);
   const [isReceiptPrinting, setIsReceiptPrinting] = useState<boolean>(false);
   
   // Conditional Payment Verification State (Must be verified by waiter to enable vacate)
   const [isPaymentReceived, setIsPaymentReceived] = useState<boolean>(false);
 
-  // Financial calculations with tip dynamically included
-  const payableAmount = totalAmount + selectedTip;
+  // Financial calculations
   const subtotal = Math.round(totalAmount / 1.05);
   const gst = totalAmount - subtotal;
   const cgst = Math.round(gst / 2);
   const sgst = gst - cgst;
-  const cashChange = Math.max(0, cashTendered - payableAmount);
+  const cashChange = Math.max(0, cashTendered - totalAmount);
 
-  // Handler: Selecting tip automatically syncs cash tender amount
-  const handleSelectTip = (tip: number) => {
-    setSelectedTip(tip);
-    const updatedPayable = totalAmount + tip;
-    setCashTendered(updatedPayable);
-  };
-
-  // UPI QR Code Generator URL including tip
+  // UPI QR Code Generator URL
   const qrUrl = useMemo(() => {
-    const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${payableAmount}&cu=INR&tn=${encodeURIComponent(seatName)}`;
+    const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(seatName)}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUri)}`;
-  }, [payableAmount, seatName]);
+  }, [totalAmount, seatName]);
 
   const handlePrint = () => {
     setIsReceiptPrinting(true);
@@ -172,50 +162,19 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               <span>SGST (2.5%):</span>
               <span>₹{sgst}</span>
             </div>
-            {selectedTip > 0 && (
-              <div className="flex justify-between text-amber-700 font-bold">
-                <span>Staff Tip:</span>
-                <span>+₹{selectedTip}</span>
-              </div>
-            )}
           </div>
 
           {/* Grand Payable */}
           <div className="pt-2 flex justify-between items-center text-xs font-black">
             <span className="text-slate-900">Total Payable:</span>
             <span className="text-base font-black text-amber-700">
-              ₹{payableAmount.toLocaleString('en-IN')}
+              ₹{totalAmount.toLocaleString('en-IN')}
             </span>
           </div>
         </div>
 
         {/* ======================================================== */}
-        {/* 3. OPTIONAL TIP PRESETS (DYNAMICALLY SYNCED TO CASH)     */}
-        {/* ======================================================== */}
-        <div className="mb-3">
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">
-            Add Waiter Tip (Optional)
-          </span>
-          <div className="grid grid-cols-4 gap-1.5">
-            {[0, 20, 50, 100].map(tip => (
-              <button
-                key={tip}
-                type="button"
-                onClick={() => handleSelectTip(tip)}
-                className={`h-8 rounded-xl text-xs font-bold border transition-all flex items-center justify-center cursor-pointer ${
-                  selectedTip === tip
-                    ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs ring-2 ring-amber-500/20'
-                    : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                {tip === 0 ? 'None' : `+₹${tip}`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ======================================================== */}
-        {/* 4. PAYMENT METHOD SELECTOR: CASH VS DYNAMIC UPI QR       */}
+        {/* 3. PAYMENT METHOD SELECTOR: CASH VS DYNAMIC UPI QR       */}
         {/* ======================================================== */}
         <div className="mb-3">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">
@@ -252,22 +211,15 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
           </div>
         </div>
 
-        {/* Cash Tender Calculator View with Tip Integration */}
+        {/* Cash Tender Calculator View (No Tips) */}
         {paymentMode === 'cash' && (
           <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50 mb-3 space-y-2.5">
-            {/* Total Payable Row with Tip Indicator */}
+            {/* Total Payable Row */}
             <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-200">
               <span className="font-bold text-slate-700">Total Payable:</span>
-              <div className="text-right">
-                <span className="font-black text-amber-700 text-sm">
-                  ₹{payableAmount.toLocaleString('en-IN')}
-                </span>
-                {selectedTip > 0 && (
-                  <span className="text-[9px] text-slate-500 block font-semibold">
-                    (₹{totalAmount} bill + ₹{selectedTip} tip)
-                  </span>
-                )}
-              </div>
+              <span className="font-black text-amber-700 text-sm">
+                ₹{totalAmount.toLocaleString('en-IN')}
+              </span>
             </div>
 
             {/* Cash Tender Input */}
@@ -288,14 +240,14 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => setCashTendered(payableAmount)}
+                onClick={() => setCashTendered(totalAmount)}
                 className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
-                  cashTendered === payableAmount
+                  cashTendered === totalAmount
                     ? 'bg-amber-500 text-slate-950 font-black border-amber-500'
                     : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                Exact (₹{payableAmount})
+                Exact (₹{totalAmount})
               </button>
               {[500, 1000, 2000].map(val => (
                 <button
@@ -315,7 +267,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 
             {/* Change Due or Remaining Due */}
             <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-black">
-              {cashTendered >= payableAmount ? (
+              {cashTendered >= totalAmount ? (
                 <>
                   <span className="text-slate-600">Change Due:</span>
                   <span className="text-emerald-600 font-black text-sm">
@@ -326,7 +278,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
                 <>
                   <span className="text-rose-600 font-bold">Remaining Due:</span>
                   <span className="text-rose-600 font-black text-sm">
-                    -₹{(payableAmount - cashTendered).toLocaleString('en-IN')}
+                    -₹{(totalAmount - cashTendered).toLocaleString('en-IN')}
                   </span>
                 </>
               )}
@@ -348,7 +300,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               />
             </div>
             <span className="text-xs font-black text-amber-700 mt-2">
-              ₹{payableAmount.toLocaleString('en-IN')} {selectedTip > 0 ? `(incl. ₹${selectedTip} tip)` : ''}
+              ₹{totalAmount.toLocaleString('en-IN')}
             </span>
           </div>
         )}
@@ -384,7 +336,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* 5. SETTLEMENT ACTIONS: PRINT RECEIPT & CONDITIONAL VACATE */}
+      {/* 4. SETTLEMENT ACTIONS: PRINT RECEIPT & CONDITIONAL VACATE */}
       {/* ======================================================== */}
       <div className="pt-3 border-t border-slate-200 mt-2 space-y-2">
         {/* Single Icon Button: Print Receipt */}

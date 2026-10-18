@@ -7,8 +7,8 @@
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
  * - Subheader with explicit [ Floor ] navigation button on ONE single line
  * - STRICTLY NO "TARGET SEAT:" LABEL (Removed as requested by user)
- * - Custom styled seat switcher dropdown with proper visualization and chevron icon
- * - Prominent Cart Icon button with live item count badge replacing veg toggle
+ * - Properly sized and constrained Seat Selector that never spills outside or into right pane
+ * - Standalone ShoppingCart icon button with live item count badge positioned directly on top right
  * - Fixed shrink-0 category filter pills (All Items, Donne Biryani, Starters, Gravy, Beverages)
  * - Food cards with authentic high-res food images, veg/non-veg badge, price, and stepper controls
  * - [ + Add ] action button for first-time selection with Plus icon
@@ -77,18 +77,21 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
     { id: 'drinks', label: 'Beverages' }
   ];
 
-  // Dynamic seats list for complete dropdown selection
+  // Dynamic seats list formatted concisely to guarantee no overflow
   const allSeatsList = useMemo(() => {
     if (seats && seats.length > 0) {
-      return seats.map(s => ({
-        id: s.seatNumber,
-        label: s.status === 'occupied'
-          ? `${s.seatNumber} (${s.guestName} - ₹${s.totalAmount}${s.hasBillRequest ? ' Bill Req' : ''})`
-          : `${s.seatNumber} (Available)`
-      }));
+      return seats.map(s => {
+        const shortGuest = s.guestName.split(' ')[0];
+        return {
+          id: s.seatNumber,
+          label: s.status === 'occupied'
+            ? `${s.seatNumber} (${shortGuest} - ₹${s.totalAmount})`
+            : `${s.seatNumber} (Vacant)`
+        };
+      });
     }
     return [
-      { id: 'Seat 01', label: 'Seat 01 (Walk-In Available)' }
+      { id: 'Seat 01', label: 'Seat 01 (Vacant)' }
     ];
   }, [seats]);
 
@@ -112,15 +115,15 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
       aria-label="Menu Catalog Ordering Terminal"
     >
       {/* ======================================================== */}
-      {/* 1. SUB-HEADER: FLOOR BACK, LOGO TITLE & SEAT SELECTOR    */}
+      {/* 1. SUB-HEADER: FLOOR BACK, BRAND & CONSTRAINED SELECTOR  */}
       {/* ======================================================== */}
-      <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 mb-4 gap-2 flex-nowrap shrink-0">
-        <div className="flex items-center gap-2.5 shrink-0">
+      <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 mb-4 gap-2 shrink-0 w-full overflow-hidden">
+        <div className="flex items-center gap-2 min-w-0 shrink">
           {/* Explicit Back to Floor Grid Button */}
           <button
             type="button"
             onClick={onBackToFloor}
-            className="h-9 px-3 rounded-xl border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all flex items-center gap-1.5 shadow-2xs group shrink-0 cursor-pointer"
+            className="h-9 px-2.5 rounded-xl border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all flex items-center gap-1 shadow-2xs group shrink-0 cursor-pointer"
             title="Return to Floor Seat Matrix"
           >
             <ChevronLeft className="w-4 h-4 text-slate-600 group-hover:-translate-x-0.5 transition-transform" />
@@ -128,34 +131,34 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
           </button>
 
           {/* Brand & Active Seat Name and Dining Status Tag */}
-          <div>
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-xs font-black text-slate-900">ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ</span>
+          <div className="min-w-0 flex flex-col">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-xs font-black text-slate-900 truncate">ತೂಗುದೀಪ</span>
               <span
-                className={`h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full border shadow-2xs ${
+                className={`h-5 px-2 inline-flex items-center justify-center text-[9px] font-extrabold uppercase tracking-wider rounded-full border shadow-2xs shrink-0 ${
                   isDining 
                     ? 'bg-amber-50 text-amber-800 border-amber-300' 
                     : 'bg-emerald-50 text-emerald-700 border-emerald-300'
                 }`}
               >
-                {isDining ? 'Dining Active' : 'New Order'}
+                {isDining ? 'Dining' : 'New'}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold mt-0.5">
+            <div className="flex items-center gap-1 text-[10px] text-amber-700 font-bold mt-0.5 truncate">
               <span>ಮಿಲಿಟರಿ ಹೋಟೆಲ್</span>
               <span className="text-slate-300">•</span>
-              <span className="text-slate-700 font-bold">{activeSeatName}</span>
+              <span className="text-slate-700 font-bold truncate">{activeSeatName}</span>
             </div>
           </div>
         </div>
 
-        {/* PROPER CUSTOM DROPDOWN (NO "TARGET SEAT:" TEXT LABEL!) */}
-        <div className="relative shrink-0">
+        {/* PROPER CONSTRAINED SEAT DROPDOWN (NEVER OVERFLOWS OUTSIDE) */}
+        <div className="relative shrink-0 max-w-[170px] sm:max-w-[190px]">
           <div className="relative flex items-center">
             <select
               value={currentSeatId}
               onChange={(e) => onQuickSeatSwitch(e.target.value)}
-              className="appearance-none h-9 pl-3 pr-8 bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+              className="appearance-none h-9 pl-2.5 pr-7 w-full max-w-[170px] sm:max-w-[190px] bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all truncate"
               title="Quickly switch order target seat"
             >
               {allSeatsList.map(seat => (
@@ -164,13 +167,13 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2 pointer-events-none" />
           </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 2. SEARCH INPUT & CART BUTTON WITH LIVE COUNT BADGE      */}
+      {/* 2. SEARCH INPUT & CART ICON ONLY WITH TOP FLOATING BADGE */}
       {/* ======================================================== */}
       <div className="flex items-center gap-2.5 mb-3.5 shrink-0">
         {/* Search Input Box */}
@@ -196,17 +199,17 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
           )}
         </div>
 
-        {/* Cart Icon Button (Replaces Veg Toggle as requested) */}
+        {/* Cart Icon Only with Top Number Badge (No Text as requested) */}
         <button
           type="button"
           onClick={onSwitchToTicketMode}
-          className="relative h-10 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold border border-amber-400 flex items-center justify-center gap-2 shadow-xs transition-all shrink-0 cursor-pointer"
+          className="relative w-10 h-10 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 border border-amber-400 flex items-center justify-center shadow-xs transition-all shrink-0 cursor-pointer"
           title="View Current Order Ticket"
+          aria-label={`View Cart: ${cartCount} items`}
         >
-          <ShoppingCart className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-          <span className="text-xs font-black hidden sm:inline">Cart</span>
+          <ShoppingCart className="w-5 h-5 text-slate-950 stroke-[2.2]" />
           {cartCount > 0 && (
-            <span className="h-5 min-w-5 px-1.5 rounded-full bg-slate-950 text-amber-400 text-[10px] font-black flex items-center justify-center shadow-xs">
+            <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-slate-950 text-amber-400 text-[10px] font-black flex items-center justify-center border-2 border-white shadow-xs">
               {cartCount}
             </span>
           )}
