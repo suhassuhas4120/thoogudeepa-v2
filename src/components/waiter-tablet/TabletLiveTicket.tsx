@@ -150,13 +150,13 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                   key={item.id}
                   className={`border rounded-xl p-3 transition-colors ${
                     isServed
-                      ? 'border-slate-200 bg-slate-100/70 opacity-55 select-none cursor-not-allowed pointer-events-none'
+                      ? 'border-slate-200 bg-slate-100/70 opacity-70 select-none'
                       : 'border-slate-200 bg-slate-50/70 shadow-2xs hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2.5">
                     <div className="min-w-0 flex-1">
-                      <span className={`font-black block truncate text-xs sm:text-sm ${isServed ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                      <span className={`font-black block truncate text-xs sm:text-sm ${isServed ? 'text-slate-400 line-through decoration-2' : 'text-slate-900'}`}>
                         {item.quantity}x {item.name}
                       </span>
                       <span className="text-xs text-slate-500 font-bold block mt-0.5">
@@ -171,35 +171,67 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                           <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
                             READY
                           </span>
-                          {/* Simple Clean Button: Served (Check Icon) */}
                           <button
                             type="button"
                             onClick={() => onServeItem(item.id)}
-                            className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                            className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                             title="Mark as Served to Seat"
                           >
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Served</span>
+                            <span>Serve</span>
                           </button>
                         </div>
                       )}
 
                       {item.status === 'PREPARING' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
-                          PREPARING
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
+                            PREPARING
+                          </span>
+                          <button
+                            type="button"
+                            disabled
+                            className="h-6 px-2.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
+                            title="Waiting for kitchen to mark Ready"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
+                            <span>Serve</span>
+                          </button>
+                        </div>
                       )}
 
                       {item.status === 'RECEIVED' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
-                          RECEIVED
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
+                            RECEIVED
+                          </span>
+                          <button
+                            type="button"
+                            disabled
+                            className="h-6 px-2.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
+                            title="Waiting for kitchen to mark Ready"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
+                            <span>Serve</span>
+                          </button>
+                        </div>
                       )}
 
                       {item.status === 'PLACED' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
-                          PLACED
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
+                            PLACED
+                          </span>
+                          <button
+                            type="button"
+                            disabled
+                            className="h-6 px-2.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
+                            title="Waiting for kitchen to mark Ready"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
+                            <span>Serve</span>
+                          </button>
+                        </div>
                       )}
 
                       {isServed && (

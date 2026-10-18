@@ -9,7 +9,7 @@ export interface OrderItemRecord {
   dish_name: string;
   quantity: number;
   price: number;
-  stage: 'PLACED' | 'REC' | 'PREP' | 'READY';
+  stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
   notes?: string;
   addons?: string[];
 }
@@ -327,7 +327,7 @@ export const realtimeBridge = {
   // Update item stage with seat and dish metadata
   async updateStage(
     itemIdOrKey: string,
-    stage: 'PLACED' | 'REC' | 'PREP' | 'READY',
+    stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
     meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
   ): Promise<boolean> {
     try {
@@ -547,7 +547,7 @@ export const realtimeBridge = {
               const hasPlacedAddon = it.addons && Array.isArray(it.addons) && it.addons.includes('PLACED');
               return {
                 ...it,
-                stage: hasPlacedAddon ? ('PLACED' as const) : (it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY'),
+                stage: hasPlacedAddon ? ('PLACED' as const) : (it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'),
               };
             }),
           }));
@@ -859,7 +859,7 @@ export const realtimeBridge = {
   // Subscribe to KDS & Seat Occupancy changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string }) => void;
+    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string }) => void;
     onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
     onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
@@ -942,7 +942,7 @@ export const realtimeBridge = {
           if (callbacks.onStageChange) {
             const row = payload.new as any;
             const hasPlacedAddon = row.addons && Array.isArray(row.addons) && row.addons.includes('PLACED');
-            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' = hasPlacedAddon ? 'PLACED' : row.stage;
+            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = hasPlacedAddon ? 'PLACED' : row.stage;
             callbacks.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id });
           }
         })

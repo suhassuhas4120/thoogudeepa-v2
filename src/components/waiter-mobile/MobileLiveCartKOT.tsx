@@ -24,24 +24,9 @@
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { 
-  ArrowLeft, 
-  ShoppingBag, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  Flame, 
-  MessageSquare, 
-  Receipt, 
-  Clock, 
-  Sparkles,
-  Send,
-  CheckCircle,
-  CheckCircle2,
-  Check,
-  PlusCircle,
-  Bell,
-  X
+import {
+  ArrowLeft, ShoppingBag, Plus, Minus, Trash2, Flame, MessageSquare,
+  Receipt, Clock, Sparkles, Send, CheckCircle, CheckCircle2, Check, PlusCircle, Bell, X
 } from 'lucide-react';
 import { CartItem, MenuItem, RESTAURANT_CONSTANTS, LiveOrderDishMode } from './types';
 
@@ -70,6 +55,8 @@ export interface MobileLiveCartKOTProps {
   readonly onProceedToBill?: (seatNumber: string, guestName: string, amount: number) => void;
   /** Callback to open floor alerts */
   readonly onOpenAlerts?: () => void;
+  /** Callback to mark an item as served */
+  readonly onServeItem?: (itemId: string) => void;
   /** Optional callback to clear entire cart */
   readonly onClearCart?: () => void;
   /** Optional flag: whether to render as full screen (Screen 4) */
@@ -89,6 +76,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   onOpenMenu,
   onProceedToBill,
   onOpenAlerts,
+  onServeItem,
   onClearCart,
   isFullScreen = true
 }) => {
@@ -120,7 +108,10 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
       ...prev,
       [itemId]: 'SERVED'
     }));
-  }, []);
+    if (onServeItem) {
+      onServeItem(itemId);
+    }
+  }, [onServeItem]);
 
   // Fire KOT submission handler
   const handlePunchOrder = useCallback(() => {
@@ -137,26 +128,10 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   const displayItems = useMemo(() => {
     if (cartItems.length > 0) return cartItems;
     return [
-      {
-        menuItem: { id: 'd1', name: 'Chicken Donne Biryani', price: 260, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 8, isAvailable: true, image: '/images/dishes/chicken-donne-biryani.jpg' },
-        quantity: 2,
-        lineTotal: 520
-      },
-      {
-        menuItem: { id: 'd2', name: 'Chilli Chicken Dry', price: 220, category: 'starters' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 6, isAvailable: true, image: '/images/dishes/chilli-chicken.jpg' },
-        quantity: 1,
-        lineTotal: 220
-      },
-      {
-        menuItem: { id: 'd3', name: 'Mutton Donne Biryani', price: 340, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 10, isAvailable: true, image: '/images/dishes/mutton-donne-biryani.jpg' },
-        quantity: 1,
-        lineTotal: 340
-      },
-      {
-        menuItem: { id: 'd4', name: 'Gunpowder Ghee Rice', price: 180, category: 'gravy' as const, dietary: 'veg' as const, description: '', prepTimeMinutes: 5, isAvailable: true, image: '/images/dishes/biryani-rice.webp' },
-        quantity: 1,
-        lineTotal: 180
-      }
+      { menuItem: { id: 'd1', name: 'Chicken Donne Biryani', price: 260, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 8, isAvailable: true, image: '/images/dishes/chicken-donne-biryani.jpg' }, quantity: 2, lineTotal: 520 },
+      { menuItem: { id: 'd2', name: 'Chilli Chicken Dry', price: 220, category: 'starters' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 6, isAvailable: true, image: '/images/dishes/chilli-chicken.jpg' }, quantity: 1, lineTotal: 220 },
+      { menuItem: { id: 'd3', name: 'Mutton Donne Biryani', price: 340, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 10, isAvailable: true, image: '/images/dishes/mutton-donne-biryani.jpg' }, quantity: 1, lineTotal: 340 },
+      { menuItem: { id: 'd4', name: 'Gunpowder Ghee Rice', price: 180, category: 'gravy' as const, dietary: 'veg' as const, description: '', prepTimeMinutes: 5, isAvailable: true, image: '/images/dishes/biryani-rice.webp' }, quantity: 1, lineTotal: 180 }
     ];
   }, [cartItems]);
 
@@ -235,7 +210,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                 key={item.menuItem.id}
                 className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
                   isServed
-                    ? 'border-slate-200 bg-slate-100/70 opacity-60'
+                    ? 'border-slate-200 bg-slate-100/70 opacity-70'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
@@ -254,7 +229,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                     <div className="flex items-center gap-1.5">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                       <span className={`text-xs sm:text-sm block truncate ${
-                        isServed ? 'font-bold text-slate-500 line-through' : 'font-black text-slate-900'
+                        isServed ? 'font-bold text-slate-400 line-through decoration-2' : 'font-black text-slate-900'
                       }`}>
                         {item.menuItem.name}
                       </span>
@@ -273,38 +248,70 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                         <span>READY</span>
                       </span>
-                      {/* Simple Clean Button: Served (Check Icon) matching tablet */}
                       <button
                         type="button"
                         onClick={() => handleMarkServed(item.menuItem.id)}
-                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                         title="Mark as Served to Seat"
                       >
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        <span>Served</span>
+                        <span>Serve</span>
                       </button>
                     </div>
                   )}
 
                   {status === 'PREPARING' && (
-                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
-                      <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 animate-pulse" />
-                      <span>PREPARING</span>
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
+                        <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 animate-pulse" />
+                        <span>PREPARING</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled
+                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
+                        title="Waiting for kitchen to mark Ready"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
+                        <span>Serve</span>
+                      </button>
+                    </div>
                   )}
 
                   {status === 'PLACED' && (
-                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
-                      <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      <span>PLACED</span>
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                        <Clock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>PLACED</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled
+                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
+                        title="Waiting for kitchen to mark Ready"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
+                        <span>Serve</span>
+                      </button>
+                    </div>
                   )}
 
                   {status === 'RECEIVED' && (
-                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
-                      <Clock className="w-3.5 h-3.5 text-sky-600" />
-                      <span>RECEIVED</span>
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
+                        <Clock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>RECEIVED</span>
+                      </span>
+                      <button
+                        type="button"
+                        disabled
+                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
+                        title="Waiting for kitchen to mark Ready"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
+                        <span>Serve</span>
+                      </button>
+                    </div>
                   )}
 
                   {isServed && (
@@ -374,12 +381,9 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <span>PROCEED TO BILL SETTLEMENT (₹{grandTotal})</span>
           </button>
         </div>
-
       </div>
-
     </div>
   );
 };
 
 export default MobileLiveCartKOT;
-

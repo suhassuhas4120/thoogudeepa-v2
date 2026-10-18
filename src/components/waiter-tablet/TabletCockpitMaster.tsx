@@ -139,7 +139,8 @@ export const TabletCockpitMaster: React.FC = () => {
             const nextStatus: KitchenStatus =
               data.stage === 'READY' ? 'READY' :
               data.stage === 'PREP' ? 'PREPARING' :
-              data.stage === 'REC' ? 'RECEIVED' : 'PLACED';
+              data.stage === 'REC' ? 'RECEIVED' :
+              data.stage === 'SERVED' ? 'SERVED' : 'PLACED';
             return { ...item, status: nextStatus };
           }
           return item;
@@ -327,7 +328,24 @@ export const TabletCockpitMaster: React.FC = () => {
 
   // Handler: Mark an item as served
   const handleServeItem = (itemId: number) => {
+    const activeSeatNum = activeSeatName.split(':')[0].trim();
+    const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
+    const dish = ticketItems.find(item => item.id === itemId);
+
     setTicketItems(prev => prev.map(item => (item.id === itemId ? { ...item, status: 'SERVED' } : item)));
+
+    realtimeBridge.updateStage(String(itemId), 'SERVED', {
+      chairId: cleanChair,
+      dishId: String(itemId),
+      dishName: dish?.name
+    });
+
+    const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === activeSeatNum) && a.type === 'kitchen');
+    if (matchingAlert) {
+      realtimeBridge.resolveServiceAlert(matchingAlert.id);
+      setAlerts(prev => prev.map(a => a.id === matchingAlert.id ? { ...a, isResolved: true } : a));
+    }
+
     showToast('Dish marked as served');
   };
 

@@ -34,7 +34,7 @@ export default function KitchenDisplaySystemPage() {
 
   // Real incoming active orders from seats 01-100 (clean zero-order start)
   const [activeOrders, setActiveOrders] = useState<{ order: OrderRecord; items: OrderItemRecord[] }[]>([]);
-  const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY'>>({});
+  const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
 
   // Screen 3 Item availability with Lock/Unlock and Reset/Update protection
   const defaultStockStatus: Record<string, boolean> = MENU_ITEMS.reduce(
@@ -85,11 +85,13 @@ export default function KitchenDisplaySystemPage() {
       const orders = await realtimeBridge.getActiveOrders();
       if (!isCancelled) {
         setActiveOrders(orders || []);
-        const stages: Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY'> = {};
+        const stages: Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'> = {};
         (orders || []).forEach((o) => {
           o.items.forEach((it) => {
             const key = it.id || `${it.dish_id}-${it.chair_id}`;
             stages[key] = it.stage || 'PLACED';
+            if (it.dish_id) stages[it.dish_id] = it.stage || 'PLACED';
+            if (it.dish_id && o.order.chair_id) stages[`${it.dish_id}-${o.order.chair_id}`] = it.stage || 'PLACED';
           });
         });
         setItemStages(stages);
@@ -110,7 +112,16 @@ export default function KitchenDisplaySystemPage() {
         });
       },
       onStageChange: (data) => {
-        setItemStages((prev) => ({ ...prev, [data.key]: data.stage }));
+        setItemStages((prev) => {
+          const next = { ...prev, [data.key]: data.stage };
+          if (data.dishId) {
+            next[data.dishId] = data.stage;
+            if (data.chairId) {
+              next[`${data.dishId}-${data.chairId}`] = data.stage;
+            }
+          }
+          return next;
+        });
       },
       onAvailabilityChange: (data) => {
         setStockStatus((prev) => ({ ...prev, [data.dishId]: data.isAvailable }));
@@ -154,7 +165,7 @@ export default function KitchenDisplaySystemPage() {
 
   const updateItemStage = (
     itemKey: string,
-    stage: 'PLACED' | 'REC' | 'PREP' | 'READY',
+    stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
     meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
   ) => {
     setItemStages((prev) => ({ ...prev, [itemKey]: stage }));
@@ -518,14 +529,45 @@ export default function KitchenDisplaySystemPage() {
 
                       {/* Items List (Tight spacing, no excessive gaps) */}
                       <div className="flex flex-col gap-1.5 py-0.5">
-                        {items.length === 0 ? (
-                          <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
-                            Order received (compiling line items...)
-                          </div>
-                        ) : (
-                          items.map((it, idx) => {
+                        {(() => {
+                          const unservedItems = items.filter((it, idx) => {
                             const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
-                            const currentStage = itemStages[itemKey] || it.stage || 'PLACED';
+                            const currentStage =
+                              itemStages[itemKey] ||
+                              (it.dish_id && itemStages[it.dish_id]) ||
+                              (it.dish_id && it.chair_id && itemStages[`${it.dish_id}-${it.chair_id}`]) ||
+                              (it.dish_id && order.chair_id && itemStages[`${it.dish_id}-${order.chair_id}`]) ||
+                              it.stage ||
+                              'PLACED';
+                            return currentStage !== 'SERVED';
+                          });
+
+                          if (items.length === 0) {
+                            return (
+                              <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
+                                Order received (compiling line items...)
+                              </div>
+                            );
+                          }
+
+                          if (unservedItems.length === 0) {
+                            return (
+                              <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-3 flex items-center justify-center gap-1.5 text-emerald-800 text-xs font-black">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                <span>All items served to Seat {chairId}</span>
+                              </div>
+                            );
+                          }
+
+                          return unservedItems.map((it, idx) => {
+                            const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
+                            const currentStage =
+                              itemStages[itemKey] ||
+                              (it.dish_id && itemStages[it.dish_id]) ||
+                              (it.dish_id && it.chair_id && itemStages[`${it.dish_id}-${it.chair_id}`]) ||
+                              (it.dish_id && order.chair_id && itemStages[`${it.dish_id}-${order.chair_id}`]) ||
+                              it.stage ||
+                              'PLACED';
 
                             return (
                               <div
@@ -610,8 +652,8 @@ export default function KitchenDisplaySystemPage() {
                                 </div>
                               </div>
                             );
-                          })
-                        )}
+                          });
+                        })()}
                       </div>
                     </div>
                   );

@@ -384,6 +384,28 @@ export const MobileCockpitMaster: React.FC = () => {
     showToast(`Served ${dishName} to table!`);
   }, [showToast]);
 
+  // Handle serving an item from live cart
+  const handleServeItemMobile = useCallback((dishId: string) => {
+    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
+    const dish = cartItems.find(i => String(i.menuItem.id) === dishId);
+
+    setCartItems(prev => prev.map(i => String(i.menuItem.id) === dishId ? { ...i, stage: 'SERVED' } : i));
+
+    realtimeBridge.updateStage(dishId, 'SERVED', {
+      chairId: cleanChair,
+      dishId: dishId,
+      dishName: dish?.menuItem?.name
+    });
+
+    const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === selectedSeatNumber) && a.type === 'kitchen_ready');
+    if (matchingAlert) {
+      realtimeBridge.resolveServiceAlert(matchingAlert.id);
+      setAlerts(prev => prev.filter(a => a.id !== matchingAlert.id));
+    }
+
+    showToast(`Marked ${dish?.menuItem?.name || 'dish'} as served!`);
+  }, [selectedSeatNumber, cartItems, alerts, showToast]);
+
   // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
@@ -498,6 +520,7 @@ export const MobileCockpitMaster: React.FC = () => {
                 onOpenAlerts={() => setActiveScreen('alerts')}
                 onModifyQuantity={handleModifyCartQuantity}
                 onRemoveItem={(id) => setCartItems(prev => prev.filter(i => i.menuItem.id !== id))}
+                onServeItem={handleServeItemMobile}
                 onFireKOT={handleFireKOT}
                 onClearCart={() => setCartItems([])}
               />
