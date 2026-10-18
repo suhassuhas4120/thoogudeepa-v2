@@ -92,6 +92,9 @@ export const TabletCockpitMaster: React.FC = () => {
   // Menu Dish Steppers State (dishId -> quantity)
   const [dishQuantities, setDishQuantities] = useState<Record<number, number>>({});
 
+  // Verified bill requested seats tracking (seat/chairId -> boolean)
+  const [verifiedBillSeats, setVerifiedBillSeats] = useState<Record<string, boolean>>({});
+
   // Right-Side Alert Slide-Over Sheet State
   const [isAlertSheetOpen, setIsAlertSheetOpen] = useState<boolean>(false);
   const [activeSheetTab, setActiveSheetTab] = useState<'customer' | 'kitchen'>('customer');
@@ -162,12 +165,68 @@ export const TabletCockpitMaster: React.FC = () => {
     }
   }, []);
 
+  const syncTicketForSeat = useCallback((chairId: string) => {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    if (!cleanChair) return;
+
+    const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
+    if (activeReq) {
+      setVerifiedBillSeats(prev => ({ ...prev, [cleanChair]: true, [chairId]: true }));
+    }
+
+    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      } else {
+        setActiveTicketNumber('');
+      }
+      if (details.items && details.items.length > 0) {
+        const qtyMap: Record<number, number> = {};
+        const items: TicketItem[] = details.items.map((it, idx) => {
+          const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
+          qtyMap[numId] = (qtyMap[numId] || 0) + it.quantity;
+          const dish = MENU_DISHES.find(d => d.id === numId);
+          const itStage = it.stage as string;
+          const currentItemStage: KitchenStatus =
+            itStage === 'READY' ? 'READY' :
+            itStage === 'PREP' ? 'PREPARING' :
+            itStage === 'REC' ? 'RECEIVED' :
+            itStage === 'SERVED' ? 'SERVED' : 'PLACED';
+          return {
+            id: numId,
+            orderItemId: it.id,
+            ticketNumber: details.order?.ticket_number,
+            name: it.dish_name,
+            quantity: it.quantity,
+            price: it.price,
+            imageUrl: dish?.imageUrl || '/logo.jpg',
+            status: currentItemStage
+          };
+        });
+        setDishQuantities(qtyMap);
+        setTicketItems(items);
+      } else {
+        setDishQuantities({});
+        setTicketItems([]);
+      }
+    });
+  }, []);
+
   useEffect(() => {
     refreshSeats();
     refreshAlerts();
 
     const unsub = realtimeBridge.subscribeKDS({
-      onNewOrder: () => { refreshSeats(); refreshAlerts(); },
+      onNewOrder: (payload) => {
+        refreshSeats();
+        refreshAlerts();
+        const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = payload?.order?.chair_id ? payload.order.chair_id.replace(/[^0-9]/g, '') : '';
+        if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
+          syncTicketForSeat(cleanCurSeat);
+        }
+      },
       onStageChange: (data) => {
         refreshAlerts();
         const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
@@ -179,29 +238,43 @@ export const TabletCockpitMaster: React.FC = () => {
           return;
         }
 
-        const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
-        const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+        const nextStatus: KitchenStatus =
+          data.stage === 'READY' ? 'READY' :
+          data.stage === 'PREP' ? 'PREPARING' :
+          data.stage === 'REC' ? 'RECEIVED' :
+          data.stage === 'SERVED' ? 'SERVED' : 'PLACED';
 
-        setTicketItems(prev => prev.map(item => {
-          const itemNum = String(item.id).replace(/[^0-9]/g, '');
-          const itemName = item.name.toLowerCase().replace(/donne\s*/i, '').trim();
-
-          const matches =
-            String(item.id) === data.dishId ||
-            data.key === String(item.id) ||
-            (targetNum && itemNum === targetNum) ||
-            (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
-
-          if (matches) {
-            const nextStatus: KitchenStatus =
-              data.stage === 'READY' ? 'READY' :
-              data.stage === 'PREP' ? 'PREPARING' :
-              data.stage === 'REC' ? 'RECEIVED' :
-              data.stage === 'SERVED' ? 'SERVED' : 'PLACED';
-            return { ...item, status: nextStatus };
+        setTicketItems(prev => {
+          let hasExactMatch = false;
+          if (data.itemId) {
+            hasExactMatch = prev.some(item => item.orderItemId === data.itemId);
           }
-          return item;
-        }));
+          if (hasExactMatch) {
+            return prev.map(item => item.orderItemId === data.itemId ? { ...item, status: nextStatus } : item);
+          }
+
+          const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
+          const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+          let updatedOne = false;
+          return prev.map(item => {
+            if (updatedOne) return item;
+            const itemNum = String(item.id).replace(/[^0-9]/g, '');
+            const itemName = item.name.toLowerCase().replace(/donne\s*/i, '').trim();
+
+            const matches =
+              String(item.id) === data.dishId ||
+              data.key === String(item.id) ||
+              (targetNum && itemNum === targetNum) ||
+              (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
+
+            if (matches && (!data.ticketNumber || !item.ticketNumber || data.ticketNumber === item.ticketNumber)) {
+              updatedOne = true;
+              return { ...item, status: nextStatus };
+            }
+            return item;
+          });
+        });
       },
       onTicketDispatched: () => { refreshAlerts(); },
       onSeatOccupancyChange: (data) => {
@@ -238,7 +311,14 @@ export const TabletCockpitMaster: React.FC = () => {
       onResolveAlert: (alertId) => {
         setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isResolved: true } : a));
       },
-      onBillRequested: () => { refreshSeats(); refreshAlerts(); },
+      onBillRequested: (data) => {
+        refreshSeats();
+        refreshAlerts();
+        if (data?.chairId) {
+          const clean = data.chairId.replace(/[^0-9]/g, '');
+          setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
+        }
+      },
       onBillSettled: (data) => {
         refreshSeats();
         refreshAlerts();
@@ -250,8 +330,20 @@ export const TabletCockpitMaster: React.FC = () => {
           setDishQuantities({});
           setActiveTicketNumber('');
         }
+        if (targetChair) {
+          setVerifiedBillSeats(prev => {
+            const next = { ...prev };
+            delete next[targetChair];
+            delete next[data?.chairId || ''];
+            return next;
+          });
+        }
       },
-      onClearAll: () => { refreshSeats(); refreshAlerts(); }
+      onClearAll: () => {
+        refreshSeats();
+        refreshAlerts();
+        setVerifiedBillSeats({});
+      }
     });
 
     return () => unsub();
@@ -269,48 +361,8 @@ export const TabletCockpitMaster: React.FC = () => {
   // Load real items and stages for active tablet seat on mount and whenever activeSeatName changes
   useEffect(() => {
     const activeSeatNum = activeSeatName.split(':')[0].trim();
-    const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
-    if (!cleanChair) return;
-
-    let isMounted = true;
-    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
-      if (!isMounted) return;
-      if (details.order?.ticket_number) {
-        setActiveTicketNumber(details.order.ticket_number);
-      } else {
-        setActiveTicketNumber('');
-      }
-      if (details.items && details.items.length > 0) {
-        const qtyMap: Record<number, number> = {};
-        const items: TicketItem[] = details.items.map((it, idx) => {
-          const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
-          qtyMap[numId] = it.quantity;
-          const dish = MENU_DISHES.find(d => d.id === numId);
-          const itStage = it.stage as string;
-          const currentItemStage: KitchenStatus =
-            itStage === 'READY' ? 'READY' :
-            itStage === 'PREP' ? 'PREPARING' :
-            itStage === 'REC' ? 'RECEIVED' :
-            itStage === 'SERVED' ? 'SERVED' : 'PLACED';
-          return {
-            id: numId,
-            name: it.dish_name,
-            quantity: it.quantity,
-            price: it.price,
-            imageUrl: dish?.imageUrl || '/logo.jpg',
-            status: currentItemStage
-          };
-        });
-        setDishQuantities(qtyMap);
-        setTicketItems(items);
-      } else {
-        setDishQuantities({});
-        setTicketItems([]);
-      }
-    });
-
-    return () => { isMounted = false; };
-  }, [activeSeatName]);
+    syncTicketForSeat(activeSeatNum);
+  }, [activeSeatName, syncTicketForSeat]);
 
   // Cart & Pricing Calculations
   const cartCount = useMemo(() => Object.values(dishQuantities).reduce((acc, q) => acc + q, 0), [dishQuantities]);
@@ -389,7 +441,7 @@ export const TabletCockpitMaster: React.FC = () => {
           const qtyMap: Record<number, number> = {};
           const items: TicketItem[] = details.items.map((it, idx) => {
             const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
-            qtyMap[numId] = it.quantity;
+            qtyMap[numId] = (qtyMap[numId] || 0) + it.quantity;
             const dish = MENU_DISHES.find(d => d.id === numId);
             const itStage = it.stage as string;
             const currentItemStage: KitchenStatus =
@@ -399,6 +451,8 @@ export const TabletCockpitMaster: React.FC = () => {
               itStage === 'SERVED' ? 'SERVED' : 'PLACED';
             return {
               id: numId,
+              orderItemId: it.id,
+              ticketNumber: details.order?.ticket_number,
               name: it.dish_name,
               quantity: it.quantity,
               price: it.price,
@@ -471,26 +525,40 @@ export const TabletCockpitMaster: React.FC = () => {
   };
 
   // Handler: Mark an item as served
-  const handleServeItem = (itemId: number) => {
+  const handleServeItem = (itemIdentifier: number | string) => {
     const activeSeatNum = activeSeatName.split(':')[0].trim();
     const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
-    const dish = ticketItems.find(item => item.id === itemId);
+    const dish = ticketItems.find(item => item.orderItemId === itemIdentifier || item.id === itemIdentifier);
 
-    setTicketItems(prev => prev.map(item => (item.id === itemId ? { ...item, status: 'SERVED' } : item)));
+    setTicketItems(prev => prev.map(item => (item.orderItemId === itemIdentifier || item.id === itemIdentifier ? { ...item, status: 'SERVED' } : item)));
 
-    realtimeBridge.updateStage(`dish-${itemId}`, 'SERVED', {
+    const targetKey = dish?.orderItemId || (typeof itemIdentifier === 'string' ? itemIdentifier : `dish-${itemIdentifier}`);
+
+    realtimeBridge.updateStage(targetKey, 'SERVED', {
       chairId: cleanChair,
       ticketNumber: activeTicketNumber || undefined,
-      dishId: `dish-${itemId}`,
-      dishName: dish?.name
+      dishId: String(dish?.id || itemIdentifier),
+      dishName: dish?.name,
+      itemId: dish?.orderItemId
     });
 
-    realtimeBridge.updateStage(String(itemId), 'SERVED', {
-      chairId: cleanChair,
-      ticketNumber: activeTicketNumber || undefined,
-      dishId: String(itemId),
-      dishName: dish?.name
-    });
+    if (dish && typeof itemIdentifier === 'number') {
+      realtimeBridge.updateStage(`dish-${itemIdentifier}`, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: activeTicketNumber || undefined,
+        dishId: `dish-${itemIdentifier}`,
+        dishName: dish.name,
+        itemId: dish.orderItemId
+      });
+
+      realtimeBridge.updateStage(String(itemIdentifier), 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: activeTicketNumber || undefined,
+        dishId: String(itemIdentifier),
+        dishName: dish.name,
+        itemId: dish.orderItemId
+      });
+    }
 
     const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === activeSeatNum) && a.type === 'kitchen');
     if (matchingAlert) {
@@ -640,34 +708,46 @@ export const TabletCockpitMaster: React.FC = () => {
 
             {/* Right 40%: In-Container Live Ticket OR Bill Settlement */}
             <div className="w-[40%] h-full flex flex-col justify-between p-4 bg-[#F1F5F9] border-l border-slate-200 overflow-y-auto no-scrollbar">
-              {rightPaneMode === 'ticket' ? (
-                <TabletLiveTicket
-                  activeSeatName={activeSeatName}
-                  ticketItems={ticketItems}
-                  subtotal={subtotal}
-                  gst={gst}
-                  grandTotal={grandTotal}
-                  onServeItem={handleServeItem}
-                  onPunchKot={handlePunchKot}
-                  onSwitchToBillMode={() => {
-                    setRightPaneMode('bill');
-                    const cleanChair = activeSeatName.split(':')[0].trim();
-                    realtimeBridge.notifyBillModeActive(cleanChair, grandTotal);
-                  }}
-                  onClearTicket={handleClearTicket}
-                />
-              ) : (
-                <TabletBillSettlement
-                  seatName={activeSeatName.split(':')[0].trim()}
-                  guestName={activeSeatCustomer}
-                  totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
-                  subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
-                  ticketItems={ticketItems}
-                  onBackToTicket={() => setRightPaneMode('ticket')}
-                  onConfirmSettlement={handleConfirmSettlement}
-                  onPrintReceipt={() => showToast('Tax invoice sent to thermal printer')}
-                />
-              )}
+              {(() => {
+                const curSeatClean = activeSeatName.split(':')[0].trim().replace(/[^0-9]/g, '');
+                const curSeatRaw = activeSeatName.split(':')[0].trim();
+                const isVerified = Boolean(
+                  (curSeatClean && verifiedBillSeats[curSeatClean]) ||
+                  (curSeatRaw && verifiedBillSeats[curSeatRaw]) ||
+                  (curSeatClean && realtimeBridge.getActiveBillRequest(curSeatClean))
+                );
+
+                return rightPaneMode === 'ticket' ? (
+                  <TabletLiveTicket
+                    activeSeatName={activeSeatName}
+                    ticketItems={ticketItems}
+                    subtotal={subtotal}
+                    gst={gst}
+                    grandTotal={grandTotal}
+                    isBillRequested={isVerified}
+                    onServeItem={handleServeItem}
+                    onPunchKot={handlePunchKot}
+                    onSwitchToBillMode={() => {
+                      setRightPaneMode('bill');
+                      const cleanChair = activeSeatName.split(':')[0].trim();
+                      realtimeBridge.notifyBillModeActive(cleanChair, grandTotal);
+                    }}
+                    onClearTicket={handleClearTicket}
+                  />
+                ) : (
+                  <TabletBillSettlement
+                    seatName={activeSeatName.split(':')[0].trim()}
+                    guestName={activeSeatCustomer}
+                    totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                    subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                    ticketItems={ticketItems}
+                    isVerifiedByCustomer={isVerified}
+                    onBackToTicket={() => setRightPaneMode('ticket')}
+                    onConfirmSettlement={handleConfirmSettlement}
+                    onPrintReceipt={() => showToast('Tax invoice sent to thermal printer')}
+                  />
+                );
+              })()}
             </div>
           </section>
         )}

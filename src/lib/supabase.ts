@@ -57,6 +57,37 @@ export interface ServiceAlertRecord {
   createdAt: number;
 }
 
+export interface BillVerificationPayload {
+  chairId: string;
+  seatNumber: string;
+  orderId: string;
+  ticketNumber?: string;
+  amount: number;
+  items: Array<{ id?: string; title?: string; dish_name?: string; quantity: number; price: number }>;
+  requestedAt: number;
+}
+
+const STORAGE_BILL_REQUESTS_KEY = 'thoogudeepa_v2_active_bill_requests';
+
+function getLocalBillRequests(): Record<string, BillVerificationPayload> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_BILL_REQUESTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setLocalBillRequests(map: Record<string, BillVerificationPayload>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_BILL_REQUESTS_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -155,12 +186,16 @@ export const realtimeBridge = {
       const currentOrders = getLocalOrdersList();
       const newEntry = {
         order: { ...order, id: generatedId },
-        items: items.map((it) => ({
+        items: items.map((it, idx) => ({
           ...it,
+          id: it.id || `item-${order.chair_id}-${order.ticket_number}-${it.dish_id}-${Date.now()}-${idx}`,
           stage: it.stage || 'PLACED',
         })),
       };
-      const updatedOrders = [newEntry, ...currentOrders.filter((x) => x.order.ticket_number !== order.ticket_number)];
+      const updatedOrders = [
+        newEntry,
+        ...currentOrders.filter((x) => x.order.id !== generatedId && x.order.id !== order.id)
+      ];
       setLocalOrdersList(updatedOrders);
 
       // 3. Broadcast to all open tabs immediately
@@ -194,6 +229,13 @@ export const realtimeBridge = {
         if (orderErr) throw orderErr;
 
         const orderId = orderData.id;
+
+        // Synchronize local orders entry with confirmed database ID
+        const currentLocals = getLocalOrdersList();
+        const updatedWithDbId = currentLocals.map((x) =>
+          x.order.id === generatedId ? { ...x, order: { ...x.order, id: orderId } } : x
+        );
+        setLocalOrdersList(updatedWithDbId);
         const itemsToInsert = items.map((it) => {
           const isPlaced = it.stage === 'PLACED' || !it.stage;
           const addonsList = Array.isArray(it.addons) ? [...it.addons] : [];
@@ -371,15 +413,14 @@ export const realtimeBridge = {
   async updateStage(
     itemIdOrKey: string,
     stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string }
   ): Promise<boolean> {
     try {
-      // 1. Update in local orders list
+      // 1. Update in local orders list strictly for matching item
       const orders = getLocalOrdersList();
       const cleanChair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
       const tNum = meta?.ticketNumber || '';
-      const normDishNum = (meta?.dishId || itemIdOrKey).replace(/[^0-9]/g, '');
-      const normName = meta?.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+      const targetItemId = meta?.itemId || itemIdOrKey;
 
       orders.forEach((o) => {
         const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
@@ -387,18 +428,10 @@ export const realtimeBridge = {
         const isTargetTicket = !tNum || o.order.ticket_number === tNum;
         if (isTargetChair && isTargetTicket) {
           o.items.forEach((it) => {
-            const itDishNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
-            const itNormName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-
             const matches =
+              it.id === targetItemId ||
               it.id === itemIdOrKey ||
-              it.dish_id === itemIdOrKey ||
-              it.dish_id === meta?.dishId ||
-              `dish-${it.dish_id}` === itemIdOrKey ||
-              `dish-${meta?.dishId}` === it.dish_id ||
-              `${it.dish_id}-${it.chair_id}` === itemIdOrKey ||
-              (cleanChair && oChair === cleanChair && itDishNum && normDishNum && itDishNum === normDishNum) ||
-              (cleanChair && oChair === cleanChair && normName && (itNormName === normName || itNormName.includes(normName) || normName.includes(itNormName)));
+              (!it.id && it.dish_id === meta?.dishId);
 
             if (matches) {
               it.stage = stage;
@@ -408,7 +441,7 @@ export const realtimeBridge = {
       });
       setLocalOrdersList(orders);
 
-      // 2. Persist to seat-specific stage cache
+      // 2. Persist to seat-specific stage cache strictly by item identifier
       if (typeof window !== 'undefined') {
         const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
         if (chair) {
@@ -417,34 +450,13 @@ export const realtimeBridge = {
             const existing = JSON.parse(localStorage.getItem(key) || '{}');
             existing[itemIdOrKey] = stage;
             existing[`${chair}-${itemIdOrKey}`] = stage;
-            if (meta?.dishId) {
-              existing[meta.dishId] = stage;
-              existing[`${chair}-${meta.dishId}`] = stage;
-              existing[`dish-${meta.dishId.replace('dish-', '')}`] = stage;
-              existing[`${chair}-dish-${meta.dishId.replace('dish-', '')}`] = stage;
-              existing[meta.dishId.replace('dish-', '')] = stage;
-              existing[`${chair}-${meta.dishId.replace('dish-', '')}`] = stage;
-            }
-            if (meta?.dishName) {
-              const ln = meta.dishName.toLowerCase();
-              existing[ln] = stage;
-              existing[`${chair}-${ln}`] = stage;
-              const cleanDish = ln.replace(/donne\s*/i, '').trim();
-              existing[cleanDish] = stage;
-              existing[`${chair}-${cleanDish}`] = stage;
-            }
-            if (normDishNum) {
-              existing[normDishNum] = stage;
-              existing[`${chair}-${normDishNum}`] = stage;
-              existing[`dish-${normDishNum}`] = stage;
-              existing[`${chair}-dish-${normDishNum}`] = stage;
-              existing[`menu-0${normDishNum}`] = stage;
-              existing[`menu-${normDishNum}`] = stage;
+            if (targetItemId && targetItemId !== itemIdOrKey) {
+              existing[targetItemId] = stage;
+              existing[`${chair}-${targetItemId}`] = stage;
             }
             if (tNum) {
               existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
-              if (meta?.dishId) existing[`${chair}-${tNum}-${meta.dishId}`] = stage;
-              if (normDishNum) existing[`${chair}-${tNum}-${normDishNum}`] = stage;
+              existing[`${tNum}-${itemIdOrKey}`] = stage;
             }
             localStorage.setItem(key, JSON.stringify(existing));
 
@@ -466,25 +478,11 @@ export const realtimeBridge = {
       // 3. Remote update if Supabase is connected
       if (supabase) {
         const dbStage = stage === 'PLACED' ? 'REC' : stage;
-        if (itemIdOrKey.includes('-') && itemIdOrKey.length === 36) {
-          const { data: cur } = await supabase.from('order_items').select('addons').eq('id', itemIdOrKey).maybeSingle();
-          const curAddons: string[] = cur?.addons || [];
-          const nextAddons = stage === 'PLACED'
-            ? (curAddons.includes('PLACED') ? curAddons : [...curAddons, 'PLACED'])
-            : curAddons.filter((x: string) => x !== 'PLACED');
-          await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', itemIdOrKey);
+        if (targetItemId && targetItemId.includes('-') && targetItemId.length >= 20) {
+          await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItemId);
         } else if (meta?.chairId) {
           const cleanChair = meta.chairId.replace(/[^0-9]/g, '');
           const possibleChairs = [meta.chairId, cleanChair, cleanChair.padStart(2, '0')];
-          const dId = meta.dishId || itemIdOrKey;
-          const cleanDishNum = dId.replace(/[^0-9]/g, '');
-          const possibleDishIds = [dId, `dish-${cleanDishNum}`, cleanDishNum];
-
-          // Query matching order items by chair_id
-          const { data: curList } = await supabase
-            .from('order_items')
-            .select('id, dish_id, dish_name, addons, chair_id, order_id')
-            .in('chair_id', possibleChairs);
 
           // Query matching active orders by chair_id
           const { data: activeOrdersList } = await supabase
@@ -493,7 +491,6 @@ export const realtimeBridge = {
             .in('chair_id', possibleChairs)
             .in('status', ['pending', 'in_progress', 'ready']);
 
-          let combinedItemList = [...(curList || [])];
           if (activeOrdersList && activeOrdersList.length > 0) {
             const filteredOrders = meta.ticketNumber
               ? activeOrdersList.filter((o) => o.ticket_number === meta.ticketNumber)
@@ -502,34 +499,15 @@ export const realtimeBridge = {
             if (targetIds.length > 0) {
               const { data: byOrderItems } = await supabase
                 .from('order_items')
-                .select('id, dish_id, dish_name, addons, chair_id, order_id')
+                .select('id, dish_id, dish_name, stage')
                 .in('order_id', targetIds);
-              if (byOrderItems) {
-                combinedItemList = [...combinedItemList, ...byOrderItems];
-              }
-            }
-          }
 
-          if (combinedItemList.length > 0) {
-            const seenIds = new Set<string>();
-            const normName = meta.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-            for (const c of combinedItemList) {
-              if (seenIds.has(c.id)) continue;
-              seenIds.add(c.id);
-
-              const cDishNum = c.dish_id ? c.dish_id.replace(/[^0-9]/g, '') : '';
-              const cName = c.dish_name ? c.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-              const isMatch =
-                possibleDishIds.includes(c.dish_id) ||
-                (cleanDishNum && cDishNum === cleanDishNum) ||
-                (normName && (cName === normName || cName.includes(normName) || normName.includes(cName)));
-
-              if (isMatch) {
-                const curAddons: string[] = c.addons || [];
-                const nextAddons = stage === 'PLACED'
-                  ? (curAddons.includes('PLACED') ? curAddons : [...curAddons, 'PLACED'])
-                  : curAddons.filter((x: string) => x !== 'PLACED');
-                await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', c.id);
+              if (byOrderItems && byOrderItems.length > 0) {
+                const targetItem = byOrderItems.find((oi) => oi.id === targetItemId || oi.id === itemIdOrKey) ||
+                  byOrderItems.find((oi) => oi.dish_id === meta?.dishId && oi.stage !== dbStage);
+                if (targetItem) {
+                  await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItem.id);
+                }
               }
             }
           }
@@ -700,24 +678,12 @@ export const realtimeBridge = {
         return matchChair && matchTicket;
       });
 
-      return items.map((it) => {
-        const dId = it.dish_id || '';
-        const dNum = dId.replace(/[^0-9]/g, '');
-        const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-        const fullDishName = it.dish_name ? it.dish_name.toLowerCase() : '';
-
+      return items.map((it, idx) => {
         // Check matching item in local order
         let localStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' | undefined;
         if (matchingLocalOrder) {
           const localMatch = matchingLocalOrder.items.find((lit) => {
-            const litNum = lit.dish_id ? lit.dish_id.replace(/[^0-9]/g, '') : '';
-            const litName = lit.dish_name ? lit.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-            return (
-              lit.id === it.id ||
-              lit.dish_id === it.dish_id ||
-              (dNum && litNum === dNum) ||
-              (dName && (litName === dName || litName.includes(dName) || dName.includes(litName)))
-            );
+            return (it.id && lit.id === it.id) || (!it.id && lit.dish_id === it.dish_id);
           });
           if (localMatch?.stage) {
             localStage = localMatch.stage;
@@ -728,18 +694,15 @@ export const realtimeBridge = {
         if (localStage) candidates.push(localStage);
         if (it.stage) candidates.push(it.stage);
 
+        const itemSpecificKey = it.id || `${tNum}-${it.dish_id}-${idx}`;
         const checkKeys = [
-          chair && tNum && dId && `${chair}-${tNum}-${dId}`,
-          chair && tNum && dNum && `${chair}-${tNum}-${dNum}`,
-          chair && dId && `${chair}-${dId}`,
-          chair && dNum && `${chair}-${dNum}`,
-          chair && dNum && `${chair}-dish-${dNum}`,
-          chair && dName && `${chair}-${dName}`,
-          chair && fullDishName && `${chair}-${fullDishName}`,
           it.id,
-          dId,
-          dNum,
-          dName,
+          it.id && `${chair}-${it.id}`,
+          it.id && `${chair}-${tNum}-${it.id}`,
+          it.id && `${tNum}-${it.id}`,
+          itemSpecificKey,
+          chair && `${chair}-${itemSpecificKey}`,
+          chair && tNum && `${chair}-${tNum}-${itemSpecificKey}`,
         ].filter(Boolean) as string[];
 
         for (const k of checkKeys) {
@@ -961,25 +924,66 @@ export const realtimeBridge = {
     return true;
   },
 
-  // Customer or Waiter requests bill settlement
-  async requestBill(chairId: string, amount?: number): Promise<boolean> {
+  // Customer or Waiter requests bill settlement with combined verification details
+  async requestBill(
+    chairId: string,
+    amount?: number,
+    verification?: Partial<BillVerificationPayload>
+  ): Promise<boolean> {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const padded = cleanChair.padStart(2, '0');
     const map = getLocalOccupancyMap();
     if (map[chairId]) {
       map[chairId].status = 'billing';
       setLocalOccupancyMap(map);
+    } else if (map[cleanChair]) {
+      map[cleanChair].status = 'billing';
+      setLocalOccupancyMap(map);
     }
+
+    const payload: BillVerificationPayload = {
+      chairId: cleanChair || chairId,
+      seatNumber: verification?.seatNumber || `Seat ${padded}`,
+      orderId: verification?.orderId || map[cleanChair]?.orderId || '',
+      ticketNumber: verification?.ticketNumber || map[cleanChair]?.ticketNumber || '',
+      amount: amount || verification?.amount || 0,
+      items: verification?.items || [],
+      requestedAt: Date.now(),
+    };
+
+    const requests = getLocalBillRequests();
+    requests[cleanChair] = payload;
+    requests[chairId] = payload;
+    setLocalBillRequests(requests);
+
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId, amount });
+      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId: cleanChair, amount, payload });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_REQUESTED',
-        payload: { chairId, amount }
+        payload
       });
     }
     return true;
+  },
+
+  // Check if a specific seat has an active, customer-confirmed bill request
+  getActiveBillRequest(chairId: string): BillVerificationPayload | null {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const requests = getLocalBillRequests();
+    return requests[cleanChair] || requests[chairId] || null;
+  },
+
+  // Clear bill request for a seat
+  clearActiveBillRequest(chairId: string): void {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const requests = getLocalBillRequests();
+    delete requests[cleanChair];
+    delete requests[chairId];
+    setLocalBillRequests(requests);
   },
 
   // Broadcast when waiter enters bill collection / settlement mode for a seat
@@ -1009,8 +1013,9 @@ export const realtimeBridge = {
     const unpadded = cleanChair.replace(/^0+/, '');
     const possibleChairs = [chairId, cleanChair, padded, unpadded, `Seat ${cleanChair}`, `Seat ${padded}`];
 
-    // 1. Release seat in local registry
+    // 1. Release seat in local registry and clear bill requests
     await this.releaseSeat(chairId);
+    this.clearActiveBillRequest(chairId);
 
     // 2. Mark order completed in Supabase
     if (supabase) {
@@ -1107,33 +1112,37 @@ export const realtimeBridge = {
       const padded = chairId;
       const unpadded = String(i);
       const occ = occupancyMap[chairId] || occupancyMap[unpadded] || occupancyMap[`Seat ${chairId}`] || occupancyMap[`Seat ${unpadded}`];
-      const foundOrder = activeOrders.find((o) => {
+      const seatOrders = activeOrders.filter((o) => {
         const oChair = (o.order.chair_id || '').replace(/[^0-9]/g, '');
         return oChair === chairId || oChair === unpadded || Number(oChair) === i || o.order.chair_id === seatNumber;
       });
+      const allSeatItems: OrderItemRecord[] = [];
+      seatOrders.forEach((so) => {
+        if (so.items) allSeatItems.push(...so.items);
+      });
+      const foundOrder = seatOrders[0];
       const seatAlert = alerts.find((a) => {
         const aSeatClean = a.seatNumber.replace(/[^0-9]/g, '');
         return aSeatClean === chairId || aSeatClean === unpadded || Number(aSeatClean) === i || a.seatNumber === seatNumber;
       });
 
-      const isBilling = occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
-      const isOccupied = Boolean(occ || foundOrder);
+      const activeBillReq = getLocalBillRequests()[chairId] || getLocalBillRequests()[unpadded];
+      const isBilling = Boolean(activeBillReq) || occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
+      const isOccupied = Boolean(occ || seatOrders.length > 0);
 
       let calculatedTotal = 0;
-      if (foundOrder) {
-        if (foundOrder.items && foundOrder.items.length > 0) {
-          const sub = foundOrder.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
-          calculatedTotal = sub + Math.round(sub * 0.05);
-        } else {
-          calculatedTotal = foundOrder.order.total_amount || 0;
-        }
+      if (allSeatItems.length > 0) {
+        const sub = allSeatItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
+        calculatedTotal = sub + Math.round(sub * 0.05);
+      } else if (seatOrders.length > 0) {
+        calculatedTotal = seatOrders.reduce((acc, so) => acc + (so.order.total_amount || 0), 0);
       } else if (occ) {
         calculatedTotal = 840;
       }
 
-      const totalAmount = calculatedTotal;
-      const itemCount = foundOrder
-        ? foundOrder.items.reduce((acc, it) => acc + it.quantity, 0)
+      const totalAmount = activeBillReq?.amount || calculatedTotal;
+      const itemCount = allSeatItems.length > 0
+        ? allSeatItems.reduce((acc, it) => acc + it.quantity, 0)
         : (isOccupied ? 2 : 0);
       const guestName =
         foundOrder?.order?.device_token?.replace('waiter-', '') ||
@@ -1168,22 +1177,34 @@ export const realtimeBridge = {
     return list;
   },
 
-  // Get active order details for a specific seat
+  // Get active order details for a specific seat combining all active batches
   async getOrderForSeat(chairId: string): Promise<{ order: OrderRecord | null; items: OrderItemRecord[] }> {
     const cleanId = chairId.replace(/[^0-9]/g, '');
     const padded = cleanId.padStart(2, '0');
     const unpadded = cleanId.replace(/^0+/, '');
     const activeOrders = await this.getActiveOrders();
-    const found = activeOrders.find(
+    const matchingOrders = activeOrders.filter(
       (o) =>
         o.order.chair_id === padded ||
         o.order.chair_id === unpadded ||
         o.order.chair_id === chairId ||
         (o.order.chair_id && o.order.chair_id.replace(/[^0-9]/g, '') === cleanId)
     );
-    if (found) {
-      const hydratedItems = this.hydrateOrderItemStages(found.order, found.items);
-      return { order: found.order, items: hydratedItems };
+    if (matchingOrders.length > 0) {
+      const allItems: OrderItemRecord[] = [];
+      matchingOrders.forEach((o) => {
+        const hydratedItems = this.hydrateOrderItemStages(o.order, o.items);
+        allItems.push(...hydratedItems);
+      });
+      const latestOrder = matchingOrders[0].order;
+      const combinedTotal = allItems.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+      return {
+        order: {
+          ...latestOrder,
+          total_amount: combinedTotal,
+        },
+        items: allItems,
+      };
     }
     return { order: null, items: [] };
   },
@@ -1191,13 +1212,13 @@ export const realtimeBridge = {
   // Subscribe to KDS & Seat Occupancy changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string }) => void;
+    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string; itemId?: string }) => void;
     onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
     onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
     onNewAlert?: (alert: ServiceAlertRecord) => void;
     onResolveAlert?: (alertId: string) => void;
-    onBillRequested?: (data: { chairId: string; amount?: number }) => void;
+    onBillRequested?: (data: { chairId: string; amount?: number; verification?: BillVerificationPayload }) => void;
     onBillModeActive?: (data: { chairId: string; amount?: number }) => void;
     onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
     onClearAll?: () => void;
@@ -1238,7 +1259,20 @@ export const realtimeBridge = {
         })
         .on('broadcast', { event: 'BILL_REQUESTED' }, (msg) => {
           if (callbacks.onBillRequested && msg.payload) {
-            callbacks.onBillRequested(msg.payload);
+            const verification: BillVerificationPayload = {
+              chairId: msg.payload.chairId,
+              seatNumber: msg.payload.seatNumber || `Seat ${msg.payload.chairId}`,
+              orderId: msg.payload.orderId || '',
+              ticketNumber: msg.payload.ticketNumber,
+              amount: msg.payload.amount || 0,
+              items: msg.payload.items || [],
+              requestedAt: msg.payload.requestedAt || Date.now(),
+            };
+            callbacks.onBillRequested({
+              chairId: msg.payload.chairId,
+              amount: msg.payload.amount,
+              verification,
+            });
           }
         })
         .on('broadcast', { event: 'BILL_MODE_ACTIVE' }, (msg) => {
@@ -1316,6 +1350,7 @@ export const realtimeBridge = {
           chairId: data.chairId,
           ticketNumber: data.ticketNumber,
           dishName: data.dishName,
+          itemId: data.itemId,
         });
       } else if (data.type === 'TICKET_DISPATCHED' && callbacks.onTicketDispatched) {
         callbacks.onTicketDispatched({ ticketNumber: data.ticketNumber, chairId: data.chairId });
@@ -1328,7 +1363,11 @@ export const realtimeBridge = {
       } else if (data.type === 'RESOLVE_ALERT' && callbacks.onResolveAlert) {
         callbacks.onResolveAlert(data.alertId);
       } else if (data.type === 'BILL_REQUESTED' && callbacks.onBillRequested) {
-        callbacks.onBillRequested({ chairId: data.chairId, amount: data.amount });
+        callbacks.onBillRequested({
+          chairId: data.chairId,
+          amount: data.amount,
+          verification: data.payload,
+        });
       } else if (data.type === 'BILL_MODE_ACTIVE' && callbacks.onBillModeActive) {
         callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount });
       } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {

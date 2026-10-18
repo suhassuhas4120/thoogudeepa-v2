@@ -74,6 +74,8 @@ export interface MobileLiveCartKOTProps {
   readonly onOpenMenu?: () => void;
   /** Callback to proceed to billing settlement */
   readonly onProceedToBill?: (seatNumber: string, guestName: string, amount: number) => void;
+  /** Whether customer has verified and requested bill via waiter */
+  readonly isBillRequested?: boolean;
   /** Callback to open floor alerts */
   readonly onOpenAlerts?: () => void;
   /** Callback to mark an item as served */
@@ -96,6 +98,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   onFireKOT,
   onOpenMenu,
   onProceedToBill,
+  isBillRequested = true,
   onOpenAlerts,
   onServeItem,
   onClearCart,
@@ -262,14 +265,19 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             const status = dishStatuses[item.menuItem.id] || (idx === 0 ? 'PREPARING' : idx === 1 ? 'READY' : idx === 2 ? 'RECEIVED' : 'SERVED');
 =======
             const itemStage = item.stage;
+<<<<<<< HEAD
             const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
 >>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
+=======
+            const itemKey = item.orderItemId || item.menuItem.id;
+            const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || (item.orderItemId ? dishStatuses[item.orderItemId] : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
+>>>>>>> e4017e4652a982e7417148ef8980c7955f63ca66
             const isServed = status === 'SERVED';
             const isNonVeg = item.menuItem.dietary === 'non_veg';
 
             return (
               <div
-                key={item.menuItem.id}
+                key={item.orderItemId || `${item.menuItem.id}-${idx}`}
                 className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
                   isServed
 <<<<<<< HEAD
@@ -331,7 +339,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
 =======
                       <button
                         type="button"
-                        onClick={() => handleMarkServed(item.menuItem.id)}
+                        onClick={() => handleMarkServed(itemKey)}
                         className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                         title="Mark as Served to Seat"
                       >
@@ -467,14 +475,24 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <span>ADD MORE ITEMS (OPEN MENU)</span>
           </button>
 
-          {/* Button 2: Proceed to Bill Checkout */}
+          {/* Button 2: Proceed to Bill Checkout (Enabled only when customer calls captain / requests bill) */}
           <button
             type="button"
+            disabled={!isBillRequested}
             onClick={() => onProceedToBill?.(seatNumber, guestName, grandTotal)}
-            className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press shadow-xs transition-all"
+            className={`w-full h-11 font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press transition-all ${
+              isBillRequested
+                ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+            }`}
+            title={isBillRequested ? 'Proceed to bill settlement' : 'Awaiting customer to click Pay via Waiter'}
           >
-            <Receipt className="w-4 h-4 text-emerald-400" />
-            <span>PROCEED TO BILL SETTLEMENT (₹{grandTotal})</span>
+            <Receipt className={`w-4 h-4 ${isBillRequested ? 'text-emerald-400' : 'text-slate-400'}`} />
+            <span>
+              {isBillRequested
+                ? `PROCEED TO BILL SETTLEMENT (₹${grandTotal})`
+                : 'AWAITING CUSTOMER BILL REQUEST'}
+            </span>
           </button>
         </div>
       </div>

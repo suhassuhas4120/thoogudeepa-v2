@@ -538,9 +538,22 @@ export default function OrderSummaryBillPage() {
                 onClick={() => {
                   setWaiterCalled(true);
                   setShowWaiterModal(false);
-                  realtimeBridge.requestBill(chairId, grandPayable);
+                  const paddedSeat = `Seat ${seatNumber.padStart(2, '0')}`;
+                  realtimeBridge.requestBill(chairId, grandPayable, {
+                    chairId,
+                    seatNumber: paddedSeat,
+                    orderId: session?.orderId || '',
+                    ticketNumber: session?.ticketNumber,
+                    amount: grandPayable,
+                    items: (session?.items || []).map((it) => ({
+                      id: it.id,
+                      title: it.title,
+                      quantity: it.quantity,
+                      price: it.price,
+                    })),
+                  });
                   realtimeBridge.sendServiceAlert({
-                    seatNumber: `Seat ${seatNumber.padStart(2, '0')}`,
+                    seatNumber: paddedSeat,
                     title: `Bill Requested (₹${grandPayable})`,
                     message: `Bill settlement requested for Seat ${seatNumber}: ₹${grandPayable}${tipAmount > 0 ? ` (incl. ₹${tipAmount} tip)` : ''}`,
                     guestName: `Seat ${seatNumber} Guest`,

@@ -77,13 +77,10 @@ export default function LiveOrderTrackingPage() {
         setItemStages((prev) => {
           const updated = { ...prev };
           res.items.forEach((it, idx) => {
-            const itemKey1 = it.dish_id;
-            const itemKey2 = `dish-${it.dish_id}`;
-            const itemKey3 = `${res.order?.ticket_number || 'T'}-${idx}`;
+            const itemKey = it.id || `${res.order?.ticket_number || 'T'}-${idx}`;
             if (it.stage) {
-              updated[itemKey1] = it.stage;
-              updated[itemKey2] = it.stage;
-              updated[itemKey3] = it.stage;
+              updated[itemKey] = it.stage;
+              if (it.id) updated[it.id] = it.stage;
             }
           });
           return updated;
@@ -106,13 +103,8 @@ export default function LiveOrderTrackingPage() {
         setItemStages((prev) => {
           const nextStages = { ...prev };
           if (data.key) nextStages[data.key] = data.stage;
-          if (data.dishId) {
+          if (data.dishId && data.dishId.startsWith('item-')) {
             nextStages[data.dishId] = data.stage;
-            nextStages[`dish-${data.dishId.replace('dish-', '')}`] = data.stage;
-            nextStages[data.dishId.replace('dish-', '')] = data.stage;
-          }
-          if (data.dishName) {
-            nextStages[data.dishName.toLowerCase()] = data.stage;
           }
           return nextStages;
         });
@@ -251,14 +243,13 @@ export default function LiveOrderTrackingPage() {
 
                 // Determine this item's specific stage
                 const itemKey1 = dish.id;
-                const itemKey2 = `dish-${numericDishId}`;
-                const itemKey3 = `${session?.ticketNumber}-${idx}`;
+                const itemKey2 = `${session?.ticketNumber}-${idx}`;
                 const stageRaw =
                   isDispatched
                     ? 'SERVED'
-                    : itemStages[itemKey1] ||
-                      itemStages[itemKey2] ||
-                      itemStages[itemKey3] ||
+                    : (itemKey1 ? itemStages[itemKey1] : undefined) ||
+                      (itemKey2 ? itemStages[itemKey2] : undefined) ||
+                      (dish as any).stage ||
                       'PLACED';
 
                 // Map stage to numeric step 1..5

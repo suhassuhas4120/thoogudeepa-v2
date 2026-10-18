@@ -43,13 +43,15 @@ export interface TabletLiveTicketProps {
   /** Grand Total including taxes */
   grandTotal: number;
   /** Callback to mark an item as served once picked up from kitchen pass */
-  onServeItem: (itemId: number) => void;
+  onServeItem: (itemId: number | string) => void;
   /** Callback to fire KOT directly to kitchen pass counter */
   onPunchKot: () => void;
   /** Callback to switch right-pane mode from ticket to Bill Settlement (NO POPUP) */
   onSwitchToBillMode: () => void;
   /** Callback to clear ticket items for a new guest */
   onClearTicket?: () => void;
+  /** Whether the customer on this seat has actively requested the bill */
+  isBillRequested?: boolean;
 }
 
 export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
@@ -61,7 +63,8 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
   onServeItem,
   onPunchKot,
   onSwitchToBillMode,
-  onClearTicket
+  onClearTicket,
+  isBillRequested = true
 }) => {
   const [kotSentSuccess, setKotSentSuccess] = useState<boolean>(false);
   const [kotOrderSerial, setKotOrderSerial] = useState<number>(104);
@@ -142,12 +145,12 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
               <p className="text-xs text-slate-400 mt-0.5">Select dishes from the menu to punch</p>
             </div>
           ) : (
-            ticketItems.map(item => {
+            ticketItems.map((item, idx) => {
               const isServed = item.status === 'SERVED';
 
               return (
                 <div
-                  key={item.id}
+                  key={item.orderItemId || `${item.id}-${idx}`}
                   className={`border rounded-xl p-3 transition-colors ${
                     isServed
                       ? 'border-slate-200 bg-slate-100/70 opacity-70 select-none'
@@ -173,7 +176,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                           </span>
                           <button
                             type="button"
-                            onClick={() => onServeItem(item.id)}
+                            onClick={() => onServeItem(item.orderItemId || item.id)}
                             className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                             title="Mark as Served to Seat"
                           >
@@ -292,17 +295,23 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
           {/* Button 2: Collect Bill */}
           <button
             type="button"
-            disabled={!hasItems}
+            disabled={!hasItems || !isBillRequested}
             onClick={onSwitchToBillMode}
             className={`h-11 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-2xs transition-all ${
-              hasItems
+              hasItems && isBillRequested
                 ? 'bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black cursor-pointer shadow-amber-500/20'
                 : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
             }`}
-            title={hasItems ? "Switch Right Pane to Settle Bill" : "Punch order dishes first before bill collection"}
+            title={
+              !hasItems
+                ? "Punch order dishes first before bill collection"
+                : !isBillRequested
+                ? "Awaiting customer 'Pay via Waiter' request"
+                : "Switch Right Pane to Settle Bill"
+            }
           >
             <CreditCard className="w-3.5 h-3.5" />
-            <span>Collect Bill</span>
+            <span>{isBillRequested ? 'Collect Bill' : 'Awaiting Request'}</span>
           </button>
         </div>
       </div>

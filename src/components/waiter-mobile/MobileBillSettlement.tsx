@@ -56,6 +56,8 @@ export interface MobileBillSettlementProps {
   readonly onOpenAlerts?: () => void;
   /** Callback when bill is successfully paid & settled */
   readonly onSettleSuccess: (seatNumber: string, method: PaymentMethod, amount: number) => void;
+  /** Whether the bill has been confirmed and verified by the customer calling captain */
+  readonly isVerifiedByCustomer?: boolean;
   /** Toast feedback callback */
   readonly onShowToast?: (message: string) => void;
 }
@@ -69,6 +71,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   onBackToSeats,
   onOpenAlerts,
   onSettleSuccess,
+  isVerifiedByCustomer = true,
   onShowToast
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
@@ -80,7 +83,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   const billLines = useMemo(() => {
     if (cartItems && cartItems.length > 0) {
       return cartItems.map((c, idx) => ({
-        id: String(c.menuItem.id || idx),
+        id: c.orderItemId || `${c.menuItem.id || 'dish'}-${idx}`,
         name: c.menuItem.name,
         quantity: c.quantity,
         unitPrice: c.menuItem.price,
@@ -88,8 +91,8 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
       }));
     }
     return [
-      { id: '1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
-      { id: '2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
+      { id: 'sample-1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
+      { id: 'sample-2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
       { id: '3', name: 'Mineral Water Bottle', quantity: 1, unitPrice: 40, lineTotal: 40 }
     ];
   }, [cartItems]);
@@ -212,9 +215,9 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
 
           {/* Dish Rows */}
           <div className="space-y-2 text-xs">
-            {billLines.map(line => (
+            {billLines.map((line, idx) => (
               <div 
-                key={line.id}
+                key={line.id || `bill-line-${idx}`}
                 className="flex items-center justify-between pb-1.5 border-b border-slate-100"
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -408,16 +411,25 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
 
         </div>
 
-        {/* Settle Bill Action Button */}
+        {/* Settle Bill Action Button (Enabled only when verified by customer) */}
         <button
           type="button"
           onClick={handleExecuteSettle}
-          disabled={isProcessing}
-          className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center justify-center gap-2 btn-press transition-all disabled:opacity-50 cursor-pointer"
+          disabled={isProcessing || !isVerifiedByCustomer}
+          className={`w-full h-12 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center justify-center gap-2 btn-press transition-all ${
+            isVerifiedByCustomer && !isProcessing
+              ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 cursor-pointer'
+              : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+          }`}
+          title={isVerifiedByCustomer ? 'Settle Bill & Print Receipt' : 'Awaiting customer to click Pay via Waiter'}
         >
           <Printer className="w-4 h-4" />
           <span>
-            {isProcessing ? 'PRINTING RECEIPT...' : `PRINT RECEIPT & SETTLE (₹${finalGrandTotal})`}
+            {isProcessing
+              ? 'PRINTING RECEIPT...'
+              : !isVerifiedByCustomer
+              ? 'AWAITING CUSTOMER CONFIRMATION'
+              : `PRINT RECEIPT & SETTLE (₹${finalGrandTotal})`}
           </span>
         </button>
 
