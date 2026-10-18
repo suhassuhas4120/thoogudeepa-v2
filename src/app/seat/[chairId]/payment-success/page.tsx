@@ -21,24 +21,39 @@ function PaymentSuccessContent() {
 
   const modeParam = searchParams?.get('mode') || 'UPI';
   const amountParam = searchParams?.get('amount');
+  const tipParam = searchParams?.get('tip');
 
   const [settledAmount, setSettledAmount] = useState<number>(
     amountParam ? Number(amountParam) : 0
   );
+  const [appliedTip, setAppliedTip] = useState<number>(0);
   const [transactionId, setTransactionId] = useState<string>('');
 
   // Mark session as paid, save settled receipt record, and release anti-cheat lock
   useEffect(() => {
     const s = getActiveDiningSession();
+    const storedTipStr = typeof window !== 'undefined' ? sessionStorage.getItem(`thoogudeepa_selected_tip_${chairId}`) : null;
+    const tipFromStorage = storedTipStr === '₹ 30' ? 30 : storedTipStr === '₹ 50' ? 50 : storedTipStr === '₹ 100' ? 100 : 0;
+    const tipAmount = tipParam !== null && tipParam !== undefined ? Number(tipParam) : tipFromStorage;
+    setAppliedTip(tipAmount);
+
     let finalAmount = Number(amountParam) || 0;
     if (s && s.seatId === chairId) {
-      finalAmount = s.totalAmount || finalAmount;
+      if (!finalAmount) {
+        finalAmount = (s.totalAmount || 0) + tipAmount;
+      }
       setSettledAmount(finalAmount);
       try {
         localStorage.setItem(
           `thoogudeepa_settled_receipt_${chairId}`,
           JSON.stringify({
             ticketNumber: s.ticketNumber,
+            seatId: chairId,
+            items: s.items || [],
+            subtotal: s.items && s.items.length > 0
+              ? s.items.reduce((acc, it) => acc + it.price * it.quantity, 0)
+              : Math.round((finalAmount - tipAmount) / 1.05),
+            tip: tipAmount,
             totalAmount: finalAmount,
             mode: modeParam,
             settledAt: Date.now(),
@@ -55,6 +70,9 @@ function PaymentSuccessContent() {
           if (parsed.totalAmount) {
             setSettledAmount(parsed.totalAmount);
             finalAmount = parsed.totalAmount;
+          }
+          if (parsed.tip) {
+            setAppliedTip(parsed.tip);
           }
         }
       } catch {
@@ -81,7 +99,7 @@ function PaymentSuccessContent() {
     clearActiveDiningSession();
     clearCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chairId, modeParam, amountParam]);
+  }, [chairId, modeParam, amountParam, tipParam]);
 
   // Completion timestamp recorded once and persisted permanently
   const [completionTimestamp, setCompletionTimestamp] = useState<{ date: string; time: string }>({
@@ -130,6 +148,7 @@ function PaymentSuccessContent() {
   // Details rows for the receipt/transaction card
   const transactionRows = [
     { label: 'Transaction ID', value: transactionId || `TXN-${chairId}-90823411` },
+    ...(appliedTip > 0 ? [{ label: 'Staff Tip (Waiter)', value: `₹ ${appliedTip}` }] : []),
     { label: 'Total Settled', value: `₹ ${settledAmount}` },
     { label: 'Payment Mode', value: modeParam },
     { label: 'Seat Assigned', value: `Seat #${chairId}` },

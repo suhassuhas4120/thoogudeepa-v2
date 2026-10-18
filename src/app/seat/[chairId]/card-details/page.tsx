@@ -15,6 +15,8 @@ function CardDetailsContent() {
   useHardwareBack(`/seat/${chairId}/payment`);
 
   const cardParam = searchParams?.get('card') || 'card1';
+  const amountParam = searchParams?.get('amount') || '';
+  const tipParam = searchParams?.get('tip') || '';
 
   // Cards catalog matching payment page
   const cardPresets: Record<string, { title: string; number: string; holder: string; expiry: string; logo: string }> = {
@@ -306,7 +308,7 @@ function CardDetailsContent() {
       <div className="sticky bottom-0 z-30 w-full bg-white/95 backdrop-blur-sm pt-3 pb-4 border-t border-zinc-200">
         {isFormComplete ? (
           <Link
-            href={`/seat/${chairId}/payment-success?mode=Card&card=${cardParam}`}
+            href={`/seat/${chairId}/payment-success?mode=Card&card=${cardParam}${amountParam ? `&amount=${amountParam}` : ''}${tipParam ? `&tip=${tipParam}` : ''}`}
             className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
           >
             Continue

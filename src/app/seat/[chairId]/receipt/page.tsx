@@ -25,6 +25,10 @@ import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 
 interface SettledReceipt {
   ticketNumber: string;
+  seatId?: string;
+  items?: { id: string; title: string; quantity: number; price: number }[];
+  subtotal?: number;
+  tip?: number;
   totalAmount: number;
   mode: string;
   settledAt: number;
@@ -61,11 +65,14 @@ export default function CustomerReceiptPage() {
     { id: 'opt-5', label: 'Terrible', icon: Angry },
   ];
 
+  const itemsList = receipt?.items && receipt.items.length > 0 ? receipt.items : [];
   const totalAmount = receipt?.totalAmount || 0;
-  const subtotal = totalAmount > 0 ? Math.round(totalAmount / 1.05) : 0;
-  const totalTax = totalAmount - subtotal;
-  const cgst = Math.round(totalTax / 2);
-  const sgst = totalTax - cgst;
+  const tipAmount = receipt?.tip || 0;
+  const subtotal = receipt?.subtotal || (itemsList.length > 0
+    ? itemsList.reduce((acc, it) => acc + it.price * it.quantity, 0)
+    : Math.max(0, Math.round((totalAmount - tipAmount) / 1.05)));
+  const cgst = Math.round(subtotal * 0.025);
+  const sgst = Math.round(subtotal * 0.025);
   const settleDate = receipt?.settledAt ? new Date(receipt.settledAt) : new Date();
 
   const formattedDate = `${String(settleDate.getDate()).padStart(2, '0')}/${String(
@@ -73,6 +80,45 @@ export default function CustomerReceiptPage() {
   ).padStart(2, '0')}/${settleDate.getFullYear()}`;
 
   const formattedTime = settleDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const handleShareWhatsApp = () => {
+    let text = `*THOOGUDEEPA MILITARY HOTEL*\n`;
+    text += `Authentic Donne Biryani Mane\n`;
+    text += `--------------------------------\n`;
+    text += `Seat: Seat #${seatNumber}\n`;
+    text += `Invoice: #${receipt?.ticketNumber || seatNumber}\n`;
+    text += `Date: ${formattedDate} at ${formattedTime}\n`;
+    text += `Paid via: ${receipt?.mode || 'UPI'}\n`;
+    text += `--------------------------------\n`;
+    text += `*ITEMS:*\n`;
+    if (itemsList.length > 0) {
+      itemsList.forEach((it) => {
+        text += `• ${it.quantity}x ${it.title} - ₹${it.price * it.quantity}\n`;
+      });
+    } else {
+      text += `• Military Dining - ₹${subtotal}\n`;
+    }
+    text += `--------------------------------\n`;
+    text += `Item Subtotal: ₹${subtotal}\n`;
+    text += `CGST (2.5%): ₹${cgst}\n`;
+    text += `SGST (2.5%): ₹${sgst}\n`;
+    if (tipAmount > 0) {
+      text += `Staff Tip: ₹${tipAmount}\n`;
+    }
+    text += `*TOTAL PAID: ₹${totalAmount}*\n`;
+    text += `Status: PAID & SETTLED ✅\n`;
+    text += `--------------------------------\n`;
+    text += `Thank you for dining with us! 🙏`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleDownloadBill = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-12">
@@ -188,25 +234,43 @@ export default function CustomerReceiptPage() {
             </div>
 
             {/* Card 2: Items Description & Amount Breakdown */}
-            <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs">
+            <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs print:hidden">
               <div className="w-full flex items-center justify-between pb-2 border-b border-zinc-200 text-[11px] font-black uppercase tracking-wider text-zinc-600">
                 <span>Item Description</span>
                 <span>Amount</span>
               </div>
 
-              <div className="w-full flex flex-col gap-2.5">
-                <div className="w-full flex items-center justify-between text-xs font-bold">
-                  <div className="flex items-center gap-1.5">
-                    <span>Military Dining (Ticket #{receipt.ticketNumber})</span>
-                  </div>
-                  <span>₹ {subtotal}</span>
+              {itemsList.length > 0 ? (
+                <div className="w-full flex flex-col gap-2.5">
+                  {itemsList.map((it, idx) => (
+                    <div key={idx} className="w-full flex items-center justify-between text-xs py-0.5">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="font-bold text-zinc-900 truncate">
+                          {it.quantity} &times; {it.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-semibold">
+                          ₹ {it.price} each
+                        </span>
+                      </div>
+                      <span className="font-black text-zinc-950 shrink-0">
+                        ₹ {it.price * it.quantity}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="w-full flex flex-col gap-2.5">
+                  <div className="w-full flex items-center justify-between text-xs font-bold">
+                    <span>Military Dining (Ticket #{receipt.ticketNumber})</span>
+                    <span>₹ {subtotal}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Subtotals & Taxes */}
               <div className="w-full flex flex-col gap-2 pt-3 border-t border-zinc-200 text-xs font-semibold">
                 <div className="w-full flex items-center justify-between text-zinc-600">
-                  <span>Item Subtotal</span>
+                  <span>Item Subtotal ({itemsList.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
                   <span>₹ {subtotal}</span>
                 </div>
                 <div className="w-full flex items-center justify-between text-zinc-600">
@@ -217,6 +281,12 @@ export default function CustomerReceiptPage() {
                   <span>SGST (2.5%)</span>
                   <span>₹ {sgst}</span>
                 </div>
+                {tipAmount > 0 && (
+                  <div className="w-full flex items-center justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1.5 rounded-lg border border-emerald-200">
+                    <span>Staff Tip (Waiter)</span>
+                    <span>+ ₹ {tipAmount}</span>
+                  </div>
+                )}
               </div>
 
               {/* Grand Total Amount Paid */}
@@ -227,7 +297,7 @@ export default function CustomerReceiptPage() {
             </div>
 
             {/* Card 3: Payment Method & Settlement Status */}
-            <div className="w-full border-2 border-black rounded-3xl p-3.5 px-4 flex items-center justify-between bg-white shadow-xs">
+            <div className="w-full border-2 border-black rounded-3xl p-3.5 px-4 flex items-center justify-between bg-white shadow-xs print:hidden">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full border border-black flex items-center justify-center shrink-0">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -243,8 +313,86 @@ export default function CustomerReceiptPage() {
                 <span>Settled</span>
               </div>
             </div>
+
+            {/* Action Buttons: Download Bill & Share via WhatsApp */}
+            <div className="w-full grid grid-cols-2 gap-2.5 print:hidden">
+              <button
+                type="button"
+                onClick={handleDownloadBill}
+                className="w-full border-2 border-black bg-white hover:bg-zinc-50 text-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
+              >
+                <Download className="w-4 h-4 text-black shrink-0" />
+                <span className="text-xs font-black uppercase tracking-wider">Download Bill</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleShareWhatsApp}
+                className="w-full border-2 border-black bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
+              >
+                <MessageCircle className="w-4 h-4 text-white shrink-0" />
+                <span className="text-xs font-black uppercase tracking-wider">Share WhatsApp</span>
+              </button>
+            </div>
           </>
         )}
+
+        {/* Printable Invoice Container (Only visible during window.print()) */}
+        <div className="hidden print:block w-full text-black p-4 font-mono text-xs">
+          <div className="text-center font-bold text-base mb-0.5">THOOGUDEEPA MILITARY HOTEL</div>
+          <div className="text-center text-[10px] text-zinc-600">Authentic Donne Biryani Mane</div>
+          <div className="text-center text-[10px] text-zinc-600">GSTIN: 29AABCT1332M1Z4</div>
+          <div className="border-b border-black my-2" />
+          <div className="flex justify-between">
+            <span>Seat: #{seatNumber}</span>
+            <span>Invoice: #{receipt?.ticketNumber || seatNumber}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Date: {formattedDate}</span>
+            <span>Time: {formattedTime}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Mode: {receipt?.mode || 'UPI'}</span>
+            <span>Status: SETTLED</span>
+          </div>
+          <div className="border-b border-black my-2" />
+          <div className="flex justify-between font-bold">
+            <span>Item</span>
+            <span>Price</span>
+          </div>
+          <div className="border-b border-dashed border-black my-1" />
+          {itemsList.map((it, idx) => (
+            <div key={idx} className="flex justify-between py-0.5">
+              <span>{it.quantity}x {it.title}</span>
+              <span>₹ {it.price * it.quantity}</span>
+            </div>
+          ))}
+          <div className="border-b border-dashed border-black my-1" />
+          <div className="flex justify-between">
+            <span>Subtotal:</span>
+            <span>₹ {subtotal}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>CGST (2.5%):</span>
+            <span>₹ {cgst}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>SGST (2.5%):</span>
+            <span>₹ {sgst}</span>
+          </div>
+          {tipAmount > 0 && (
+            <div className="flex justify-between">
+              <span>Staff Tip:</span>
+              <span>₹ {tipAmount}</span>
+            </div>
+          )}
+          <div className="border-b border-black my-1" />
+          <div className="flex justify-between font-bold text-sm">
+            <span>Total Paid:</span>
+            <span>₹ {totalAmount}</span>
+          </div>
+          <div className="border-b border-black my-2" />
+          <div className="text-center text-[10px] mt-2">Thank you! Visit again.</div>
+        </div>
 
         {/* Customer Feedback Card */}
         <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs">

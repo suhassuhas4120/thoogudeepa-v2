@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight, Download, MessageCircle } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { realtimeBridge } from '../../../../lib/supabase';
@@ -25,6 +25,14 @@ export default function OrderSummaryBillPage() {
   const [selectedPaymentSubMode, setSelectedPaymentSubMode] = useState<'scan' | 'cash'>('cash');
 
   useEffect(() => {
+    // Restore any previously chosen tip for this seat
+    if (typeof window !== 'undefined') {
+      const storedTip = sessionStorage.getItem(`thoogudeepa_selected_tip_${chairId}`);
+      if (storedTip) {
+        setSelectedTip(storedTip);
+      }
+    }
+
     const s = getActiveDiningSession();
     if (s && s.paymentStatus === 'unpaid') {
       if (s.seatId !== chairId) {
@@ -33,6 +41,35 @@ export default function OrderSummaryBillPage() {
       }
       setSession(s);
     }
+
+    // Supplementary check: if session items are empty, check active floor orders
+    realtimeBridge.getActiveOrders().then((activeOrders) => {
+      const cleanChair = chairId.replace(/[^0-9]/g, '');
+      const matched = activeOrders.find((o) => {
+        const c = (o.order.chair_id || '').replace(/[^0-9]/g, '');
+        return c === cleanChair || o.order.chair_id === chairId;
+      });
+      if (matched && matched.items && matched.items.length > 0) {
+        setSession((prev) => {
+          if (prev && prev.items && prev.items.length > 0) return prev;
+          return {
+            seatId: chairId,
+            ticketNumber: matched.order.ticket_number,
+            orderId: matched.order.id || `ord-${Date.now()}`,
+            orderStatus: 'pending',
+            paymentStatus: 'unpaid',
+            orderedAt: Date.now(),
+            totalAmount: matched.order.total_amount,
+            items: matched.items.map((it) => ({
+              id: it.dish_id,
+              title: it.dish_name,
+              quantity: it.quantity,
+              price: it.price,
+            })),
+          };
+        });
+      }
+    });
 
     const unsub = realtimeBridge.subscribeKDS({
       onBillSettled: (data) => {
@@ -56,11 +93,72 @@ export default function OrderSummaryBillPage() {
 
   const tipOptions = ['None', '₹ 30', '₹ 50', '₹ 100'];
 
-  const billTotal = session?.totalAmount || 0;
-  const subtotal = billTotal > 0 ? Math.round(billTotal / 1.05) : 0;
-  const gstAmount = billTotal - subtotal;
+  const handleSelectTip = (opt: string) => {
+    setSelectedTip(opt);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`thoogudeepa_selected_tip_${chairId}`, opt);
+    }
+  };
+
+  const itemsList = session?.items && session.items.length > 0 ? session.items : [];
+  const itemsSubtotal = itemsList.length > 0
+    ? itemsList.reduce((acc, it) => acc + it.price * it.quantity, 0)
+    : (session?.totalAmount ? Math.round(session.totalAmount / 1.05) : 0);
+
+  const cgst = Math.round(itemsSubtotal * 0.025);
+  const sgst = Math.round(itemsSubtotal * 0.025);
+  const gstAmount = cgst + sgst;
+  const billTotal = itemsSubtotal + gstAmount;
+
   const tipAmount = selectedTip === '₹ 30' ? 30 : selectedTip === '₹ 50' ? 50 : selectedTip === '₹ 100' ? 100 : 0;
   const grandPayable = billTotal + tipAmount;
+
+  const handleShareWhatsApp = () => {
+    const dateStr = new Date().toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const timeStr = new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    let text = `*THOOGUDEEPA MILITARY HOTEL*\n`;
+    text += `Authentic Donne Biryani Mane\n`;
+    text += `--------------------------------\n`;
+    text += `Seat: Seat #${seatNumber}\n`;
+    text += `Ticket: #${session?.ticketNumber || 'TKT-' + seatNumber}\n`;
+    text += `Date: ${dateStr} at ${timeStr}\n`;
+    text += `--------------------------------\n`;
+    text += `*ITEMS ORDERED:*\n`;
+    if (itemsList.length > 0) {
+      itemsList.forEach((it) => {
+        text += `• ${it.quantity}x ${it.title} - ₹${it.price * it.quantity}\n`;
+      });
+    } else {
+      text += `• Authentic Military Dining - ₹${itemsSubtotal}\n`;
+    }
+    text += `--------------------------------\n`;
+    text += `Item Subtotal: ₹${itemsSubtotal}\n`;
+    text += `CGST (2.5%): ₹${cgst}\n`;
+    text += `SGST (2.5%): ₹${sgst}\n`;
+    if (tipAmount > 0) {
+      text += `Staff Tip: ₹${tipAmount}\n`;
+    }
+    text += `*TOTAL PAYABLE: ₹${grandPayable}*\n`;
+    text += `--------------------------------\n`;
+    text += `Thank you for dining with us! 🙏`;
+
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleDownloadBill = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
@@ -95,7 +193,7 @@ export default function OrderSummaryBillPage() {
         </header>
 
         {/* Card 1: Items & Price Breakdown Section */}
-        <div className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-4 bg-white shadow-sm">
+        <div className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-4 bg-white shadow-sm print:hidden">
           {!session ? (
             <div className="w-full py-8 flex flex-col items-center justify-center text-center gap-2">
               <Receipt className="w-8 h-8 text-zinc-400" />
@@ -121,15 +219,20 @@ export default function OrderSummaryBillPage() {
                 </span>
               </div>
 
-              {/* Real Order Breakdown */}
-              {session.items && session.items.length > 0 ? (
+              {/* Real Order Breakdown with Each Item & Price */}
+              {itemsList.length > 0 ? (
                 <div className="w-full flex flex-col gap-2.5 py-1">
-                  {session.items.map((it, idx) => (
-                    <div key={idx} className="w-full flex items-center justify-between text-xs">
-                      <span className="font-semibold text-zinc-900 truncate pr-2">
-                        {it.quantity} &times; {it.title}
-                      </span>
-                      <span className="font-bold text-zinc-950 shrink-0">
+                  {itemsList.map((it, idx) => (
+                    <div key={idx} className="w-full flex items-center justify-between text-xs py-0.5">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="font-bold text-zinc-900 truncate">
+                          {it.quantity} &times; {it.title}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-semibold">
+                          ₹ {it.price} each
+                        </span>
+                      </div>
+                      <span className="font-black text-zinc-950 shrink-0">
                         ₹ {it.price * it.quantity}
                       </span>
                     </div>
@@ -139,7 +242,7 @@ export default function OrderSummaryBillPage() {
                 <div className="w-full flex flex-col gap-2 py-1">
                   <div className="w-full flex items-center justify-between text-xs font-bold">
                     <span>Authentic Military Dining Order</span>
-                    <span>₹ {subtotal}</span>
+                    <span>₹ {itemsSubtotal}</span>
                   </div>
                   <div className="text-[10px] text-zinc-500 font-medium">
                     Steamed donne biryani &amp; military starters steamed in traditional herbal spices.
@@ -150,27 +253,38 @@ export default function OrderSummaryBillPage() {
               {/* Subtotal & Taxes Breakdown */}
               <div className="w-full border-t border-zinc-200 pt-3 flex flex-col gap-1.5 text-xs text-zinc-700">
                 <div className="w-full flex items-center justify-between">
-                  <span>Item Subtotal</span>
-                  <span className="font-bold">₹ {subtotal}</span>
+                  <span>Item Subtotal ({itemsList.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
+                  <span className="font-bold text-zinc-900">₹ {itemsSubtotal}</span>
                 </div>
-                <div className="w-full flex items-center justify-between">
-                  <span>Taxes &amp; Charges (5% GST)</span>
-                  <span className="font-bold">₹ {gstAmount}</span>
+                <div className="w-full flex items-center justify-between text-zinc-600">
+                  <span>CGST (2.5%)</span>
+                  <span className="font-bold">₹ {cgst}</span>
+                </div>
+                <div className="w-full flex items-center justify-between text-zinc-600">
+                  <span>SGST (2.5%)</span>
+                  <span className="font-bold">₹ {sgst}</span>
                 </div>
                 {tipAmount > 0 && (
-                  <div className="w-full flex items-center justify-between text-emerald-800 font-bold">
-                    <span>Staff Tip</span>
-                    <span>₹ {tipAmount}</span>
+                  <div className="w-full flex items-center justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1.5 rounded-lg border border-emerald-200">
+                    <span>Staff Tip (Waiter)</span>
+                    <span>+ ₹ {tipAmount}</span>
                   </div>
                 )}
               </div>
 
               {/* Total Payable Box */}
               <div className="w-full border-t-2 border-black pt-3 flex items-center justify-between">
-                <span className="text-sm font-black uppercase tracking-wider">
-                  Total Payable
-                </span>
-                <span className="text-lg font-black">
+                <div className="flex flex-col">
+                  <span className="text-sm font-black uppercase tracking-wider">
+                    Total Payable
+                  </span>
+                  {tipAmount > 0 && (
+                    <span className="text-[10px] text-emerald-700 font-bold">
+                      Includes ₹{tipAmount} Tip
+                    </span>
+                  )}
+                </div>
+                <span className="text-xl font-black text-black">
                   ₹ {grandPayable}
                 </span>
               </div>
@@ -178,9 +292,31 @@ export default function OrderSummaryBillPage() {
           )}
         </div>
 
+        {/* Action Buttons: Download Bill & Share via WhatsApp */}
+        {session && (
+          <div className="w-full grid grid-cols-2 gap-2.5 print:hidden">
+            <button
+              type="button"
+              onClick={handleDownloadBill}
+              className="w-full border-2 border-black bg-white hover:bg-zinc-50 text-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
+            >
+              <Download className="w-4 h-4 text-black shrink-0" />
+              <span className="text-xs font-black uppercase tracking-wider">Download Bill</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleShareWhatsApp}
+              className="w-full border-2 border-black bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
+            >
+              <MessageCircle className="w-4 h-4 text-white shrink-0" />
+              <span className="text-xs font-black uppercase tracking-wider">Share WhatsApp</span>
+            </button>
+          </div>
+        )}
+
         {/* Promo Code Section */}
         {session && (
-          <div className="w-full border-2 border-black rounded-2xl p-2 flex items-center justify-between gap-2 bg-white shadow-sm">
+          <div className="w-full border-2 border-black rounded-2xl p-2 flex items-center justify-between gap-2 bg-white shadow-sm print:hidden">
             <div className="flex items-center gap-2 pl-2 flex-1">
               <Ticket className="w-4 h-4 text-zinc-600 shrink-0" />
               <input
@@ -202,7 +338,7 @@ export default function OrderSummaryBillPage() {
 
         {/* Card 2: Add Tip Section */}
         {session && (
-          <div className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-3 bg-white shadow-sm">
+          <div className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-3 bg-white shadow-sm print:hidden">
             <div className="w-full flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider">
                 Add Tip for Staff
@@ -217,7 +353,7 @@ export default function OrderSummaryBillPage() {
                 <button
                   key={opt}
                   type="button"
-                  onClick={() => setSelectedTip(opt)}
+                  onClick={() => handleSelectTip(opt)}
                   className={`py-2 text-xs font-bold rounded-xl border border-black cursor-pointer transition-all ${
                     selectedTip === opt
                       ? 'bg-black text-white'
@@ -232,9 +368,63 @@ export default function OrderSummaryBillPage() {
         )}
       </div>
 
+      {/* Printable Invoice Container (Only visible during window.print()) */}
+      <div className="hidden print:block w-full text-black p-4 font-mono text-xs">
+        <div className="text-center font-bold text-base mb-0.5">THOOGUDEEPA MILITARY HOTEL</div>
+        <div className="text-center text-[10px] text-zinc-600">Authentic Donne Biryani Mane</div>
+        <div className="text-center text-[10px] text-zinc-600">GSTIN: 29AABCT1332M1Z4</div>
+        <div className="border-b border-black my-2" />
+        <div className="flex justify-between">
+          <span>Seat: #{seatNumber}</span>
+          <span>Ticket: #{session?.ticketNumber || seatNumber}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Date: {new Date().toLocaleDateString('en-IN')}</span>
+          <span>Time: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        <div className="border-b border-black my-2" />
+        <div className="flex justify-between font-bold">
+          <span>Item</span>
+          <span>Price</span>
+        </div>
+        <div className="border-b border-dashed border-black my-1" />
+        {itemsList.map((it, idx) => (
+          <div key={idx} className="flex justify-between py-0.5">
+            <span>{it.quantity}x {it.title}</span>
+            <span>₹ {it.price * it.quantity}</span>
+          </div>
+        ))}
+        <div className="border-b border-dashed border-black my-1" />
+        <div className="flex justify-between">
+          <span>Subtotal:</span>
+          <span>₹ {itemsSubtotal}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>CGST (2.5%):</span>
+          <span>₹ {cgst}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>SGST (2.5%):</span>
+          <span>₹ {sgst}</span>
+        </div>
+        {tipAmount > 0 && (
+          <div className="flex justify-between">
+            <span>Staff Tip:</span>
+            <span>₹ {tipAmount}</span>
+          </div>
+        )}
+        <div className="border-b border-black my-1" />
+        <div className="flex justify-between font-bold text-sm">
+          <span>Total Payable:</span>
+          <span>₹ {grandPayable}</span>
+        </div>
+        <div className="border-b border-black my-2" />
+        <div className="text-center text-[10px] mt-2">Thank you! Visit again.</div>
+      </div>
+
       {/* Bottom Sticky Payment Actions */}
       {session && (
-        <div className="sticky bottom-0 z-30 w-full bg-white/95 backdrop-blur-sm pt-2 pb-2 flex flex-col gap-2.5 border-t border-zinc-200">
+        <div className="sticky bottom-0 z-30 w-full bg-white/95 backdrop-blur-sm pt-2 pb-2 flex flex-col gap-2.5 border-t border-zinc-200 print:hidden">
           <div className="w-full grid grid-cols-2 gap-3">
             {/* Pay via Waiter */}
             <button
@@ -258,7 +448,7 @@ export default function OrderSummaryBillPage() {
               </button>
             ) : (
               <Link
-                href={`/seat/${chairId}/payment?amount=${grandPayable}`}
+                href={`/seat/${chairId}/payment?amount=${grandPayable}&tip=${tipAmount}`}
                 className="w-full border-2 border-black bg-black text-white py-3 px-3 text-xs sm:text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity shadow-sm text-center"
               >
                 Self Pay
@@ -270,7 +460,7 @@ export default function OrderSummaryBillPage() {
 
       {/* Pay via Waiter Confirmation Modal */}
       {showWaiterModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center px-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center px-4 animate-in fade-in duration-150 print:hidden">
           <div className="w-full max-w-sm bg-white border-2 border-black rounded-3xl p-6 flex flex-col items-center text-center shadow-2xl relative">
             <h2 className="text-base font-black tracking-tight mb-2 mt-2">
               Call Floor Captain for Payment?
@@ -308,7 +498,7 @@ export default function OrderSummaryBillPage() {
                   realtimeBridge.sendServiceAlert({
                     seatNumber: `Seat ${seatNumber.padStart(2, '0')}`,
                     title: `Bill Requested (₹${grandPayable})`,
-                    message: `Bill settlement requested for Seat ${seatNumber}: ₹${grandPayable}`,
+                    message: `Bill settlement requested for Seat ${seatNumber}: ₹${grandPayable}${tipAmount > 0 ? ` (incl. ₹${tipAmount} tip)` : ''}`,
                     guestName: `Seat ${seatNumber} Guest`,
                     type: 'customer_call',
                     billAmount: grandPayable,
