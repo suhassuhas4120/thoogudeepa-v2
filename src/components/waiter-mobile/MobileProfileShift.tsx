@@ -37,13 +37,16 @@ import {
   TrendingUp,
   Award,
   Layers,
-  History
+  History,
+  ArrowLeft
 } from 'lucide-react';
 import { WaiterProfile, ShiftActivityLog } from './types';
 
 export interface MobileProfileShiftProps {
   /** Active waiter profile metrics and credentials */
   readonly profile: WaiterProfile;
+  /** Optional back navigation callback */
+  readonly onBack?: () => void;
   /** Callback fired when waiter clocks out / ends shift */
   readonly onEndShift: () => void;
   /** Callback when thermal shift report is requested */
@@ -54,6 +57,7 @@ export interface MobileProfileShiftProps {
 
 export const MobileProfileShift: React.FC<MobileProfileShiftProps> = ({
   profile,
+  onBack,
   onEndShift,
   onPrintShiftReport,
   onShowToast
@@ -106,18 +110,38 @@ export const MobileProfileShift: React.FC<MobileProfileShiftProps> = ({
   return (
     <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden relative">
       
-      {/* Top Profile Header */}
-      <header className="p-3.5 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 z-20">
-        <div>
-          <h2 className="text-xs font-black uppercase tracking-wider text-slate-900 leading-none">
-            Shift Dashboard
-          </h2>
-          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-            Real-Time Waiter Operational Performance
-          </p>
+      {/* Top Profile Header with Hotel Name and Back Arrow */}
+      <header className="p-3 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 select-none z-20">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-8 h-8 rounded-xl border border-slate-200 flex items-center justify-center bg-white hover:bg-slate-100 active:scale-95 shrink-0 shadow-2xs text-slate-800 cursor-pointer"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
+          
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight truncate leading-tight">
+              ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
+            </h1>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-800 truncate">
+                {profile.name}
+              </span>
+              <span className="text-slate-300 text-[10px]">•</span>
+              <span className="text-[10px] font-semibold text-slate-500 truncate">
+                {profile.assignedSeats}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300 shrink-0">
           ● Shift Active
         </span>
       </header>

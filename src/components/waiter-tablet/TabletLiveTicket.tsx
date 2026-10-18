@@ -5,20 +5,21 @@
  * Real-world enterprise Live Order Ticket (40% split screen column):
  * - Balanced In-Between Theme: Soft slate canvas (#F1F5F9), crisp white cards (#FFFFFF),
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
- * - Target seat header with order timer and kitchen note action
+ * - Target seat header with order timer
  * - STRICTLY NO CLEAR BUTTON (Removed accidental clear button as requested)
+ * - NOTE OPTION COMPLETELY REMOVED as requested by user
  * - Itemized dish rows with standardized kitchen status badges:
  *   * PLACED: Order queued at POS
  *   * RECEIVED: Acknowledged by Kitchen Display System (KDS)
  *   * PREPARING: Master chef actively preparing in donne biryani pots
  *   * READY: Placed on pass counter with urgent emerald badge + [ Served ] button
- *   * SERVED: Food delivered to dining table
+ *   * SERVED: Food delivered to dining seat — COMPLETELY DISABLED & NON-CLICKABLE
  * - Financial summary breakdown: Subtotal, GST (5%), and Grand Total
  * - Single clean icon per action button:
  *   * [ Punch KOT ] (Send icon, Disabled when ticket has 0 items)
  *   * [ Collect Bill ] (CreditCard icon, Disabled when 0 items)
  * - Standardized badge tokens (uniform 24px height, 10px bold uppercase font)
- * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
+ * - Strict line count maintained between 270 and 350 lines.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -26,8 +27,7 @@ import {
   Timer,
   Send,
   CreditCard,
-  Check,
-  FileText
+  Check
 } from 'lucide-react';
 import { TicketItem, KitchenStatus } from './types';
 
@@ -50,8 +50,6 @@ export interface TabletLiveTicketProps {
   onSwitchToBillMode: () => void;
   /** Callback to clear ticket items for a new guest */
   onClearTicket?: () => void;
-  /** Optional callback to add special kitchen instructions */
-  onAddKitchenNote?: (note: string) => void;
 }
 
 export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
@@ -63,11 +61,8 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
   onServeItem,
   onPunchKot,
   onSwitchToBillMode,
-  onClearTicket,
-  onAddKitchenNote
+  onClearTicket
 }) => {
-  const [kitchenNote, setKitchenNote] = useState<string>('');
-  const [isNoteInputOpen, setIsNoteInputOpen] = useState<boolean>(false);
   const [kotSentSuccess, setKotSentSuccess] = useState<boolean>(false);
   const [kotOrderSerial, setKotOrderSerial] = useState<number>(104);
   const [ticketElapsedSeconds, setTicketElapsedSeconds] = useState<number>(340);
@@ -96,13 +91,6 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
     }, 2000);
   };
 
-  const handleSaveNote = () => {
-    if (kitchenNote.trim() && onAddKitchenNote) {
-      onAddKitchenNote(kitchenNote.trim());
-    }
-    setIsNoteInputOpen(false);
-  };
-
   const hasItems = ticketItems.length > 0;
 
   return (
@@ -114,7 +102,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
     >
       <div className="flex flex-col h-[calc(100%-140px)]">
         {/* ======================================================== */}
-        {/* 1. TICKET HEADER: ACTIVE SEAT & TIMER (NO CLEAR BUTTON!) */}
+        {/* 1. TICKET HEADER: ACTIVE SEAT & TIMER (NO NOTE / CLEAR)  */}
         {/* ======================================================== */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-2.5">
           <div>
@@ -136,114 +124,88 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
               </span>
             </div>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            {/* Kitchen Note Button */}
-            <button
-              type="button"
-              onClick={() => setIsNoteInputOpen(!isNoteInputOpen)}
-              className="h-7 px-3 text-[10px] font-bold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg transition-colors shadow-2xs flex items-center gap-1"
-              title="Add Kitchen Instructions"
-            >
-              <FileText className="w-3 h-3 text-slate-500" />
-              <span>Note</span>
-            </button>
-          </div>
         </div>
 
-        {/* Optional Kitchen Note Input Box */}
-        {isNoteInputOpen && (
-          <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
-            <input
-              type="text"
-              value={kitchenNote}
-              onChange={(e) => setKitchenNote(e.target.value)}
-              placeholder="e.g. Extra raita, less spicy..."
-              className="flex-1 text-xs font-medium bg-transparent outline-none text-slate-800 placeholder-slate-400"
-            />
-            <button
-              type="button"
-              onClick={handleSaveNote}
-              className="h-7 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black rounded-lg shadow-2xs"
-            >
-              Save
-            </button>
-          </div>
-        )}
-
         {/* Column Headers for Items and Kitchen Status */}
-        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-200 text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500">
           <span>Dish & Quantity</span>
           <span>Kitchen Status</span>
         </div>
 
         {/* ======================================================== */}
-        {/* 2. TICKET ITEMS LIST WITH SIMPLE STANDARDIZED BADGES */}
+        {/* 2. TICKET ITEMS LIST WITH COMPLETELY DISABLED SERVED     */}
         {/* ======================================================== */}
         <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 pr-0.5 py-1">
           {ticketItems.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
-              <p className="text-xs font-bold text-slate-600">No dishes on ticket</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Select dishes from the menu to punch</p>
+              <p className="text-sm font-extrabold text-slate-700">No dishes on ticket</p>
+              <p className="text-xs text-slate-400 mt-0.5">Select dishes from the menu to punch</p>
             </div>
           ) : (
             ticketItems.map(item => {
+              const isServed = item.status === 'SERVED';
+
               return (
                 <div
                   key={item.id}
-                  className="border border-slate-200 rounded-xl p-2.5 bg-slate-50/60 shadow-2xs hover:border-slate-300 transition-colors"
+                  className={`border rounded-xl p-3 transition-colors ${
+                    isServed
+                      ? 'border-slate-200 bg-slate-100/70 opacity-55 select-none cursor-not-allowed pointer-events-none'
+                      : 'border-slate-200 bg-slate-50/70 shadow-2xs hover:border-slate-300'
+                  }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2.5">
                     <div className="min-w-0 flex-1">
-                      <span className="font-bold block truncate text-xs text-slate-900">
+                      <span className={`font-black block truncate text-xs sm:text-sm ${isServed ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
                         {item.quantity}x {item.name}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-semibold">
+                      <span className="text-xs text-slate-500 font-bold block mt-0.5">
                         ₹{item.price * item.quantity} (₹{item.price} each)
                       </span>
                     </div>
 
-                    {/* STANDARDIZED KITCHEN BADGES WITH SINGLE BUTTON */}
+                    {/* STANDARDIZED KITCHEN BADGES WITH ACTIONS */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {item.status === 'READY' && (
                         <div className="flex items-center gap-1.5">
-                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
+                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
                             READY
                           </span>
                           {/* Simple Clean Button: Served (Check Icon) */}
                           <button
                             type="button"
                             onClick={() => onServeItem(item.id)}
-                            className="h-6 px-2.5 rounded-lg text-[10px] font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1"
-                            title="Mark as Served to Table"
+                            className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                            title="Mark as Served to Seat"
                           >
-                            <Check className="w-3 h-3" />
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
                             <span>Served</span>
                           </button>
                         </div>
                       )}
 
                       {item.status === 'PREPARING' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
                           PREPARING
                         </span>
                       )}
 
                       {item.status === 'RECEIVED' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-sky-50 text-sky-700 border border-sky-300 shadow-2xs">
+                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
                           RECEIVED
                         </span>
                       )}
 
                       {item.status === 'PLACED' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
                           PLACED
                         </span>
                       )}
 
-                      {item.status === 'SERVED' && (
-                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-500 border border-slate-200 shadow-2xs">
-                          SERVED
+                      {isServed && (
+                        <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                          <span>SERVED</span>
                         </span>
                       )}
                     </div>
@@ -256,7 +218,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* 3. TICKET TOTALS & CONDITIONAL ACTION BUTTONS */}
+      {/* 3. TICKET TOTALS & CONDITIONAL ACTION BUTTONS             */}
       {/* ======================================================== */}
       <div className="pt-3 border-t border-slate-200 mt-2">
         {/* Pricing Summary */}
@@ -292,7 +254,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
             title={hasItems ? "Fire KOT to Kitchen" : "Add dishes before firing KOT"}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>{kotSentSuccess ? 'Fired' : 'Punch KOT'}</span>
+            <span>{kotSentSuccess ? 'Sent to Kitchen' : 'Send to Kitchen'}</span>
           </button>
 
           {/* Button 2: Collect Bill */}
@@ -317,4 +279,3 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
 };
 
 export default TabletLiveTicket;
-

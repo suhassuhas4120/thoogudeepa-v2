@@ -199,6 +199,16 @@ export const MobileCockpitMaster: React.FC = () => {
     showToast(`Shift Authenticated: Welcome ${account.name}!`);
   }, [showToast]);
 
+  // Handle dynamic zone change
+  const handleZoneChange = useCallback((zoneLabel: string) => {
+    const staff = DEFAULT_STAFF_ACCOUNTS.find(s => 
+      zoneLabel.toLowerCase().includes(s.seatRange.toLowerCase()) || 
+      zoneLabel.toLowerCase().includes(s.zone.toLowerCase())
+    ) || activeWaiterAccount;
+    setActiveWaiterAccount(staff);
+    showToast(`Switched to ${staff.seatRange}`);
+  }, [activeWaiterAccount, showToast]);
+
   // Handle waiter logout / end shift
   const handleEndShift = useCallback(() => {
     setIsAuthenticated(false);
@@ -404,9 +414,12 @@ export const MobileCockpitMaster: React.FC = () => {
                   pendingAlertCount={alerts.length}
                   onOpenAlerts={() => setActiveScreen('alerts')}
                   onOpenProfile={() => setActiveScreen('profile')}
+                  onZoneChange={handleZoneChange}
                 />
                 <MobileSeatGrid
                   seats={seats}
+                  seatRange={activeWaiterAccount.seatRange}
+                  waiterName={activeWaiterAccount.name}
                   onOpenTakeOrder={handleOpenTakeOrder}
                   onOpenViewOrder={handleOpenViewOrder}
                   onOpenSeatOrder={handleOpenTakeOrder}
@@ -475,6 +488,7 @@ export const MobileCockpitMaster: React.FC = () => {
             {activeScreen === 'alerts' && (
               <MobileAlerts
                 alerts={alerts}
+                onBack={() => setActiveScreen('seats')}
                 onAttendCall={handleAttendCall}
                 onCollectBill={handleOpenSeatBill}
                 onServeDish={handleServeDish}
@@ -485,6 +499,7 @@ export const MobileCockpitMaster: React.FC = () => {
             {activeScreen === 'profile' && (
               <MobileProfileShift
                 profile={waiterProfile}
+                onBack={() => setActiveScreen('seats')}
                 onEndShift={handleEndShift}
                 onShowToast={showToast}
               />

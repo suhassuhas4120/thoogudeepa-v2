@@ -25,8 +25,6 @@ import {
   ChevronDown, 
   ShieldCheck, 
   UserCheck,
-  Wifi,
-  BatteryCharging,
   Sparkles,
   Layers,
   CheckCircle2
@@ -144,85 +142,72 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
       {/* Top Section with Fixed Logo & Typography */}
       <div className="flex flex-col items-center">
         
-        {/* Native Smartphone Status Bar Mock */}
-        <div className="w-full flex items-center justify-between text-slate-400 text-[10px] font-semibold mb-3 px-1">
-          <span className="font-bold text-slate-700">12:45 PM</span>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-extrabold text-emerald-600">5G POS LIVE</span>
-            <Wifi className="w-3 h-3 text-slate-500" />
-            <BatteryCharging className="w-3.5 h-3.5 text-slate-500" />
-          </div>
-        </div>
-
-        {/* PROMINENT ENLARGED LOGO CONTAINER (Proper Smartphone Proportions) */}
-        <div className="mt-1 mb-2 flex flex-col items-center">
+        {/* PROMINENT CIRCULAR LOGO CONTAINER (Authentic Rounded Brand Emblem) */}
+        <div className="mt-1 mb-2.5 flex flex-col items-center">
           <div className="relative">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white border border-slate-200/90 shadow-md p-2 flex items-center justify-center overflow-hidden ring-4 ring-amber-500/20">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white border-2 border-amber-400/60 shadow-md p-1.5 flex items-center justify-center overflow-hidden ring-4 ring-amber-500/20">
               <img 
-                src="logo.jpg" 
+                src="/logo.jpg" 
                 alt="ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ" 
-                className="w-full h-full object-cover rounded-2xl"
+                className="w-full h-full object-cover rounded-full"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23B91C1C"/><text x="50" y="55" font-size="38" text-anchor="middle" fill="white">👑</text></svg>';
+                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="%23B91C1C"/><text x="50" y="58" font-size="38" text-anchor="middle" fill="white">👑</text></svg>';
                 }}
               />
             </div>
             {/* Online Indicator Badge */}
-            <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-2xs" />
+            <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-2xs" />
           </div>
 
-          {/* ONLY KANNADA BRAND TITLE (No English Brand Title!) */}
+          {/* BRAND TITLE IN DEEP DARK COLOR */}
           <div className="text-center mt-2.5">
-            <h1 className="text-xl font-black text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
               ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
             </h1>
-            <span className="text-xs font-bold text-amber-700 tracking-wider block mt-0.5">
+            <span className="text-xs sm:text-sm font-extrabold text-amber-800 tracking-wider block mt-0.5">
               ಮಿಲಿಟರಿ ಹೋಟೆಲ್
             </span>
           </div>
         </div>
 
-        {/* Waiter Identification with Proper Placeholder (NO DROPDOWNS / TABS) */}
-        <div className="w-full max-w-[330px] mb-2.5">
-          <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-            Assigned Waiter / Staff ID
+        {/* Waiter Selection Dropdown (No /staff, Clean Label) */}
+        <div className="w-full max-w-[340px] mb-3">
+          <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1.5">
+            Select Waiter
           </label>
           <div className="relative flex items-center">
-            <UserCheck className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
-            <input
-              type="text"
-              defaultValue="Ramesh Kumar (Seats 01 – 10)"
-              placeholder="Enter Staff ID / Name (e.g. Ramesh - #TH-104)"
-              className="w-full h-11 pl-9 pr-3 rounded-xl bg-white border border-slate-300 text-xs font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 shadow-2xs transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Pre-Shift Section Status Preview (Zone 1: 4 Occupied, 6 Vacant) */}
-        <div className="w-full max-w-[330px] mb-2.5 p-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-[10px] font-semibold text-slate-600 shadow-2xs">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-amber-600" />
-            <span>Zone 1 Section:</span>
-          </div>
-          <div className="flex items-center gap-2 font-bold">
-            <span className="text-amber-700">4 Occupied</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-emerald-700">6 Vacant</span>
+            <UserCheck className="w-5 h-5 text-amber-600 absolute left-3.5 pointer-events-none" />
+            <select
+              value={selectedStaffId}
+              onChange={(e) => {
+                setSelectedStaffId(e.target.value);
+                setPin('');
+                setHasError(false);
+              }}
+              className="w-full h-12 pl-11 pr-9 rounded-xl bg-white border-2 border-slate-300 text-sm font-black text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 shadow-2xs transition-all appearance-none cursor-pointer"
+            >
+              {DEFAULT_STAFF_ACCOUNTS.map(staff => (
+                <option key={staff.id} value={staff.id} className="text-xs font-bold py-1">
+                  {staff.name} ({staff.seatRange})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 pointer-events-none stroke-[2.5]" />
           </div>
         </div>
 
         {/* 4-Digit PIN Indicator Dots */}
-        <div className="flex flex-col items-center mb-2.5">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+        <div className="flex flex-col items-center mb-3">
+          <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
             Enter 4-Digit Shift PIN
           </span>
-          <div className={`flex items-center gap-3 bg-slate-50 border px-4 py-1.5 rounded-xl shadow-2xs transition-all ${
+          <div className={`flex items-center gap-3.5 bg-slate-50 border px-5 py-2 rounded-xl shadow-2xs transition-all ${
             hasError ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'
           }`}>
             {[1, 2, 3, 4].map(idx => (
               <div 
                 key={idx}
-                className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
+                className={`w-4 h-4 rounded-full border-2 transition-all ${
                   idx <= pin.length 
                     ? 'bg-slate-900 border-slate-900 scale-110 shadow-2xs' 
                     : 'bg-white border-slate-300'
@@ -231,20 +216,20 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
             ))}
           </div>
           {hasError && (
-            <span className="text-[10px] font-bold text-rose-600 mt-1">
+            <span className="text-[11px] font-bold text-rose-600 mt-1.5">
               Invalid PIN code. Please retry.
             </span>
           )}
         </div>
 
-        {/* 3x4 Touch Numeric Keypad */}
-        <div className="grid grid-cols-3 gap-2 w-full max-w-[330px] mb-2.5">
+        {/* ENLARGED 3x4 Touch Numeric Keypad */}
+        <div className="grid grid-cols-3 gap-2.5 w-full max-w-[340px] mb-3">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit => (
             <button
               key={digit}
               type="button"
               onClick={() => handleDigitPress(digit)}
-              className="h-10 rounded-xl border border-slate-200 text-sm font-black bg-white hover:bg-slate-100 text-slate-800 shadow-2xs active:scale-95 transition-all flex items-center justify-center"
+              className="h-13 sm:h-14 rounded-2xl border border-slate-200 text-xl font-black bg-white hover:bg-slate-100 text-slate-900 shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
             >
               {digit}
             </button>
@@ -254,9 +239,9 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
           <button
             type="button"
             onClick={handleClearPin}
-            className="h-10 rounded-xl border border-slate-200 text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 shadow-2xs active:scale-95 transition-all flex items-center justify-center gap-1"
+            className="h-13 sm:h-14 rounded-2xl border border-slate-200 text-xs sm:text-sm font-black bg-slate-100 hover:bg-slate-200 text-slate-700 shadow-2xs active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-4 h-4" />
             <span>CLR</span>
           </button>
 
@@ -264,7 +249,7 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
           <button
             type="button"
             onClick={() => handleDigitPress('0')}
-            className="h-10 rounded-xl border border-slate-200 text-sm font-black bg-white hover:bg-slate-100 text-slate-800 shadow-2xs active:scale-95 transition-all flex items-center justify-center"
+            className="h-13 sm:h-14 rounded-2xl border border-slate-200 text-xl font-black bg-white hover:bg-slate-100 text-slate-900 shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
           >
             0
           </button>
@@ -273,10 +258,10 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
           <button
             type="button"
             onClick={handleBackspace}
-            className="h-10 rounded-xl border border-slate-200 text-sm font-black bg-slate-100 hover:bg-slate-200 text-slate-700 shadow-2xs active:scale-95 transition-all flex items-center justify-center"
+            className="h-13 sm:h-14 rounded-2xl border border-slate-200 text-base font-black bg-slate-100 hover:bg-slate-200 text-slate-700 shadow-2xs active:scale-95 transition-all flex items-center justify-center cursor-pointer"
             title="Backspace"
           >
-            <Delete className="w-4 h-4 text-slate-600" />
+            <Delete className="w-5 h-5 text-slate-600" />
           </button>
         </div>
 
@@ -285,7 +270,7 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
           type="button"
           onClick={handleManualSubmit}
           disabled={isVerifying}
-          className="w-full max-w-[330px] h-12 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+          className="w-full max-w-[340px] h-13 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-sm uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
         >
           <LogIn className="w-4 h-4 text-emerald-400" />
           <span>{isVerifying ? 'VERIFYING...' : 'LOGIN TO SHIFT'}</span>
@@ -293,21 +278,20 @@ export const MobileLogin: React.FC<MobileLoginProps> = ({
 
       </div>
 
-      {/* POWERED BY NELJA TECH BADGE AT THE BOTTOM (Clean & Highlighted) */}
-      <div className="mt-3 pt-2.5 border-t border-slate-200 flex flex-col items-center justify-center">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 shadow-2xs hover:border-slate-300 transition-all">
+      {/* PROMINENT POWERED BY NELJA TECH BADGE AT THE BOTTOM */}
+      <div className="mt-4 pt-3 border-t border-slate-200 flex flex-col items-center justify-center">
+        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
           <img 
-            src="nelja_symbol.png" 
-            alt="Nelja Tech" 
-            className="w-4 h-4 object-contain shrink-0" 
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
+            src="/nelja_symbol.png" 
+            alt="Nelja Tech Symbol" 
+            className="w-5 h-5 object-contain shrink-0" 
           />
-          <span className="text-[10px] font-bold text-slate-500">Powered by</span>
-          <span className="text-[10px] font-black text-slate-900 tracking-wide uppercase">
-            Nelja Tech
-          </span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[10px] font-bold text-slate-500">Powered by</span>
+            <span className="text-xs font-black text-slate-900 tracking-wider uppercase">
+              Nelja Tech
+            </span>
+          </div>
         </div>
       </div>
 

@@ -5,52 +5,31 @@
  * Real-world enterprise Tablet Authentication (1024px x 768px Landscape):
  * - In-Between Slate & Crisp White Enterprise Theme matching Clover & Toast POS
  * - Left Side (48%):
- *   * Authentic circular restaurant logo with subtle golden halo
- *   * Clean restaurant typography in Kannada & English
- *   * Live Service status pill & Active terminal specification
- *   * Clean shift parameters (Waiter zone assignment: Seats 01 to 10)
+ *   * Enlarged authentic circular restaurant logo with golden halo and live terminal badge
+ *   * Clean restaurant typography in Kannada & English in deep dark color
+ *   * Estd. 1998 Military Hotel heritage badge
+ *   * Subtext removed as requested by user
+ *   * Official Nelja Tech Technology Partner card
  * - Right Side (52%):
- *   * Waiter card selection with instant tap feedback
- *   * NO demo pin chip (Clean clutter-free container as requested)
- *   * 4-dot passcode display with active amber indicator
- *   * Tactile 3x4 numeric keypad with smooth active press animations
+ *   * Enlarged shift waiter selector cards (2x2 grid with bigger touch target and fonts)
+ *   * Perfectly vertically centered 4-dot passcode and tactile 3x4 keypad
  *   * Keypad 10th button: Clear button with RotateCcw icon
- *   * Keypad 12th button: Cross mark (✕) backspace in matching neutral theme (NOT RED!)
- *   * Primary CTA: [ Start Shift ] with single professional ShieldCheck icon
- * - Standardized badge tokens (uniform 24px height, 10px bold uppercase font)
- * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
+ *   * Keypad 12th button: Cross mark (✕) backspace in matching neutral theme
+ *   * Primary CTA: [ Start Shift ] with ShieldCheck icon
+ * - Strict line count maintained between 300 and 400 lines.
  */
 
 import React, { useState, useCallback } from 'react';
 import { 
-  CheckCircle2, 
   ShieldCheck, 
-  Clock, 
-  MapPin, 
-  Sparkles,
-  Users,
-  Lock,
-  KeyRound,
   RotateCcw,
-  Delete,
-  LayoutGrid,
-  Wifi,
-  Printer
+  Delete
 } from 'lucide-react';
 import { WaiterOption, DEFAULT_WAITERS } from './types';
 
-/**
- * TabletLogin Component Configuration
- *
- * Provides a tactile, high-contrast, dual-column tablet authentication experience:
- * - Brand showcase with official Nelja Tech technology partnership integration
- * - Fast shift selector allowing seamless waiter profile switching
- * - High-speed numeric keypad optimized for capacitive touch displays
- * - Automatic 4-digit validation against staff PIN database
- */
 export interface TabletLoginProps {
   /** Callback invoked on successful 4-digit PIN verification */
-  onLoginSuccess: () => void;
+  onLoginSuccess: (waiter: WaiterOption) => void;
   /** Optional custom list of active waiters */
   waitersList?: WaiterOption[];
   /** Optional callback to notify analytics or logging service of shift login */
@@ -59,10 +38,6 @@ export interface TabletLoginProps {
   initialWaiterId?: string;
 }
 
-/**
- * TabletLogin Component Implementation
- * Handles pin code state, staff selection, tactile feedback, and validation.
- */
 export const TabletLogin: React.FC<TabletLoginProps> = ({
   onLoginSuccess,
   waitersList = DEFAULT_WAITERS,
@@ -80,6 +55,27 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
   const [pinError, setPinError] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
+  // Validate passcode against waiter credential
+  const verifyPinAndLogin = useCallback((pinToVerify: string) => {
+    if (pinToVerify === selectedWaiter.pinCode || pinToVerify === '1234') {
+      setPinError(false);
+      if (onShiftLoginAttempt) {
+        onShiftLoginAttempt(selectedWaiter.id, true);
+      }
+      onLoginSuccess(selectedWaiter);
+    } else {
+      setPinError(true);
+      setErrorMessage('Invalid Passcode. Enter 1234');
+      if (onShiftLoginAttempt) {
+        onShiftLoginAttempt(selectedWaiter.id, false);
+      }
+      setTimeout(() => {
+        setEnteredPin('');
+        setPinError(false);
+      }, 900);
+    }
+  }, [selectedWaiter, onLoginSuccess, onShiftLoginAttempt]);
+
   // Handle keypad digit input (Max 4 digits)
   const handleDigitPress = useCallback((digit: string) => {
     if (enteredPin.length < 4) {
@@ -93,7 +89,7 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
         verifyPinAndLogin(nextPin);
       }
     }
-  }, [enteredPin]);
+  }, [enteredPin, verifyPinAndLogin]);
 
   // Handle Clear button
   const handleClearPin = useCallback(() => {
@@ -111,21 +107,6 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
     }
   }, [enteredPin]);
 
-  // Validate passcode against waiter credential
-  const verifyPinAndLogin = useCallback((pinToVerify: string) => {
-    if (pinToVerify === selectedWaiter.pinCode || pinToVerify === '1234') {
-      setPinError(false);
-      onLoginSuccess();
-    } else {
-      setPinError(true);
-      setErrorMessage('Invalid Passcode. Enter 1234');
-      setTimeout(() => {
-        setEnteredPin('');
-        setPinError(false);
-      }, 900);
-    }
-  }, [selectedWaiter, onLoginSuccess]);
-
   return (
     <section 
       id="screen-login" 
@@ -134,93 +115,46 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
       aria-label="Staff Authentication Screen"
     >
       {/* ======================================================== */}
-      {/* LEFT SIDE (48%): BRANDING, VISUAL FLOOR MATRIX & NELJA */}
+      {/* LEFT SIDE (48%): ENLARGED LOGO & COMPLETE DARK TITLE     */}
       {/* ======================================================== */}
       <div className="w-[48%] h-full p-7 lg:p-9 flex flex-col justify-between border-r border-slate-200 bg-[#F1F5F9]/60">
-        <div>
-          {/* Authentic Circular Restaurant Logo with Golden Border */}
-          <div className="flex items-center gap-3.5 mb-4">
-            <div className="w-16 h-16 rounded-full p-1 bg-gradient-to-tr from-amber-500 to-amber-300 shadow-md ring-4 ring-amber-400/20 shrink-0">
-              <img
-                src="/logo.jpg"
-                alt="Thoogudeepa Donne Biryani Emblem"
-                className="w-full h-full rounded-full object-cover shadow-inner"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-slate-900 leading-none">
-                ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
-              </h1>
-              <p className="text-xs font-bold text-amber-700 mt-1.5">
-                ಮಿಲಿಟರಿ ಹೋಟೆಲ್
-              </p>
-            </div>
+        <div className="flex-1 flex flex-col items-center justify-center text-center my-auto py-4">
+          {/* Authentic Circular Restaurant Logo - Enlarged as requested */}
+          <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full p-2 bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-200 shadow-2xl ring-8 ring-amber-400/25 mb-5 relative shrink-0">
+            <img
+              src="/logo.jpg"
+              alt="Thoogudeepa Donne Biryani Emblem"
+              className="w-full h-full rounded-full object-cover shadow-inner"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+            <span 
+              className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white shadow-xs" 
+              title="Terminal Online" 
+            />
           </div>
 
-          {/* System Hardware & POS Connectivity Status */}
-          <div className="flex items-center gap-2 mb-3.5">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-[10px] font-bold text-slate-700 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Cloud POS Live</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-[10px] font-bold text-slate-700 shadow-2xs">
-              <Printer className="w-3 h-3 text-slate-500" />
-              <span>KOT Printer</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-[10px] font-bold text-slate-700 shadow-2xs">
-              <Wifi className="w-3 h-3 text-slate-500" />
-              <span>5G Online</span>
-            </div>
+          {/* Complete Restaurant Title in Deep Dark Color (Never Lite) */}
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 leading-tight">
+            ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
+          </h1>
+          <p className="text-xs font-black tracking-widest text-slate-700 uppercase mt-1.5">
+            THOOGUDEEPA DONNE BIRYANI
+          </p>
+          <div className="inline-flex items-center gap-1.5 mt-3 px-3.5 py-1.5 rounded-full bg-amber-50 border border-amber-300 shadow-2xs">
+            <span className="text-xs font-extrabold text-amber-900">
+              ಮಿಲಿಟರಿ ಹೋಟೆಲ್ • Estd. 1998
+            </span>
           </div>
 
-          {/* Useful Visual Floor Layout Preview (Zone 1: Seats 01 - 10) */}
-          <div className="border border-slate-200 rounded-2xl p-3.5 bg-white shadow-xs">
-            <div className="flex items-center justify-between mb-2.5">
-              <div className="flex items-center gap-1.5">
-                <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
-                <span className="text-xs font-black text-slate-800">Zone 1 Floor Layout</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />4 Occupied
-                </span>
-                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-700">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />6 Vacant
-                </span>
-              </div>
-            </div>
-
-            {/* 10 Visual Mini-Seat Tiles */}
-            <div className="grid grid-cols-5 gap-1.5">
-              {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'].map(seat => {
-                const isOccupied = ['01', '03', '04', '05'].includes(seat);
-                return (
-                  <div
-                    key={seat}
-                    className={`h-9 rounded-xl border flex flex-col items-center justify-center ${
-                      isOccupied 
-                        ? 'bg-amber-50 border-amber-300' 
-                        : 'bg-emerald-50 border-emerald-300'
-                    }`}
-                  >
-                    <span className={`text-[10px] font-black leading-none ${isOccupied ? 'text-amber-900' : 'text-emerald-900'}`}>
-                      {seat}
-                    </span>
-                    <span className={`w-1.5 h-1.5 rounded-full mt-1 ${isOccupied ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          {/* Subtext removed as requested */}
         </div>
 
         {/* ======================================================== */}
-        {/* POWERED BY NELJA TECH CARD WITH CROPPED SYMBOL LOGO */}
+        {/* POWERED BY NELJA TECH CARD                               */}
         {/* ======================================================== */}
-        <div className="border border-slate-200/90 rounded-2xl p-3 bg-white shadow-xs flex items-center justify-between ring-1 ring-blue-500/10">
+        <div className="border border-slate-200/90 rounded-2xl p-3 bg-white shadow-xs flex items-center justify-between ring-1 ring-blue-500/10 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shadow-2xs shrink-0">
               <img
@@ -245,21 +179,22 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* RIGHT SIDE (52%): BALANCED WAITER CARDS & 3x4 KEYPAD */}
+      {/* RIGHT SIDE (52%): ENLARGED WAITER CARDS & CENTERED KEYPAD*/}
       {/* ======================================================== */}
-      <div className="w-[52%] h-full p-7 lg:p-9 flex flex-col justify-between bg-white overflow-y-auto no-scrollbar">
-        <div>
+      <div className="w-[52%] h-full p-6 lg:p-8 flex flex-col justify-between bg-white overflow-y-auto no-scrollbar">
+        {/* 1. TOP: Waiter Staff Selector (Enlarged Containers) */}
+        <div className="shrink-0">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-extrabold text-slate-900">
+            <h2 className="text-base font-black text-slate-900">
               Select Shift Waiter
             </h2>
-            <span className="text-[10px] font-bold text-slate-400">
+            <span className="text-xs font-bold text-slate-500">
               4 Active Staff
             </span>
           </div>
 
-          {/* Interactive Waiter Selection Grid (2x2 Grid) */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          {/* Interactive Waiter Selection Grid (Enlarged Cards) */}
+          <div className="grid grid-cols-2 gap-2.5">
             {waitersList.slice(0, 4).map((waiter: WaiterOption) => {
               const isSelected = selectedWaiter.id === waiter.id;
               const initials = waiter.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2);
@@ -271,22 +206,22 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
                     setSelectedWaiter(waiter);
                     handleClearPin();
                   }}
-                  className={`p-2 rounded-xl border text-left transition-all active:scale-95 flex items-center gap-2 ${
+                  className={`p-3 sm:p-3.5 rounded-2xl border text-left transition-all active:scale-95 flex items-center gap-3 cursor-pointer ${
                     isSelected
-                      ? 'border-2 border-amber-500 bg-amber-50 shadow-xs ring-1 ring-amber-400/40'
+                      ? 'border-2 border-amber-500 bg-amber-50/90 shadow-xs ring-1 ring-amber-400/40'
                       : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
                   }`}
                 >
-                  <div className={`w-7 h-7 rounded-lg text-xs font-black flex items-center justify-center shrink-0 ${
-                    isSelected ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+                  <div className={`w-10 h-10 rounded-xl text-sm font-black flex items-center justify-center shrink-0 ${
+                    isSelected ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-200 text-slate-700'
                   }`}>
                     {initials}
                   </div>
-                  <div className="min-w-0">
-                    <span className={`font-extrabold text-xs block truncate ${isSelected ? 'text-slate-900' : 'text-slate-700'}`}>
+                  <div className="min-w-0 flex-1">
+                    <span className={`font-black text-sm block truncate ${isSelected ? 'text-slate-950' : 'text-slate-900'}`}>
                       {waiter.name}
                     </span>
-                    <span className={`text-[10px] font-semibold block leading-tight ${isSelected ? 'text-amber-700' : 'text-slate-500'}`}>
+                    <span className={`text-xs font-semibold block leading-tight truncate mt-0.5 ${isSelected ? 'text-amber-800 font-extrabold' : 'text-slate-500'}`}>
                       {waiter.assignedZone}
                     </span>
                   </div>
@@ -294,10 +229,13 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
               );
             })}
           </div>
+        </div>
 
+        {/* 2. MIDDLE: Vertically Centered Passcode Indicators & Enlarged 3x4 Keypad */}
+        <div className="flex-1 flex flex-col justify-center items-center py-2 sm:py-3 my-auto">
           {/* 4-Dot Passcode Indicators */}
-          <div className="flex flex-col items-center mb-4">
-            <span className="text-xs font-semibold text-slate-600 mb-2">
+          <div className="flex flex-col items-center mb-3.5">
+            <span className="text-xs sm:text-sm font-extrabold text-slate-700 mb-2">
               Enter 4-Digit Security Passcode
             </span>
             <div className="flex gap-3.5">
@@ -306,83 +244,87 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
                 return (
                   <div
                     key={idx}
-                    className={`w-3.5 h-3.5 rounded-full border transition-all ${
+                    className={`w-4 h-4 rounded-full border-2 transition-all ${
                       pinError
-                        ? 'bg-rose-500 border-rose-500 ring-2 ring-rose-500/30'
+                        ? 'bg-rose-500 border-rose-500 ring-4 ring-rose-500/20'
                         : isFilled
-                          ? 'w-3.5 h-3.5 rounded-full border border-amber-500 bg-amber-500 shadow-xs'
-                          : 'border-slate-300 bg-slate-100'
+                          ? 'bg-slate-900 border-slate-900 scale-110 shadow-xs'
+                          : 'bg-white border-slate-300'
                     }`}
                   />
                 );
               })}
             </div>
             {errorMessage && (
-              <span className="text-[11px] font-bold text-rose-600 mt-2">
+              <span className="text-xs text-rose-600 font-extrabold mt-1.5 animate-pulse">
                 {errorMessage}
               </span>
             )}
           </div>
 
-          {/* Tactile 3x4 Numeric Keypad with Neutral Cross ✕ Backspace & CLR Icon */}
-          <div className="grid grid-cols-3 gap-2 max-w-[270px] mx-auto mb-4">
+          {/* 3x4 Numeric Keypad with Enlarged Tactile Buttons */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 w-[300px] sm:w-[330px] max-w-full">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
               <button
                 key={num}
                 type="button"
                 onClick={() => handleDigitPress(num)}
-                className="h-11 rounded-2xl border border-slate-200 text-base font-bold bg-slate-50 hover:bg-slate-100 text-slate-900 active:scale-90 transition-all shadow-2xs"
+                className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-amber-100 border border-slate-200 text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
               >
                 {num}
               </button>
             ))}
 
-            {/* Clear Button with RotateCcw Icon */}
+            {/* 10th Button: Clear */}
             <button
               type="button"
               onClick={handleClearPin}
-              className="h-11 rounded-2xl border border-slate-200 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-90 transition-all flex items-center justify-center gap-1 shadow-2xs"
+              className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
               title="Clear Passcode"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
-              <span>CLR</span>
+              <RotateCcw className="w-5 h-5 text-slate-600" />
             </button>
 
-            {/* Zero Digit */}
+            {/* 11th Button: 0 */}
             <button
               type="button"
               onClick={() => handleDigitPress('0')}
-              className="h-11 rounded-2xl border border-slate-200 text-base font-bold bg-slate-50 hover:bg-slate-100 text-slate-900 active:scale-90 transition-all shadow-2xs"
+              className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-amber-100 border border-slate-200 text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
             >
               0
             </button>
 
-            {/* Cross Mark ✕ Backspace Button in Neutral Palette (NOT RED!) */}
+            {/* 12th Button: Backspace (Delete) */}
             <button
               type="button"
               onClick={handleDeleteDigit}
-              className="h-11 rounded-2xl border border-slate-200 text-base font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-90 transition-all flex items-center justify-center shadow-2xs"
-              title="Delete Last Digit"
-              aria-label="Delete last digit"
+              className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+              title="Delete Digit"
             >
-              <Delete className="w-4 h-4 text-slate-700" />
+              <Delete className="w-5 h-5 text-slate-600" />
             </button>
           </div>
         </div>
 
-        {/* Primary CTA Button: Professional 'Start Shift' with Single ShieldCheck Icon */}
-        <button
-          type="button"
-          onClick={() => verifyPinAndLogin(enteredPin || '1234')}
-          className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-2xl active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
-        >
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>Start Shift</span>
-        </button>
+        {/* 3. BOTTOM: Single Clean Primary CTA Button */}
+        <div className="shrink-0 pt-2">
+          <button
+            type="button"
+            onClick={() => verifyPinAndLogin(enteredPin)}
+            disabled={enteredPin.length < 4}
+            className={`w-full h-11 sm:h-12 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-xs transition-all ${
+              enteredPin.length === 4
+                ? 'bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-amber-500/20 cursor-pointer'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Start Shift • Unlock Terminal</span>
+          </button>
+        </div>
       </div>
     </section>
   );
 };
 
 export default TabletLogin;
-

@@ -195,23 +195,23 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
               ₹{profile.metrics.totalSales.toLocaleString('en-IN')}
             </div>
             <p className="text-[10px] text-slate-500 font-semibold mt-1">
-              {profile.metrics.billsSettled} Tables Settled
+              {profile.metrics.billsSettled} Seats Settled
             </p>
           </div>
 
-          {/* Metric 2: Waiter Tips */}
+          {/* Metric 2: Bills Settled */}
           <div className="border border-slate-200 rounded-2xl p-3.5 bg-white shadow-xs">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block">
-                Tips Earned
+                Bills Settled
               </span>
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
             </div>
             <div className="text-xl font-black text-emerald-600">
-              ₹{profile.metrics.tipsEarned.toLocaleString('en-IN')}
+              {profile.metrics.billsSettled} Bills
             </div>
             <p className="text-[10px] text-slate-500 font-semibold mt-1">
-              Direct Cash + UPI
+              Seats Vacated & Closed
             </p>
           </div>
 
@@ -267,8 +267,8 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
                 <span className="font-black text-slate-900">₹{upiTurnover.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="font-bold text-slate-700">Staff Tip Retained:</span>
-                <span className="font-black text-amber-700">₹{profile.metrics.tipsEarned}</span>
+                <span className="font-bold text-slate-700">Total Shift Revenue:</span>
+                <span className="font-black text-amber-700">₹{profile.metrics.totalSales.toLocaleString('en-IN')}</span>
               </div>
             </div>
           </div>

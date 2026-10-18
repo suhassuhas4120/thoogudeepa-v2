@@ -31,13 +31,16 @@ import {
   Clock, 
   Utensils, 
   Flame,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { FloorAlert, AlertSubTab } from './types';
 
 export interface MobileAlertsProps {
   /** Array of active service alerts */
   readonly alerts: FloorAlert[];
+  /** Optional back navigation callback */
+  readonly onBack?: () => void;
   /** Callback when a customer call is attended */
   readonly onAttendCall: (alertId: string) => void;
   /** Callback to route directly to collect bill */
@@ -48,6 +51,7 @@ export interface MobileAlertsProps {
 
 export const MobileAlerts: React.FC<MobileAlertsProps> = ({
   alerts,
+  onBack,
   onAttendCall,
   onCollectBill,
   onServeDish
@@ -68,23 +72,36 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
   return (
     <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden">
       
-      {/* Top Alerts Header */}
-      <header className="p-3.5 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 z-20">
-        <div>
-          <h2 className="text-xs font-black uppercase tracking-wider text-slate-900 leading-none">
-            Floor Notifications
-          </h2>
-          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-            Zone 1 (Seats 01 – 10) Active Service Pass
-          </p>
+      {/* Top Alerts Header with Hotel Name and Back Arrow */}
+      <header className="p-3 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 select-none z-20">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-8 h-8 rounded-xl border border-slate-200 flex items-center justify-center bg-white hover:bg-slate-100 active:scale-95 shrink-0 shadow-2xs text-slate-800 cursor-pointer"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
+          
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight truncate leading-tight">
+              ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
+            </h1>
+            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 font-semibold truncate">
+              <span>Floor Notifications • Service Pass</span>
+            </div>
+          </div>
         </div>
 
         {totalPending > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 animate-pulse shrink-0">
             {totalPending} Active
           </span>
         ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300 shrink-0">
             Pass Clear
           </span>
         )}
@@ -106,7 +123,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
           >
             <PhoneCall className="w-3.5 h-3.5 text-rose-600" />
             <span>Customer Calls</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black bg-rose-50 text-rose-700 border border-rose-200">
               {customerCalls.length}
             </span>
           </button>
@@ -123,7 +140,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
           >
             <ChefHat className="w-3.5 h-3.5 text-emerald-600" />
             <span>Kitchen Ready</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
               {kitchenReady.length}
             </span>
           </button>
@@ -264,7 +281,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
                         <span className="text-xs font-black text-slate-900 truncate">
                           {order.title}
                         </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
                           {order.seatNumber}
                         </span>
                       </div>

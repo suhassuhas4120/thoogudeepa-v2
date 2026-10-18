@@ -2,36 +2,39 @@
 /**
  * Thoogudeepa Waiter Tablet POS Cockpit - Floor Grid Component
  *
- * Real-world enterprise Floor Seat Matrix (Zone 1: Seats 01 to 10):
+ * Real-world enterprise Floor Seat Matrix:
  * - Balanced In-Between Theme: Soft slate canvas (#F8FAFC), crisp white cards (#FFFFFF),
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
- * - Floor header with status filter pills: [All Seats (10)], [Occupied (4)], [Vacant (6)]
- * - Zone 1 KPI summary cards (Total Tables, Occupancy %, Zone Sales)
+ * - Floor header with status filter pills: [All Seats (10)], [Occupied], [Vacant]
+ * - Dynamic seat allocation based on logged-in waiter (Seats 01-10, 11-20, 21-30, 31-40)
+ * - Dynamic KPI summary cards (Total Seats, Occupancy %, Zone Sales)
  * - 5-column seat matrix with real-world color logic:
- *   * Warm Amber: Actively dining table
- *   * Clean Emerald: Vacant / clean table ready for new walk-in guests
+ *   * Warm Amber: Actively dining seat
+ *   * Clean Emerald: Vacant / clean seat ready for new walk-in guests
  *   * Vibrant Rose: Customer requested bill settlement
- * - Single clean icon per button (Plus for Take Order, Eye for View Order, Receipt for Collect Bill)
+ * - Customer app aligned action buttons:
+ *   * [ Take Order ] with Plus icon for vacant seats
+ *   * [ View Order ] with Eye icon for dining seats
+ *   * [ Collect Bill ] with Receipt icon for bill requests
  * - Standardized badge tokens (uniform 24px height, 10px bold uppercase font)
- * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
  */
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Users, 
   Clock,
   Plus,
   Eye,
-  Receipt,
-  Layers,
-  Sparkles,
-  TrendingUp
+  Receipt
 } from 'lucide-react';
 import { SeatItem } from './types';
 
 export interface TabletFloorGridProps {
-  /** Array of 10 seats assigned to Waiter (Seats 01 to 10) */
+  /** Array of seats assigned to Waiter */
   seats: SeatItem[];
+  /** Active waiter staff name */
+  waiterName?: string;
+  /** Assigned seating zone range (e.g. 'Zone 1 (Seats 01-10)') */
+  assignedZone?: string;
   /** Callback when waiter clicks to take order or view existing ticket */
   onOpenOrder: (seatId: string, seatName: string, customer: string, amount: number, isDining: boolean) => void;
   /** Callback when waiter clicks 'Collect Bill' to switch directly to right pane bill */
@@ -40,6 +43,8 @@ export interface TabletFloorGridProps {
 
 export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
   seats,
+  waiterName = 'Ramesh Kumar',
+  assignedZone = 'Zone 1 (Seats 01-10)',
   onOpenOrder,
   onOpenBill
 }) => {
@@ -52,7 +57,13 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
     return seats.filter(seat => seat.status === filterStatus);
   }, [seats, filterStatus]);
 
-  // Aggregate statistics for Zone 1
+  // Dynamic range text
+  const seatRangeText = useMemo(() => {
+    if (seats.length === 0) return 'Seats 01 – 10';
+    return `${seats[0].seatNumber} – ${seats[seats.length - 1].seatNumber}`;
+  }, [seats]);
+
+  // Aggregate statistics for active zone
   const occupiedCount = useMemo(() => {
     return seats.filter(s => s.status === 'occupied').length;
   }, [seats]);
@@ -70,30 +81,34 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
     return Math.round((occupiedCount / seats.length) * 100);
   }, [occupiedCount, seats]);
 
+  const zoneTag = useMemo(() => {
+    return assignedZone.split('(')[0].trim() || 'Floor Zone';
+  }, [assignedZone]);
+
   return (
     <section 
       id="screen-seats" 
       className="w-full flex-1 flex flex-col p-5 bg-[#F8FAFC] overflow-y-auto no-scrollbar select-none"
       role="region"
-      aria-label="Zone 1 Dining Floor Seat Matrix"
+      aria-label="Dining Floor Seat Matrix"
     >
       <div className="max-w-7xl mx-auto w-full">
         {/* ======================================================== */}
-        {/* 1. FLOOR HEADER: TITLE, ASSIGNED ZONE & STATUS FILTERS */}
+        {/* 1. FLOOR HEADER: TITLE, ASSIGNED ZONE & STATUS FILTERS    */}
         {/* ======================================================== */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-200 mb-4 gap-3">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-extrabold text-slate-900 tracking-tight">
-                Floor Board • Assigned Seats 01 to 10
+                Floor Board • Assigned {seatRangeText}
               </h2>
               {/* Standardized Uniform Badge Size: h-6 px-2.5 text-[10px] */}
               <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
-                Zone 1
+                {zoneTag}
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-              Waiter: Ramesh Kumar • Dining Matrix
+              Waiter: {waiterName} • Dining Matrix
             </p>
           </div>
 
@@ -107,7 +122,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
             <button
               type="button"
               onClick={() => setFilterStatus('all')}
-              className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+              className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 cursor-pointer ${
                 filterStatus === 'all'
                   ? 'bg-slate-900 text-white font-black shadow-xs'
                   : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
@@ -120,7 +135,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
             <button
               type="button"
               onClick={() => setFilterStatus('occupied')}
-              className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+              className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 cursor-pointer ${
                 filterStatus === 'occupied'
                   ? 'bg-slate-900 text-white font-black shadow-xs'
                   : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
@@ -133,7 +148,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
             <button
               type="button"
               onClick={() => setFilterStatus('vacant')}
-              className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+              className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 cursor-pointer ${
                 filterStatus === 'vacant'
                   ? 'bg-slate-900 text-white font-black shadow-xs'
                   : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
@@ -145,22 +160,22 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* 2. ZONE 1 KPI STATISTIC TILES */}
+        {/* 2. ZONE KPI STATISTIC TILES                              */}
         {/* ======================================================== */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {/* Card 1: Assigned Range */}
           <div className="border border-slate-200 rounded-2xl p-3.5 bg-white flex items-center justify-between shadow-xs">
             <div>
               <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
-                Total Tables
+                Total Seats
               </span>
               <span className="text-sm font-black text-slate-900 mt-0.5 block">
-                Seats 01 – 10
+                {seatRangeText}
               </span>
             </div>
             {/* Standardized Uniform Badge Size: h-6 px-2.5 text-[10px] */}
             <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-              10 Tables
+              {seats.length} Seats
             </span>
           </div>
 
@@ -197,12 +212,12 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* 3. COLOR-CODED 5-COLUMN SEAT MATRIX (SEATS 01 TO 10) */}
+        {/* 3. COLOR-CODED 5-COLUMN SEAT MATRIX                      */}
         {/* ======================================================== */}
         <div id="seats-grid-container" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {filteredSeats.map(seat => {
             const isOccupied = seat.status === 'occupied';
-            const hasBill = seat.hasBillRequest || seat.seatNumber === 'Seat 04';
+            const hasBill = Boolean(seat.hasBillRequest);
 
             let cardClasses = '';
             if (hasBill) {
@@ -256,40 +271,45 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                     )}
                   </div>
 
-                  {/* Bottom: Running Bill Amount */}
-                  <div className="text-xs font-black mt-2">
+                  {/* Properly Positioned & Highlighted Price / Seat Status Row */}
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {isOccupied ? 'Total Bill:' : 'Seat Status:'}
+                    </span>
                     {isOccupied ? (
-                      <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block font-extrabold">
+                      <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg shadow-2xs">
                         ₹{seat.totalAmount.toLocaleString('en-IN')}
                       </span>
                     ) : (
-                      <span className="text-slate-400 font-bold">--</span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                        Ready
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Direct Action Button: Single Icon per Button (Plus, Eye, Receipt) */}
+                {/* Direct Action Button: Aligned with Customer App */}
                 {isOccupied ? (
                   hasBill ? (
                     // Urgent Bill Requested -> Direct Collect Bill (Rose Button with Receipt Icon)
                     <button
                       type="button"
                       onClick={() => onOpenBill(seat.seatNumber, seat.guestName, seat.totalAmount)}
-                      className="w-full h-8 mt-3 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                      className="w-full h-8 mt-3 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                       title="Collect Bill in Right-Side Container"
                     >
                       <Receipt className="w-3.5 h-3.5" />
                       <span>Collect Bill</span>
                     </button>
                   ) : (
-                    // Regular Occupied Dining -> View Order (Dark Button with Eye Icon)
+                    // Regular Occupied Dining -> View Order (Lite Button with Eye Icon as requested)
                     <button
                       type="button"
                       onClick={() => onOpenOrder(seat.id, seat.seatNumber, seat.guestName, seat.totalAmount, true)}
-                      className="w-full h-8 mt-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs"
-                      title="View Active Table Order"
+                      className="w-full h-8 mt-3 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      title="View Active Seat Order"
                     >
-                      <Eye className="w-3.5 h-3.5" />
+                      <Eye className="w-3.5 h-3.5 text-amber-800" />
                       <span>View Order</span>
                     </button>
                   )
@@ -298,7 +318,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenOrder(seat.id, seat.seatNumber, 'Walk-In Guest', 0, false)}
-                    className="w-full h-8 mt-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                    className="w-full h-8 mt-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                     title="Take Order for Walk-In Guest"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -315,4 +335,3 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
 };
 
 export default TabletFloorGrid;
-

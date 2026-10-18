@@ -27,7 +27,8 @@ import {
   SeatItem,
   ServiceAlert,
   TicketItem,
-  KitchenStatus
+  KitchenStatus,
+  WaiterOption
 } from './types';
 import { realtimeBridge } from '../../lib/supabase';
 import { TabletLogin } from './TabletLogin';
@@ -182,9 +183,17 @@ export const TabletCockpitMaster: React.FC = () => {
   const occupiedSeatsCount = useMemo(() => seats.filter(s => s.status === 'occupied').length, [seats]);
 
   // Handler: Login Success transition
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (waiter: WaiterOption) => {
+    setProfile(prev => ({
+      ...prev,
+      id: waiter.id,
+      name: waiter.name,
+      role: waiter.role,
+      assignedZone: waiter.assignedZone || 'Zone 1 (Seats 01-10)',
+      avatarInitials: waiter.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)
+    }));
     setCurrentScreen('seats');
-    showToast('Shift Started: Ramesh Kumar (Seats 01 - 10)');
+    showToast(`Shift Started: ${waiter.name} (${waiter.assignedZone || 'Seats 01-10'})`);
   };
 
   // Handler: Logout from Profile
@@ -401,6 +410,8 @@ export const TabletCockpitMaster: React.FC = () => {
         {currentScreen === 'seats' && (
           <TabletFloorGrid
             seats={seats}
+            waiterName={profile.name}
+            assignedZone={profile.assignedZone}
             onOpenOrder={handleOpenOrder}
             onOpenBill={handleOpenBill}
           />
@@ -414,6 +425,7 @@ export const TabletCockpitMaster: React.FC = () => {
             {/* Left 60%: Menu Catalog & Categories */}
             <TabletMenuCatalog
               activeSeatName={activeSeatName}
+              seats={seats}
               isDining={isDining}
               dishQuantities={dishQuantities}
               cartCount={cartCount}
@@ -442,7 +454,9 @@ export const TabletCockpitMaster: React.FC = () => {
                 <TabletBillSettlement
                   seatName={activeSeatName.split(':')[0].trim()}
                   guestName={activeSeatCustomer}
-                  totalAmount={activeSeatAmount}
+                  totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                  subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                  ticketItems={ticketItems}
                   onBackToTicket={() => setRightPaneMode('ticket')}
                   onConfirmSettlement={handleConfirmSettlement}
                   onPrintReceipt={() => showToast('Tax invoice sent to thermal printer')}

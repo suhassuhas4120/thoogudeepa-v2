@@ -8,7 +8,7 @@
  * - TabletMenuCatalog: 60% split screen menu ordering panel with search, categories, and steppers
  * - TabletLiveTicket: 40% live order ticket with kitchen lifecycle status badges and KOT firing
  * - TabletBillSettlement: In-container tax invoice settlement with UPI QR and cash tender calculator
- * - TabletAlertSheet: Right slide-over service drawer for customer table calls and kitchen pass counter
+ * - TabletAlertSheet: Right slide-over service drawer for customer seat calls and kitchen pass counter
  * - TabletProfileShift: Waiter shift summary, tender breakdown, and handover reports (NO bell in header)
  * - TabletCockpitMaster: Root orchestrator managing navigation, state, alerts, and 1024x768 frame
  *
@@ -121,9 +121,9 @@ export const generateRestaurantUpiLink = (params: {
   payeeVpa: string;
   payeeName: string;
   amount: number;
-  tableNumber: string;
+  seatNumber: string;
 }): { deepLink: string; qrCodeUrl: string } => {
-  const note = encodeURIComponent(`Table ${params.tableNumber} Dining Bill`);
+  const note = encodeURIComponent(`Seat ${params.seatNumber} Dining Bill`);
   const vpa = encodeURIComponent(params.payeeVpa);
   const name = encodeURIComponent(params.payeeName);
   const deepLink = `upi://pay?pa=${vpa}&pn=${name}&am=${params.amount}&cu=INR&tn=${note}`;
@@ -239,7 +239,7 @@ export const WAITER_ZONE_PARTITIONS = [
 ] as const;
 
 /**
- * Real-world Table Status Color Tokens
+ * Real-world Seat Status Color Tokens
  * Standardizes visual styling across Floor Cards and Badges
  */
 export const STATUS_COLOR_TOKENS = {
@@ -282,7 +282,7 @@ export const POS_COMPONENT_REGISTRY = {
  * Keyboard Shortcut Mappings for High-Efficiency POS Operators
  */
 export const POS_KEYBOARD_SHORTCUTS = [
-  { keyCombo: 'Alt + C', action: 'Toggle Customer Table Calls drawer' },
+  { keyCombo: 'Alt + C', action: 'Toggle Customer Seat Calls drawer' },
   { keyCombo: 'Alt + K', action: 'Toggle Kitchen Ready Orders drawer' },
   { keyCombo: 'Alt + P', action: 'Navigate to Waiter Profile & Shift Handover' },
   { keyCombo: 'Escape', action: 'Close slide-over drawers or clear active input' },

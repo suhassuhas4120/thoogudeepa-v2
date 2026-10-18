@@ -37,6 +37,7 @@ import {
   Sparkles,
   Send,
   CheckCircle,
+  CheckCircle2,
   Check,
   PlusCircle,
   Bell,
@@ -111,22 +112,14 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
     return cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
   }, [cartItems]);
 
-  // Dish mode mapper helper
-  const getDishMode = useCallback((item: CartItem, index: number): { mode: LiveOrderDishMode; label: string; bg: string; text: string; border: string; icon: React.ReactNode } => {
-    const s = item.stage;
-    if (s === 'READY') {
-      return { mode: 'ready', label: 'Ready', bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-300', icon: <CheckCircle className="w-3 h-3 text-emerald-600" /> };
-    }
-    if (s === 'PREP') {
-      return { mode: 'preparing', label: 'Preparing', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-300', icon: <Flame className="w-3 h-3 text-amber-600" /> };
-    }
-    if (s === 'REC') {
-      return { mode: 'received', label: 'Received', bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-300', icon: <Check className="w-3 h-3 text-sky-600" /> };
-    }
-    if (s === 'SERVED') {
-      return { mode: 'served', label: 'Served', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', icon: <Check className="w-3 h-3 text-slate-500" /> };
-    }
-    return { mode: 'placed', label: 'Placed', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300', icon: <Clock className="w-3 h-3 text-slate-500" /> };
+  // Real-time Dish Statuses matching Waiter Tablet: PLACED, PREPARING, READY, RECEIVED, SERVED
+  const [dishStatuses, setDishStatuses] = useState<Record<string, 'PLACED' | 'PREPARING' | 'READY' | 'RECEIVED' | 'SERVED'>>({});
+
+  const handleMarkServed = useCallback((itemId: string) => {
+    setDishStatuses(prev => ({
+      ...prev,
+      [itemId]: 'SERVED'
+    }));
   }, []);
 
   // Fire KOT submission handler
@@ -145,22 +138,22 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
     if (cartItems.length > 0) return cartItems;
     return [
       {
-        menuItem: { id: 'd1', name: 'Chicken Donne Biryani', price: 260, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 8, isAvailable: true },
+        menuItem: { id: 'd1', name: 'Chicken Donne Biryani', price: 260, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 8, isAvailable: true, image: '/images/dishes/chicken-donne-biryani.jpg' },
         quantity: 2,
         lineTotal: 520
       },
       {
-        menuItem: { id: 'd2', name: 'Chilli Chicken Dry', price: 220, category: 'starters' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 6, isAvailable: true },
+        menuItem: { id: 'd2', name: 'Chilli Chicken Dry', price: 220, category: 'starters' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 6, isAvailable: true, image: '/images/dishes/chilli-chicken.jpg' },
         quantity: 1,
         lineTotal: 220
       },
       {
-        menuItem: { id: 'd3', name: 'Mutton Donne Biryani', price: 340, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 10, isAvailable: true },
+        menuItem: { id: 'd3', name: 'Mutton Donne Biryani', price: 340, category: 'biryani' as const, dietary: 'non_veg' as const, description: '', prepTimeMinutes: 10, isAvailable: true, image: '/images/dishes/mutton-donne-biryani.jpg' },
         quantity: 1,
         lineTotal: 340
       },
       {
-        menuItem: { id: 'd4', name: 'Gunpowder Ghee Rice', price: 180, category: 'gravy' as const, dietary: 'veg' as const, description: '', prepTimeMinutes: 5, isAvailable: true },
+        menuItem: { id: 'd4', name: 'Gunpowder Ghee Rice', price: 180, category: 'gravy' as const, dietary: 'veg' as const, description: '', prepTimeMinutes: 5, isAvailable: true, image: '/images/dishes/biryani-rice.webp' },
         quantity: 1,
         lineTotal: 180
       }
@@ -189,9 +182,6 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
               <h1 className="text-xs font-black text-slate-900 tracking-tight truncate leading-tight">
                 ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
               </h1>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
-                LIVE CART
-              </span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -229,49 +219,101 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
               Ordered Items in Cart ({displayItems.length})
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-50 text-amber-800 border border-amber-300">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
               KOT #108
             </span>
           </div>
 
           {displayItems.map((item, idx) => {
-            const modeInfo = getDishMode(item, idx);
+            const itemStage = item.stage;
+            const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
+            const isServed = status === 'SERVED';
             const isNonVeg = item.menuItem.dietary === 'non_veg';
 
             return (
               <div
                 key={item.menuItem.id}
-                className="border border-slate-200 rounded-2xl p-2.5 bg-white shadow-xs flex items-center justify-between gap-2.5"
+                className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
+                  isServed
+                    ? 'border-slate-200 bg-slate-100/70 opacity-60'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
                     <img 
-                      src={idx % 2 === 0 ? "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=100&auto=format&fit=crop&q=80" : "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=100&auto=format&fit=crop&q=80"}
+                      src={item.menuItem.image || (idx % 2 === 0 ? "/images/dishes/chicken-donne-biryani.jpg" : "/images/dishes/mutton-donne-biryani.jpg")}
                       alt={item.menuItem.name} 
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'logo.jpg';
+                        (e.target as HTMLImageElement).src = '/logo.jpg';
                       }}
                     />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                      <span className="text-xs font-bold text-slate-900 block truncate">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                      <span className={`text-xs sm:text-sm block truncate ${
+                        isServed ? 'font-bold text-slate-500 line-through' : 'font-black text-slate-900'
+                      }`}>
                         {item.menuItem.name}
                       </span>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
-                      {item.quantity}x • ₹{item.lineTotal}
+                    <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
+                      {item.quantity}x • <span className="text-amber-800 font-black">₹{item.lineTotal}</span>
                     </span>
                   </div>
                 </div>
 
-                {/* Mode Badge: PREPARING, READY, PLACED, SERVED */}
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border gap-1 shadow-2xs ${modeInfo.bg} ${modeInfo.text} ${modeInfo.border}`}>
-                  {modeInfo.icon}
-                  <span>{modeInfo.label}</span>
-                </span>
+                {/* STANDARDIZED KITCHEN BADGES WITH ACTIONS (EXACT TABLET MATCH WITH LUCIDE ICONS) */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {status === 'READY' && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>READY</span>
+                      </span>
+                      {/* Simple Clean Button: Served (Check Icon) matching tablet */}
+                      <button
+                        type="button"
+                        onClick={() => handleMarkServed(item.menuItem.id)}
+                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                        title="Mark as Served to Seat"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Served</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {status === 'PREPARING' && (
+                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
+                      <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 animate-pulse" />
+                      <span>PREPARING</span>
+                    </span>
+                  )}
+
+                  {status === 'PLACED' && (
+                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>PLACED</span>
+                    </span>
+                  )}
+
+                  {status === 'RECEIVED' && (
+                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
+                      <Clock className="w-3.5 h-3.5 text-sky-600" />
+                      <span>RECEIVED</span>
+                    </span>
+                  )}
+
+                  {isServed && (
+                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>SERVED</span>
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}

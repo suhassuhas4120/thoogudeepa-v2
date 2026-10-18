@@ -146,9 +146,6 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
               <h1 className="text-xs font-black text-slate-900 tracking-tight truncate leading-tight">
                 ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
               </h1>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300">
-                TAKE ORDER
-              </span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -177,24 +174,24 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
         </button>
       </header>
 
-      {/* Search Input Bar Row: ALWAYS CART ICON BESIDE SEARCH OPTION */}
-      <div className="p-3 bg-white border-b border-slate-100 shrink-0 space-y-2 shadow-2xs z-10">
-        <div className="flex items-center gap-2">
+      {/* Search Input Bar Row: Larger Search Bar, Icon-only Cart, Larger Filter Pills */}
+      <div className="p-3 bg-white border-b border-slate-100 shrink-0 space-y-2.5 shadow-2xs z-10">
+        <div className="flex items-center gap-2.5">
           {/* Search Bar with Dedicated ✕ Clear Button */}
           <div className="relative flex-1 flex items-center min-w-0">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search biryani, starters..."
-              className="w-full h-8 pl-8 pr-7 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 transition-all"
+              className="w-full h-10 pl-9 pr-8 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 transition-all"
             />
             {searchQuery.length > 0 && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="absolute right-2 w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition-all"
+                className="absolute right-2.5 w-4.5 h-4.5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition-all cursor-pointer"
                 title="Clear search"
               >
                 <X className="w-2.5 h-2.5" />
@@ -202,34 +199,33 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
             )}
           </div>
 
-          {/* ALWAYS CART ICON BESIDE SEARCH OPTION */}
+          {/* ONLY CART ICON NOT TEXT WITH NUMBER OF ITEMS PLACED */}
           <button
             type="button"
             onClick={onOpenCartSheet}
-            className="relative h-8 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 flex items-center gap-1.5 btn-press shadow-2xs shrink-0"
-            title="View Cart"
+            className="relative w-10 h-10 rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 active:scale-95 flex items-center justify-center btn-press shadow-xs shrink-0 cursor-pointer transition-all"
+            title="Open Cart"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
-            <span className="text-xs font-black text-slate-900">Cart</span>
+            <ShoppingBag className="w-5 h-5 text-white" />
             {totalCartCount > 0 && (
-              <span className="bg-amber-600 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-2xs">
+              <span className="absolute -top-1 -right-1 bg-slate-900 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-xs border-2 border-white">
                 {totalCartCount}
               </span>
             )}
           </button>
         </div>
 
-        {/* Horizontal Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        {/* Horizontal Category Filter Pills (Enlarged Height, Padding & Bold Typography) */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           {categories.map(cat => (
             <button
               key={cat.key}
               type="button"
               onClick={() => setActiveCategory(cat.key)}
-              className={`h-6 px-2.5 rounded-lg text-[10px] font-bold shrink-0 transition-all shadow-2xs ${
+              className={`h-10 px-4.5 rounded-xl text-xs sm:text-sm font-black shrink-0 transition-all shadow-2xs cursor-pointer ${
                 activeCategory === cat.key
-                  ? 'bg-slate-900 text-white font-black'
-                  : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
               {cat.label}
@@ -238,8 +234,8 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
         </div>
       </div>
 
-      {/* Main Dishes Catalog List */}
-      <div className="p-3 flex-1 overflow-y-auto no-scrollbar space-y-2.5 pb-28">
+      {/* Main Dishes Catalog List: Flex-1 scrollable area stops cleanly above KOT dock */}
+      <div className="p-3 flex-1 overflow-y-auto no-scrollbar space-y-3 pb-4">
         {filteredMenuItems.length === 0 ? (
           /* Empty Search State */
           <div className="py-16 flex flex-col items-center justify-center text-center">
@@ -259,63 +255,86 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
             return (
               <div
                 key={dish.id}
-                className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs flex items-center justify-between gap-2.5 hover:border-slate-300 transition-all"
+                className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs flex items-center gap-3.5 hover:border-slate-300 transition-all"
               >
-                {/* Dish Info */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    {/* Food Dietary Indicator */}
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${
-                      isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'
-                    }`} />
-                    <h4 className="text-xs font-bold text-slate-900 truncate">
-                      {dish.name}
-                    </h4>
+                {/* Dish Thumbnail Image */}
+                {dish.image && (
+                  <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-2xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 relative shadow-2xs">
+                    <img 
+                      src={dish.image} 
+                      alt={dish.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
                     {dish.isBestseller && (
-                      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[7px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-300">
-                        Chef Best
+                      <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-500 text-white shadow-xs">
+                        ★ BEST
                       </span>
                     )}
                   </div>
+                )}
 
-                  <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                {/* Dish Info: Proper Readable Typography & Prominent Price */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    {/* Food Dietary Indicator */}
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'
+                    }`} />
+                    <h4 className="text-sm sm:text-base font-black text-slate-900 truncate leading-snug">
+                      {dish.name}
+                    </h4>
+                  </div>
+
+                  {dish.kannadaName && (
+                    <span className="text-xs sm:text-sm font-extrabold text-amber-900 block truncate mt-0.5">
+                      {dish.kannadaName}
+                    </span>
+                  )}
+
+                  <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-1 mt-0.5 leading-normal">
                     {dish.description}
                   </p>
 
-                  <span className="text-xs font-black text-amber-700 block mt-1">
-                    ₹{dish.price}
-                  </span>
+                  {/* PROMINENT HIGH-VISIBILITY PRICE BADGE */}
+                  <div className="mt-1.5">
+                    <span className="text-sm sm:text-base font-black text-amber-950 font-mono bg-amber-100 border border-amber-300 px-3 py-0.5 rounded-lg shadow-2xs inline-block">
+                      ₹{dish.price}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Add / Stepper Controls */}
+                {/* Add / Stepper Controls with generous touch target */}
                 <div className="flex items-center shrink-0">
                   {currentQty > 0 ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button
                         type="button"
                         onClick={() => onModifyQuantity(dish, -1)}
-                        className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-center font-bold text-slate-800 btn-press shadow-2xs"
+                        className="w-7 h-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center font-bold text-slate-800 btn-press shadow-2xs cursor-pointer"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-5 text-center text-xs font-black text-slate-900">
+                      <span className="w-6 text-center text-xs sm:text-sm font-black text-slate-900">
                         {currentQty}
                       </span>
                       <button
                         type="button"
                         onClick={() => onModifyQuantity(dish, 1)}
-                        className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center font-bold btn-press shadow-2xs"
+                        className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center font-bold btn-press shadow-2xs cursor-pointer"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => onModifyQuantity(dish, 1)}
-                      className="h-7 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 btn-press flex items-center gap-1 shadow-2xs"
+                      className="h-8 px-3.5 rounded-xl border-2 border-amber-500 bg-amber-50/70 hover:bg-amber-100 active:scale-95 text-xs font-black text-amber-900 btn-press flex items-center gap-1 shadow-2xs cursor-pointer transition-all"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       <span>Add</span>
                     </button>
                   )}
@@ -327,14 +346,14 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
         )}
       </div>
 
-      {/* Sticky Floating Bottom KOT Punch Bar */}
+      {/* DOCKED SOLID BOTTOM KOT BAR: Physical flex child firmly docked at bottom of screen with 100% solid white background */}
       {totalCartCount > 0 && (
-        <div className="absolute bottom-16 left-0 right-0 p-3 bg-white/95 backdrop-blur-xs border-t border-slate-200 flex items-center justify-between shadow-lg z-30 animate-in slide-in-from-bottom-2 duration-200">
+        <div className="shrink-0 p-3 bg-white border-t-2 border-slate-200 flex items-center justify-between shadow-[0_-8px_24px_rgba(0,0,0,0.12)] z-30 animate-in slide-in-from-bottom-2 duration-150">
           <div>
-            <span className="text-xs font-black text-slate-900 block">
+            <span className="text-sm sm:text-base font-black text-slate-900 block leading-tight">
               {totalCartCount} Items Added • ₹{cartSubtotal}
             </span>
-            <span className="text-[10px] text-emerald-600 font-bold">
+            <span className="text-[10px] sm:text-xs text-emerald-600 font-bold block mt-0.5">
               Ready for Kitchen Pass
             </span>
           </div>
@@ -342,10 +361,11 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
           <button
             type="button"
             onClick={onPunchKOT}
-            className="h-10 px-4 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs rounded-xl flex items-center gap-2 btn-press shadow-md transition-all"
+            className="h-11 px-5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl flex items-center gap-2 btn-press shadow-md transition-all cursor-pointer"
           >
-            <Flame className="w-4 h-4 text-amber-400" />
-            <span>Send to KOT 🔥</span>
+            <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <span>Send to KOT</span>
+            <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
           </button>
         </div>
       )}

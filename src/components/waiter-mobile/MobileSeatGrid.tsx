@@ -36,6 +36,10 @@ import { SeatEntity, SeatFilterTab, INITIAL_SEAT_DATA } from './types';
 export interface MobileSeatGridProps {
   /** Array of seat entities in waiter's assigned zone */
   readonly seats?: SeatEntity[];
+  /** Assigned seat range label (e.g. 'Seats 01 to 10') */
+  readonly seatRange?: string;
+  /** Active waiter staff name */
+  readonly waiterName?: string;
   /** Callback to take new order for vacant seat (opens menu catalog) */
   readonly onOpenTakeOrder?: (seatNumber: string, guestName?: string) => void;
   /** Callback to view already placed order for occupied seat (opens cart) */
@@ -50,6 +54,8 @@ export interface MobileSeatGridProps {
 
 export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
   seats = INITIAL_SEAT_DATA,
+  seatRange = 'Seats 01 to 10',
+  waiterName = 'Ramesh Kumar',
   onOpenTakeOrder,
   onOpenViewOrder,
   onOpenSeatOrder,
@@ -111,8 +117,7 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
     <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden">
       
       {/* Sticky Filter Controls Sub-Bar */}
-      <div className="p-3 bg-white border-b border-slate-200 shrink-0 space-y-2.5 shadow-2xs">
-        
+      <div className="px-3 py-2 bg-white border-b border-slate-200 shrink-0 shadow-2xs">
         {/* Filter Pills Row */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
@@ -121,7 +126,7 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
             <button
               type="button"
               onClick={() => setActiveFilter('all')}
-              className={`h-7 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap shadow-2xs ${
+              className={`h-7 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap shadow-2xs cursor-pointer ${
                 activeFilter === 'all'
                   ? 'bg-slate-900 text-white font-black'
                   : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
@@ -134,7 +139,7 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
             <button
               type="button"
               onClick={() => setActiveFilter('occupied')}
-              className={`h-7 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap shadow-2xs ${
+              className={`h-7 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap shadow-2xs cursor-pointer ${
                 activeFilter === 'occupied'
                   ? 'bg-amber-600 text-white font-black'
                   : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
@@ -147,7 +152,7 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
             <button
               type="button"
               onClick={() => setActiveFilter('vacant')}
-              className={`h-7 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap shadow-2xs ${
+              className={`h-7 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap shadow-2xs cursor-pointer ${
                 activeFilter === 'vacant'
                   ? 'bg-emerald-600 text-white font-black'
                   : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
@@ -163,7 +168,7 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
             <button
               type="button"
               onClick={onRefreshSeats}
-              className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 btn-press shrink-0 shadow-2xs"
+              className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 active:scale-90 shrink-0 shadow-2xs cursor-pointer"
               title="Refresh Floor Status"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -184,11 +189,11 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
             </div>
             <h4 className="text-xs font-bold text-slate-800">No Seats Found</h4>
             <p className="text-[10px] text-slate-500 mt-0.5">
-              No tables match your selected filter criteria.
+              No seats match your selected filter criteria.
             </p>
           </div>
         ) : (
-          /* 2-Column Responsive Seat Card Grid */
+          /* 2-Column Responsive Seat Card Grid (Matching Tablet POS Architecture) */
           <div className="grid grid-cols-2 gap-2.5">
             {filteredSeats.map(seat => {
               const isBilling = seat.status === 'billing';
@@ -209,23 +214,23 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
                   {/* Card Content Top Header */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-black text-slate-900">
+                      <span className="text-xs sm:text-sm font-black text-slate-900">
                         {seat.seatNumber}
                       </span>
 
                       {/* Standardized Badge Token */}
                       {isBilling && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-300 animate-pulse">
                           BILL REQ
                         </span>
                       )}
                       {isOccupied && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
-                          OCCUPIED
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
+                          DINING
                         </span>
                       )}
                       {isVacant && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-300">
                           VACANT
                         </span>
                       )}
@@ -234,28 +239,35 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
                     {/* Guest Name & Operational Subtitle */}
                     {isVacant ? (
                       <>
-                        <div className="text-[11px] font-semibold text-slate-500">
+                        <div className="text-xs font-bold text-slate-500">
                           Available
                         </div>
-                        <div className="text-[9px] text-slate-400 mt-0.5">
-                          Ready for guests
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Ready for walk-in
                         </div>
-                        <div className="text-xs font-bold text-slate-300 mt-1">
-                          --
+                        {/* Seat Status Row (Matching Tablet!) */}
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-500 text-[10px] sm:text-[11px]">Seat Status:</span>
+                          <span className="text-xs font-black text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-lg shadow-2xs">
+                            Ready
+                          </span>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="text-[11px] font-bold text-slate-900 truncate">
+                        <div className="text-xs font-bold text-slate-900 truncate">
                           {seat.guestName || 'Guest'}
                         </div>
-                        <div className="text-[9px] text-slate-500 font-semibold mt-0.5">
-                          {seat.itemCount || 2} items • {seat.diningDuration || '15m'}
+                        <div className="text-[10px] text-slate-500 font-semibold mt-0.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{seat.diningDuration || '15m'} active</span>
                         </div>
-                        <div className={`text-xs font-black mt-1 ${
-                          isBilling ? 'text-rose-600' : 'text-amber-700'
-                        }`}>
-                          ₹{seat.runningTotal || 0}
+                        {/* Total Bill Row (Matching Tablet!) */}
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-600 text-[10px] sm:text-[11px]">Total Bill:</span>
+                          <span className="text-xs font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-lg shadow-2xs">
+                            ₹{seat.runningTotal || 850}
+                          </span>
                         </div>
                       </>
                     )}
@@ -267,27 +279,27 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSeatAction(seat)}
-                        className="w-full h-7 rounded-lg text-[11px] font-black bg-rose-600 hover:bg-rose-500 text-white btn-press flex items-center justify-center gap-1 shadow-2xs"
+                        className="w-full h-8 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 active:scale-95 text-white flex items-center justify-center gap-1 shadow-2xs cursor-pointer transition-all"
                       >
-                        <Receipt className="w-3 h-3" />
+                        <Receipt className="w-3.5 h-3.5" />
                         <span>Collect Bill</span>
                       </button>
                     ) : isOccupied ? (
                       <button
                         type="button"
                         onClick={() => handleSeatAction(seat)}
-                        className="w-full h-7 rounded-lg text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 btn-press flex items-center justify-center gap-1 shadow-2xs"
+                        className="w-full h-8 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 active:scale-95 text-slate-800 border border-slate-300 flex items-center justify-center gap-1 shadow-2xs cursor-pointer transition-all"
                       >
-                        <ShoppingBag className="w-3 h-3 text-amber-600" />
+                        <ShoppingBag className="w-3.5 h-3.5 text-amber-700" />
                         <span>View Order</span>
                       </button>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleSeatAction(seat)}
-                        className="w-full h-7 rounded-lg text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 btn-press flex items-center justify-center gap-1 shadow-2xs"
+                        className="w-full h-8 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center justify-center gap-1 shadow-2xs cursor-pointer transition-all"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                         <span>Take Order</span>
                       </button>
                     )}
@@ -299,16 +311,15 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
           </div>
         )}
 
-        {/* Floor Section Capacity Summary Bar */}
-        <div className="mt-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between text-[10px] text-slate-500 font-semibold">
+        {/* Clean Floor Section Summary Bar (NO CAPACITY / NO TURNOVER RATE) */}
+        <div className="mt-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between text-[11px] text-slate-600 font-semibold">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-slate-800 font-bold">Zone 1 Capacity:</span>
-            <span>{counts.occupied} Dining / {counts.vacant} Open</span>
+            <span className="text-slate-900 font-black">{seatRange}:</span>
+            <span>{counts.occupied} Dining • {counts.vacant} Ready</span>
           </div>
-          <div className="flex items-center gap-1 text-amber-700 font-bold">
-            <Sparkles className="w-3 h-3 text-amber-600" />
-            <span>Turnover Rate: 84%</span>
+          <div className="flex items-center gap-1 text-slate-500 font-bold">
+            <span>10 Seats Total</span>
           </div>
         </div>
 
