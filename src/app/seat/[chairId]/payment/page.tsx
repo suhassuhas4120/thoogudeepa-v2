@@ -1,19 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { ChevronLeft, Bell, Plus, Check } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { getMenuItemById } from '../../../../lib/data/menuData';
 
-export default function CustomerSelfPaymentPage() {
+function CustomerSelfPaymentContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const chairId = (params?.chairId as string) || '12';
 
   // Device hardware back button & swipe back: return to bill/order summary
   useHardwareBack(`/seat/${chairId}/bill`);
+
+  const amountParam = searchParams?.get('amount');
+  const tipParam = searchParams?.get('tip');
 
   const [session, setSession] = useState<ActiveDiningSession | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<number | null>(1);
@@ -30,9 +34,21 @@ export default function CustomerSelfPaymentPage() {
     }
   }, [chairId]);
 
-  const billTotal = session?.totalAmount || 0;
-  const subtotal = billTotal > 0 ? Math.round(billTotal / 1.05) : 0;
-  const gstAmount = billTotal - subtotal;
+  const storedTipStr = typeof window !== 'undefined' ? sessionStorage.getItem(`thoogudeepa_selected_tip_${chairId}`) : null;
+  const tipFromStorage = storedTipStr === '₹ 30' ? 30 : storedTipStr === '₹ 50' ? 50 : storedTipStr === '₹ 100' ? 100 : 0;
+  const tipAmount = tipParam !== null && tipParam !== undefined ? Number(tipParam) : tipFromStorage;
+
+  const itemsList = session?.items && session.items.length > 0 ? session.items : [];
+  const itemsSubtotal = itemsList.length > 0
+    ? itemsList.reduce((acc, it) => acc + it.price * it.quantity, 0)
+    : (session?.totalAmount ? Math.round(session.totalAmount / 1.05) : 0);
+
+  const cgst = Math.round(itemsSubtotal * 0.025);
+  const sgst = Math.round(itemsSubtotal * 0.025);
+  const gstAmount = cgst + sgst;
+  const billTotal = itemsSubtotal + gstAmount;
+
+  const grandPayable = amountParam ? Number(amountParam) : (billTotal + tipAmount);
 
   const cards = [
     {
@@ -276,7 +292,7 @@ export default function CustomerSelfPaymentPage() {
                   </div>
                 </div>
                 <span className="text-xs font-black shrink-0">
-                  ₹ {subtotal}
+                  ₹ {itemsSubtotal}
                 </span>
               </div>
             )}
@@ -285,22 +301,39 @@ export default function CustomerSelfPaymentPage() {
           {/* Subtotal & Taxes Breakdown */}
           <div className="w-full border-t border-zinc-200 pt-3 flex flex-col gap-1.5 text-xs text-zinc-700">
             <div className="w-full flex items-center justify-between">
-              <span>Item Subtotal</span>
-              <span className="font-bold text-zinc-900">₹ {subtotal}</span>
+              <span>Item Subtotal ({itemsList.reduce((acc, curr) => acc + curr.quantity, 0)} items)</span>
+              <span className="font-bold text-zinc-900">₹ {itemsSubtotal}</span>
             </div>
-            <div className="w-full flex items-center justify-between">
-              <span>Taxes &amp; Charges (5% GST)</span>
-              <span className="font-bold text-zinc-900">₹ {gstAmount}</span>
+            <div className="w-full flex items-center justify-between text-zinc-600">
+              <span>CGST (2.5%)</span>
+              <span className="font-bold">₹ {cgst}</span>
             </div>
+            <div className="w-full flex items-center justify-between text-zinc-600">
+              <span>SGST (2.5%)</span>
+              <span className="font-bold">₹ {sgst}</span>
+            </div>
+            {tipAmount > 0 && (
+              <div className="w-full flex items-center justify-between text-emerald-800 font-bold bg-emerald-50 px-2 py-1.5 rounded-lg border border-emerald-200">
+                <span>Staff Tip (Waiter)</span>
+                <span>+ ₹ {tipAmount}</span>
+              </div>
+            )}
           </div>
 
           {/* Total Payable Box */}
           <div className="w-full border-t-2 border-black pt-3 flex items-center justify-between">
-            <span className="text-sm font-black uppercase tracking-wider">
-              Total Payable
-            </span>
-            <span className="text-lg font-black">
-              ₹ {billTotal}
+            <div className="flex flex-col">
+              <span className="text-sm font-black uppercase tracking-wider">
+                Total Payable
+              </span>
+              {tipAmount > 0 && (
+                <span className="text-[10px] text-emerald-700 font-bold">
+                  Includes ₹{tipAmount} Tip
+                </span>
+              )}
+            </div>
+            <span className="text-xl font-black text-black">
+              ₹ {grandPayable}
             </span>
           </div>
         </div>
@@ -311,7 +344,7 @@ export default function CustomerSelfPaymentPage() {
         {selectedCardId ? (
           /* Card Selected -> Goes to Card Details */
           <Link
-            href={`/seat/${chairId}/card-details?card=${selectedCardId}`}
+            href={`/seat/${chairId}/card-details?card=${selectedCardId}&amount=${grandPayable}&tip=${tipAmount}`}
             className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
           >
             Continue with Card
@@ -319,10 +352,10 @@ export default function CustomerSelfPaymentPage() {
         ) : selectedMethod !== null ? (
           /* Method Selected -> Goes to Payment Success */
           <Link
-            href={`/seat/${chairId}/payment-success?mode=${encodeURIComponent(selectedMethodName)}&amount=${billTotal}`}
+            href={`/seat/${chairId}/payment-success?mode=${encodeURIComponent(selectedMethodName)}&amount=${grandPayable}&tip=${tipAmount}`}
             className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
           >
-            Pay ₹ {billTotal} via {selectedMethodName}
+            Pay ₹ {grandPayable} via {selectedMethodName}
           </Link>
         ) : (
           /* Nothing Selected */
@@ -336,5 +369,13 @@ export default function CustomerSelfPaymentPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CustomerSelfPaymentPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <CustomerSelfPaymentContent />
+    </Suspense>
   );
 }

@@ -1,8 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import MobileCockpitMaster from '@/components/waiter-mobile/MobileCockpitMaster';
-import { TabletCockpitMaster } from '@/components/waiter-tablet/TabletCockpitMaster';
+import dynamic from 'next/dynamic';
+
+const MobileCockpitMaster = dynamic(
+  () => import('@/components/waiter-mobile/MobileCockpitMaster'),
+  { ssr: false }
+);
+const TabletCockpitMaster = dynamic(
+  () => import('@/components/waiter-tablet/TabletCockpitMaster'),
+  { ssr: false }
+);
 
 export default function WaiterIndexPage() {
   const [isTablet, setIsTablet] = useState<boolean | null>(null);

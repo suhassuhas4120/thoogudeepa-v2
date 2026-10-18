@@ -42,25 +42,11 @@ import { TabletAlertSheet } from './TabletAlertSheet';
 import { TabletProfileShift } from './TabletProfileShift';
 
 export const TabletCockpitMaster: React.FC = () => {
+  const [hasMounted, setHasMounted] = useState<boolean>(false);
+
   // Navigation & Screen View State
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('thoogudeepa_waiter_tablet_screen') as ScreenId;
-      if (saved && ['floor', 'order', 'profile'].includes(saved)) {
-        return saved;
-      }
-    }
-    return 'login';
-  });
-  const [profile, setProfile] = useState<typeof INITIAL_WAITER_PROFILE>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = sessionStorage.getItem('thoogudeepa_waiter_tablet_profile');
-        if (raw) return JSON.parse(raw);
-      } catch {}
-    }
-    return INITIAL_WAITER_PROFILE;
-  });
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>('login');
+  const [profile, setProfile] = useState<typeof INITIAL_WAITER_PROFILE>(INITIAL_WAITER_PROFILE);
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
@@ -70,14 +56,33 @@ export const TabletCockpitMaster: React.FC = () => {
   const [shiftLogs, setShiftLogs] = useState(SHIFT_LOGS);
 
   // Active Target Seat & Cockpit Right Pane Mode ('ticket' or 'bill')
-  const [activeSeatName, setActiveSeatName] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('thoogudeepa_waiter_tablet_seat') || 'Seat 02: Walk-In';
-    }
-    return 'Seat 02: Walk-In';
-  });
+  const [activeSeatName, setActiveSeatName] = useState<string>('Seat 02: Walk-In');
   const activeSeatNameRef = useRef<string>(activeSeatName);
   activeSeatNameRef.current = activeSeatName;
+
+  // Restore navigation and profile on initial client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedScreen = sessionStorage.getItem('thoogudeepa_waiter_tablet_screen') as ScreenId;
+      if (savedScreen && ['floor', 'order', 'profile'].includes(savedScreen)) {
+        setCurrentScreen(savedScreen);
+      }
+      try {
+        const rawProfile = sessionStorage.getItem('thoogudeepa_waiter_tablet_profile');
+        if (rawProfile) {
+          const parsed = JSON.parse(rawProfile);
+          setProfile(parsed);
+          profileRef.current = parsed;
+        }
+      } catch {}
+      const savedSeat = sessionStorage.getItem('thoogudeepa_waiter_tablet_seat');
+      if (savedSeat) {
+        setActiveSeatName(savedSeat);
+        activeSeatNameRef.current = savedSeat;
+      }
+    }
+    setHasMounted(true);
+  }, []);
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [activeSeatCustomer, setActiveSeatCustomer] = useState<string>('Walk-In Guest');
   const [activeSeatAmount, setActiveSeatAmount] = useState<number>(1029);
@@ -107,18 +112,29 @@ export const TabletCockpitMaster: React.FC = () => {
       const defaultWaiterSeats = getSeatsForWaiter(currentId);
 
       setSeats(floorData.map(f => {
-        const fallback = defaultWaiterSeats.find(s => s.seatNumber === f.seatNumber);
-        const isVacant = f.status === 'vacant';
+        if (f.status === 'vacant') {
+          return {
+            id: f.id,
+            seatNumber: f.seatNumber,
+            status: 'vacant' as const,
+            guestName: 'Available',
+            guestCount: 0,
+            diningTime: 'Ready',
+            totalAmount: 0,
+            orderCount: 0,
+            hasBillRequest: false
+          };
+        }
         return {
           id: f.id,
           seatNumber: f.seatNumber,
-          status: !isVacant ? ('occupied' as const) : (fallback ? fallback.status : ('vacant' as const)),
-          guestName: !isVacant ? f.guestName : (fallback?.guestName || 'Available'),
-          guestCount: !isVacant ? (f.guestCount || 2) : (fallback?.guestCount ?? 0),
-          diningTime: !isVacant ? (f.diningDuration || '15m') : (fallback?.diningTime ?? 'Ready'),
-          totalAmount: !isVacant ? f.runningTotal : (fallback?.totalAmount ?? 0),
-          orderCount: !isVacant ? f.itemCount : (fallback?.orderCount ?? 0),
-          hasBillRequest: f.hasBillRequest || Boolean(fallback?.hasBillRequest)
+          status: 'occupied' as const,
+          guestName: f.guestName,
+          guestCount: f.guestCount || 2,
+          diningTime: f.diningDuration || '15m',
+          totalAmount: f.runningTotal,
+          orderCount: f.itemCount,
+          hasBillRequest: f.hasBillRequest
         };
       }));
     } catch (err) {
@@ -188,7 +204,19 @@ export const TabletCockpitMaster: React.FC = () => {
         }));
       },
       onTicketDispatched: () => { refreshAlerts(); },
-      onSeatOccupancyChange: () => { refreshSeats(); },
+      onSeatOccupancyChange: (data) => {
+        refreshSeats();
+        if (data && !data.isOccupied) {
+          const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
+          const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+          const targetChair = (data.chairId || '').replace(/[^0-9]/g, '');
+          if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
+            setTicketItems([]);
+            setDishQuantities({});
+            setActiveTicketNumber('');
+          }
+        }
+      },
       onNewAlert: (alert) => {
         setAlerts(prev => {
           if (prev.some(a => a.id === alert.id)) return prev;
@@ -211,7 +239,18 @@ export const TabletCockpitMaster: React.FC = () => {
         setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isResolved: true } : a));
       },
       onBillRequested: () => { refreshSeats(); refreshAlerts(); },
-      onBillSettled: () => { refreshSeats(); refreshAlerts(); },
+      onBillSettled: (data) => {
+        refreshSeats();
+        refreshAlerts();
+        const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = (data?.chairId || '').replace(/[^0-9]/g, '');
+        if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
+          setTicketItems([]);
+          setDishQuantities({});
+          setActiveTicketNumber('');
+        }
+      },
       onClearAll: () => { refreshSeats(); refreshAlerts(); }
     });
 
@@ -238,6 +277,8 @@ export const TabletCockpitMaster: React.FC = () => {
       if (!isMounted) return;
       if (details.order?.ticket_number) {
         setActiveTicketNumber(details.order.ticket_number);
+      } else {
+        setActiveTicketNumber('');
       }
       if (details.items && details.items.length > 0) {
         const qtyMap: Record<number, number> = {};
@@ -262,6 +303,9 @@ export const TabletCockpitMaster: React.FC = () => {
         });
         setDishQuantities(qtyMap);
         setTicketItems(items);
+      } else {
+        setDishQuantities({});
+        setTicketItems([]);
       }
     });
 
@@ -335,6 +379,8 @@ export const TabletCockpitMaster: React.FC = () => {
         const details = await realtimeBridge.getOrderForSeat(cleanChair);
         if (details.order?.ticket_number) {
           setActiveTicketNumber(details.order.ticket_number);
+        } else {
+          setActiveTicketNumber('');
         }
         if (details.items && details.items.length > 0) {
           const qtyMap: Record<number, number> = {};
@@ -360,12 +406,12 @@ export const TabletCockpitMaster: React.FC = () => {
           setDishQuantities(qtyMap);
           setTicketItems(items);
         } else {
-          setDishQuantities({ 1: 2, 3: 1 });
-          setTicketItems(INITIAL_TICKET_ITEMS);
+          setDishQuantities({});
+          setTicketItems([]);
         }
       } catch {
-        setDishQuantities({ 1: 2, 3: 1 });
-        setTicketItems(INITIAL_TICKET_ITEMS);
+        setDishQuantities({});
+        setTicketItems([]);
       }
     }
     setCurrentScreen('order');
@@ -519,6 +565,14 @@ export const TabletCockpitMaster: React.FC = () => {
     setAlerts(prev => prev.map(a => (a.id === alertId ? { ...a, isResolved: true } : a)));
     showToast('Alert attended and synchronized');
   };
+
+  if (!hasMounted) {
+    return (
+      <div className="w-full h-full min-h-screen bg-slate-900 flex items-center justify-center text-white text-sm font-medium">
+        Loading Tablet Cockpit...
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-0 lg:p-4 select-none bg-[#E2E8F0]">

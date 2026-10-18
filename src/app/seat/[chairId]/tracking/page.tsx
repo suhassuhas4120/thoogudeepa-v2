@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Receipt,
   Flame,
+  Check,
 } from 'lucide-react';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
@@ -292,7 +293,7 @@ export default function LiveOrderTrackingPage() {
                   { label: 'Served', sub: 'At Table' },
                 ];
 
-                const progressPercent = ((currentStepNum - 1) / (dishSteps.length - 1)) * 88;
+                const progressPercent = Math.max(0, Math.min(100, ((currentStepNum - 1) / (dishSteps.length - 1)) * 100));
 
                 return (
                   <div
@@ -335,41 +336,53 @@ export default function LiveOrderTrackingPage() {
 
                     {/* Individual Dish 5-Step Progress Stepper */}
                     <div className="w-full pt-2 border-t border-zinc-200">
-                      <div className="flex items-center justify-between relative px-1">
-                        {/* Gray background track line */}
-                        <div className="absolute top-3.5 left-5 right-5 h-0.5 bg-zinc-200 -z-10" />
-                        {/* Active black track line */}
-                        <div
-                          className="absolute top-3.5 left-5 h-0.5 bg-black -z-10 transition-all duration-500"
-                          style={{ width: `${progressPercent}%` }}
-                        />
+                      <div className="flex items-center justify-between relative px-2">
+                        {/* Gray background track line between first and last circle centers */}
+                        <div className="absolute top-[14px] -translate-y-1/2 left-[28px] right-[28px] h-[3px] bg-zinc-200 z-0 rounded-full pointer-events-none" />
+
+                        {/* Active black track line connecting done status circles */}
+                        <div className="absolute top-[14px] -translate-y-1/2 left-[28px] right-[28px] h-[3px] z-0 pointer-events-none rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-black transition-all duration-500 rounded-full"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
 
                         {dishSteps.map((st, stepIdx) => {
                           const stepNumber = stepIdx + 1;
-                          const isCompleted = stepNumber < currentStepNum;
-                          const isCurrent = stepNumber === currentStepNum;
+                          const isDone = stepNumber <= currentStepNum;
 
                           return (
                             <div
                               key={st.label}
-                              className="flex flex-col items-center gap-1 min-w-[46px]"
+                              className="relative z-10 flex flex-col items-center gap-1 min-w-[46px]"
                             >
                               <div
-                                className={`w-7 h-7 rounded-full border-2 border-black flex items-center justify-center text-xs font-bold transition-all ${
-                                  isCompleted
-                                    ? 'bg-black text-white'
-                                    : isCurrent
-                                    ? 'bg-white text-black ring-2 ring-black scale-105'
+                                className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all shadow-2xs ${
+                                  isDone
+                                    ? 'bg-black text-white border-black'
                                     : 'bg-white text-zinc-400 border-zinc-300'
                                 }`}
                               >
-                                {isCompleted ? '✓' : stepNumber}
+                                {isDone ? (
+                                  <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
+                                ) : (
+                                  stepNumber
+                                )}
                               </div>
 
-                              <span className="text-[9px] font-bold tracking-tight text-center">
+                              <span
+                                className={`text-[9px] tracking-tight text-center ${
+                                  isDone ? 'font-black text-zinc-950' : 'font-semibold text-zinc-400'
+                                }`}
+                              >
                                 {st.label}
                               </span>
-                              <span className="text-[8px] text-zinc-500 text-center">
+                              <span
+                                className={`text-[8px] text-center ${
+                                  isDone ? 'font-bold text-zinc-700' : 'text-zinc-400'
+                                }`}
+                              >
                                 {st.sub}
                               </span>
                             </div>

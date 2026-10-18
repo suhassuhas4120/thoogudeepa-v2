@@ -303,19 +303,62 @@ export const realtimeBridge = {
   // Release a seat (e.g. upon payment or checkout)
   async releaseSeat(chairId: string): Promise<boolean> {
     try {
+      const cleanChair = chairId.replace(/[^0-9]/g, '');
+      const padded = cleanChair.padStart(2, '0');
+      const unpadded = cleanChair.replace(/^0+/, '');
+      const possibleChairs = [chairId, cleanChair, padded, unpadded, `Seat ${cleanChair}`, `Seat ${padded}`];
+
+      // Remove from local occupancy registry
       const map = getLocalOccupancyMap();
-      delete map[chairId];
+      for (const k of possibleChairs) {
+        delete map[k];
+      }
       setLocalOccupancyMap(map);
 
-      // Mark order completed in local orders list
+      // Remove from local orders list
       const orders = getLocalOrdersList();
-      const updated = orders.filter((o) => o.order.chair_id !== chairId);
+      const updated = orders.filter((o) => {
+        const oChair = (o.order.chair_id || '').replace(/[^0-9]/g, '');
+        return oChair !== cleanChair && !possibleChairs.includes(o.order.chair_id);
+      });
       setLocalOrdersList(updated);
+
+      // Clear seat-specific cached item stages and dining session
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`thoogudeepa_item_stages_${cleanChair}`);
+          localStorage.removeItem(`thoogudeepa_item_stages_${padded}`);
+          localStorage.removeItem(`thoogudeepa_item_stages_${unpadded}`);
+          localStorage.removeItem(`thoogudeepa_dining_session_${cleanChair}`);
+          localStorage.removeItem(`thoogudeepa_dining_session_${padded}`);
+          localStorage.removeItem(`thoogudeepa_active_ticket_${cleanChair}`);
+          sessionStorage.removeItem(`thoogudeepa_cart_items_${cleanChair}`);
+        } catch {}
+      }
+
+      // Resolve any pending alerts for this seat
+      const alerts = getLocalAlertsList();
+      const nextAlerts = alerts.map((a) => {
+        const aSeatClean = a.seatNumber.replace(/[^0-9]/g, '');
+        if (aSeatClean === cleanChair || possibleChairs.includes(a.seatNumber)) {
+          return { ...a, isResolved: true };
+        }
+        return a;
+      });
+      setLocalAlertsList(nextAlerts);
 
       if (localChannel) {
         localChannel.postMessage({
           type: 'SEAT_RELEASED',
-          chairId,
+          chairId: cleanChair,
+        });
+      }
+      if (supabase) {
+        const liveChannel = supabase.channel('kitchen_realtime_feed');
+        liveChannel.send({
+          type: 'broadcast',
+          event: 'SEAT_RELEASED',
+          payload: { chairId: cleanChair },
         });
       }
       return true;
@@ -373,19 +416,28 @@ export const realtimeBridge = {
             const key = `thoogudeepa_item_stages_${chair}`;
             const existing = JSON.parse(localStorage.getItem(key) || '{}');
             existing[itemIdOrKey] = stage;
+            existing[`${chair}-${itemIdOrKey}`] = stage;
             if (meta?.dishId) {
               existing[meta.dishId] = stage;
+              existing[`${chair}-${meta.dishId}`] = stage;
               existing[`dish-${meta.dishId.replace('dish-', '')}`] = stage;
+              existing[`${chair}-dish-${meta.dishId.replace('dish-', '')}`] = stage;
               existing[meta.dishId.replace('dish-', '')] = stage;
+              existing[`${chair}-${meta.dishId.replace('dish-', '')}`] = stage;
             }
             if (meta?.dishName) {
               const ln = meta.dishName.toLowerCase();
               existing[ln] = stage;
-              existing[ln.replace(/donne\s*/i, '').trim()] = stage;
+              existing[`${chair}-${ln}`] = stage;
+              const cleanDish = ln.replace(/donne\s*/i, '').trim();
+              existing[cleanDish] = stage;
+              existing[`${chair}-${cleanDish}`] = stage;
             }
             if (normDishNum) {
               existing[normDishNum] = stage;
+              existing[`${chair}-${normDishNum}`] = stage;
               existing[`dish-${normDishNum}`] = stage;
+              existing[`${chair}-dish-${normDishNum}`] = stage;
               existing[`menu-0${normDishNum}`] = stage;
               existing[`menu-${normDishNum}`] = stage;
             }
@@ -672,29 +724,38 @@ export const realtimeBridge = {
           }
         }
 
-        const cachedStage =
-          (chair && tNum && dId && cached[`${chair}-${tNum}-${dId}`]) ||
-          (chair && tNum && dNum && cached[`${chair}-${tNum}-${dNum}`]) ||
-          (chair && dId && cached[`${chair}-${dId}`]) ||
-          (chair && dNum && cached[`${chair}-${dNum}`]) ||
-          (chair && dNum && cached[`${chair}-dish-${dNum}`]) ||
-          (chair && dName && cached[`${chair}-${dName}`]) ||
-          (chair && fullDishName && cached[`${chair}-${fullDishName}`]) ||
-          (it.id && cached[it.id]) ||
-          (dId && cached[dId]) ||
-          (dNum && cached[dNum]) ||
-          (dName && cached[dName]);
+        const candidates: string[] = [];
+        if (localStage) candidates.push(localStage);
+        if (it.stage) candidates.push(it.stage);
 
-        if (localStage === 'SERVED' || cachedStage === 'SERVED') {
+        const checkKeys = [
+          chair && tNum && dId && `${chair}-${tNum}-${dId}`,
+          chair && tNum && dNum && `${chair}-${tNum}-${dNum}`,
+          chair && dId && `${chair}-${dId}`,
+          chair && dNum && `${chair}-${dNum}`,
+          chair && dNum && `${chair}-dish-${dNum}`,
+          chair && dName && `${chair}-${dName}`,
+          chair && fullDishName && `${chair}-${fullDishName}`,
+          it.id,
+          dId,
+          dNum,
+          dName,
+        ].filter(Boolean) as string[];
+
+        for (const k of checkKeys) {
+          if (cached[k]) candidates.push(cached[k]);
+        }
+
+        if (candidates.includes('SERVED')) {
           return { ...it, stage: 'SERVED' };
         }
-        if (localStage === 'READY' || cachedStage === 'READY') {
+        if (candidates.includes('READY')) {
           return { ...it, stage: 'READY' };
         }
-        if (localStage === 'PREP' || cachedStage === 'PREP') {
+        if (candidates.includes('PREP')) {
           return { ...it, stage: 'PREP' };
         }
-        if (localStage === 'REC' || cachedStage === 'REC') {
+        if (candidates.includes('REC')) {
           return { ...it, stage: 'REC' };
         }
         return it;
@@ -913,6 +974,11 @@ export const realtimeBridge = {
 
   // Settle bill and vacate seat
   async settleBill(chairId: string, paymentMethod: string, amount: number): Promise<boolean> {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const padded = cleanChair.padStart(2, '0');
+    const unpadded = cleanChair.replace(/^0+/, '');
+    const possibleChairs = [chairId, cleanChair, padded, unpadded, `Seat ${cleanChair}`, `Seat ${padded}`];
+
     // 1. Release seat in local registry
     await this.releaseSeat(chairId);
 
@@ -922,7 +988,7 @@ export const realtimeBridge = {
         await supabase
           .from('orders')
           .update({ status: 'completed', updated_at: new Date().toISOString() })
-          .eq('chair_id', chairId)
+          .in('chair_id', possibleChairs)
           .in('status', ['pending', 'in_progress', 'ready']);
       } catch (err) {
         console.warn('Remote settle bill update notice:', err);
@@ -944,14 +1010,20 @@ export const realtimeBridge = {
     }
 
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_SETTLED', chairId, paymentMethod, amount });
+      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, paymentMethod, amount });
+      localChannel.postMessage({ type: 'SEAT_RELEASED', chairId: cleanChair });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_SETTLED',
-        payload: { chairId, paymentMethod, amount }
+        payload: { chairId: cleanChair, rawChairId: chairId, paymentMethod, amount }
+      });
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'SEAT_RELEASED',
+        payload: { chairId: cleanChair }
       });
     }
 
@@ -1002,13 +1074,17 @@ export const realtimeBridge = {
     for (let i = start; i <= end; i++) {
       const chairId = i < 10 ? `0${i}` : `${i}`;
       const seatNumber = `Seat ${chairId}`;
-      const occ = occupancyMap[chairId] || occupancyMap[String(i)];
-      const foundOrder = activeOrders.find(
-        (o) => o.order.chair_id === chairId || o.order.chair_id === String(i)
-      );
-      const seatAlert = alerts.find(
-        (a) => a.seatNumber.includes(chairId) || a.seatNumber === seatNumber
-      );
+      const padded = chairId;
+      const unpadded = String(i);
+      const occ = occupancyMap[chairId] || occupancyMap[unpadded] || occupancyMap[`Seat ${chairId}`] || occupancyMap[`Seat ${unpadded}`];
+      const foundOrder = activeOrders.find((o) => {
+        const oChair = (o.order.chair_id || '').replace(/[^0-9]/g, '');
+        return oChair === chairId || oChair === unpadded || Number(oChair) === i || o.order.chair_id === seatNumber;
+      });
+      const seatAlert = alerts.find((a) => {
+        const aSeatClean = a.seatNumber.replace(/[^0-9]/g, '');
+        return aSeatClean === chairId || aSeatClean === unpadded || Number(aSeatClean) === i || a.seatNumber === seatNumber;
+      });
 
       const isBilling = occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
       const isOccupied = Boolean(occ || foundOrder);
@@ -1125,6 +1201,14 @@ export const realtimeBridge = {
         .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
           if (callbacks.onBillSettled && msg.payload) {
             callbacks.onBillSettled(msg.payload);
+          }
+          if (callbacks.onSeatOccupancyChange && msg.payload?.chairId) {
+            callbacks.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
+          }
+        })
+        .on('broadcast', { event: 'SEAT_RELEASED' }, (msg) => {
+          if (callbacks.onSeatOccupancyChange && msg.payload?.chairId) {
+            callbacks.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
           }
         })
         .on('broadcast', { event: 'CLEAR_ALL_ORDERS' }, () => {
