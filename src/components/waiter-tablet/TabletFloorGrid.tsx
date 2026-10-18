@@ -271,10 +271,10 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                     )}
                   </div>
 
-                  {/* Properly Positioned & Highlighted Price / Capacity Row */}
+                  {/* Properly Positioned & Highlighted Price / Seat Status Row */}
                   <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      {isOccupied ? 'Total Bill:' : 'Capacity:'}
+                      {isOccupied ? 'Total Bill:' : 'Seat Status:'}
                     </span>
                     {isOccupied ? (
                       <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg shadow-2xs">
@@ -282,7 +282,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                        4 Guests
+                        Ready
                       </span>
                     )}
                   </div>
