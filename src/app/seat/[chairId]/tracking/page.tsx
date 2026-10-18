@@ -92,14 +92,26 @@ export default function LiveOrderTrackingPage() {
 
     setIsLoaded(true);
 
+    const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
+
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        // Isolate updates: ignore stage events meant for other dining seats
+        if (targetChair && targetChair !== cleanCurrentChair) {
+          return;
+        }
+
         setItemStages((prev) => {
           const nextStages = { ...prev };
           if (data.key) nextStages[data.key] = data.stage;
           if (data.dishId) {
             nextStages[data.dishId] = data.stage;
-            nextStages[`dish-${data.dishId}`] = data.stage;
+            nextStages[`dish-${data.dishId.replace('dish-', '')}`] = data.stage;
+            nextStages[data.dishId.replace('dish-', '')] = data.stage;
+          }
+          if (data.dishName) {
+            nextStages[data.dishName.toLowerCase()] = data.stage;
           }
           return nextStages;
         });

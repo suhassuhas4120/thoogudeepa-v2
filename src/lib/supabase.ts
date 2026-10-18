@@ -334,13 +334,15 @@ export const realtimeBridge = {
       // 1. Update in local orders list
       const orders = getLocalOrdersList();
       const cleanChair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
+      const tNum = meta?.ticketNumber || '';
       const normDishNum = (meta?.dishId || itemIdOrKey).replace(/[^0-9]/g, '');
       const normName = meta?.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
 
       orders.forEach((o) => {
         const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
         const isTargetChair = !cleanChair || oChair === cleanChair || o.order.chair_id === meta?.chairId;
-        if (isTargetChair) {
+        const isTargetTicket = !tNum || o.order.ticket_number === tNum;
+        if (isTargetChair && isTargetTicket) {
           o.items.forEach((it) => {
             const itDishNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
             const itNormName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
@@ -1017,6 +1019,7 @@ export const realtimeBridge = {
           dishId: data.dishId,
           chairId: data.chairId,
           ticketNumber: data.ticketNumber,
+          dishName: data.dishName,
         });
       } else if (data.type === 'TICKET_DISPATCHED' && callbacks.onTicketDispatched) {
         callbacks.onTicketDispatched({ ticketNumber: data.ticketNumber, chairId: data.chairId });

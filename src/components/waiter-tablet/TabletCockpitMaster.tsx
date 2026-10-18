@@ -55,6 +55,9 @@ export const TabletCockpitMaster: React.FC = () => {
 
   // Active Target Seat & Cockpit Right Pane Mode ('ticket' or 'bill')
   const [activeSeatName, setActiveSeatName] = useState<string>('Seat 02: Walk-In');
+  const activeSeatNameRef = useRef<string>(activeSeatName);
+  activeSeatNameRef.current = activeSeatName;
+  const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [activeSeatCustomer, setActiveSeatCustomer] = useState<string>('Walk-In Guest');
   const [activeSeatAmount, setActiveSeatAmount] = useState<number>(1029);
   const [isDining, setIsDining] = useState<boolean>(false);
@@ -130,12 +133,29 @@ export const TabletCockpitMaster: React.FC = () => {
       onNewOrder: () => { refreshSeats(); refreshAlerts(); },
       onStageChange: (data) => {
         refreshAlerts();
+        const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+
+        // Only update ticketItems if this stage change belongs to the currently selected seat
+        if (targetChair && cleanCurSeat && targetChair !== cleanCurSeat) {
+          return;
+        }
+
+        const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
+        const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
         setTicketItems(prev => prev.map(item => {
-          if (
+          const itemNum = String(item.id).replace(/[^0-9]/g, '');
+          const itemName = item.name.toLowerCase().replace(/donne\s*/i, '').trim();
+
+          const matches =
             String(item.id) === data.dishId ||
-            (data.dishName && item.name.toLowerCase() === data.dishName.toLowerCase()) ||
-            data.key === String(item.id)
-          ) {
+            data.key === String(item.id) ||
+            (targetNum && itemNum === targetNum) ||
+            (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
+
+          if (matches) {
             const nextStatus: KitchenStatus =
               data.stage === 'READY' ? 'READY' :
               data.stage === 'PREP' ? 'PREPARING' :
@@ -242,6 +262,9 @@ export const TabletCockpitMaster: React.FC = () => {
     } else {
       try {
         const details = await realtimeBridge.getOrderForSeat(cleanChair);
+        if (details.order?.ticket_number) {
+          setActiveTicketNumber(details.order.ticket_number);
+        }
         if (details.items && details.items.length > 0) {
           const qtyMap: Record<number, number> = {};
           const items: TicketItem[] = details.items.map((it, idx) => {
@@ -336,12 +359,14 @@ export const TabletCockpitMaster: React.FC = () => {
 
     realtimeBridge.updateStage(`dish-${itemId}`, 'SERVED', {
       chairId: cleanChair,
+      ticketNumber: activeTicketNumber || undefined,
       dishId: `dish-${itemId}`,
       dishName: dish?.name
     });
 
     realtimeBridge.updateStage(String(itemId), 'SERVED', {
       chairId: cleanChair,
+      ticketNumber: activeTicketNumber || undefined,
       dishId: String(itemId),
       dishName: dish?.name
     });

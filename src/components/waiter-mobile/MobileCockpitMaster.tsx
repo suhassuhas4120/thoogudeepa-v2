@@ -67,6 +67,9 @@ export const MobileCockpitMaster: React.FC = () => {
   // Floor Seats State (Generated for active waiter)
   const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
   const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
+  const selectedSeatRef = useRef<string>(selectedSeatNumber);
+  selectedSeatRef.current = selectedSeatNumber;
+  const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
 
@@ -150,12 +153,29 @@ export const MobileCockpitMaster: React.FC = () => {
       onNewOrder: () => { refreshSeats(); refreshAlerts(); },
       onStageChange: (data) => {
         refreshAlerts();
+        const curSeat = selectedSeatRef.current || '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+
+        // Only update cartItems if the event belongs to the currently opened seat
+        if (targetChair && cleanCurSeat && targetChair !== cleanCurSeat) {
+          return;
+        }
+
+        const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
+        const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
         setCartItems(prev => prev.map(item => {
-          if (
+          const itemNum = String(item.menuItem.id).replace(/[^0-9]/g, '');
+          const itemName = item.menuItem.name.toLowerCase().replace(/donne\s*/i, '').trim();
+
+          const matches =
             String(item.menuItem.id) === data.dishId ||
-            (data.dishName && item.menuItem.name.toLowerCase() === data.dishName.toLowerCase()) ||
-            data.key === String(item.menuItem.id)
-          ) {
+            data.key === String(item.menuItem.id) ||
+            (targetNum && itemNum === targetNum) ||
+            (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
+
+          if (matches) {
             return { ...item, stage: data.stage };
           }
           return item;
@@ -265,6 +285,9 @@ export const MobileCockpitMaster: React.FC = () => {
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
     try {
       const details = await realtimeBridge.getOrderForSeat(cleanChair);
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      }
       if (details.items && details.items.length > 0) {
         setCartItems(details.items.map(it => {
           const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
@@ -397,6 +420,7 @@ export const MobileCockpitMaster: React.FC = () => {
 
     realtimeBridge.updateStage(dishId, 'SERVED', {
       chairId: cleanChair,
+      ticketNumber: activeTicketNumber || undefined,
       dishId: dishId,
       dishName: dish?.menuItem?.name
     });

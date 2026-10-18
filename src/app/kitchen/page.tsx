@@ -88,6 +88,7 @@ export default function KitchenDisplaySystemPage() {
         const stages: Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'> = {};
         (orders || []).forEach((o) => {
           const chair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
+          const tNum = o.order.ticket_number || '';
           let cachedStages: Record<string, string> = {};
           if (typeof window !== 'undefined' && chair) {
             try {
@@ -96,36 +97,29 @@ export default function KitchenDisplaySystemPage() {
           }
 
           o.items.forEach((it) => {
-            const key = it.id || `${it.dish_id}-${it.chair_id}`;
             const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
             const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
 
-            const effStage =
-              (cachedStages[key] as any) ||
+            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' =
+              (chair && tNum && it.dish_id && cachedStages[`${chair}-${tNum}-${it.dish_id}`] as any) ||
+              (chair && it.dish_id && cachedStages[`${chair}-${it.dish_id}`] as any) ||
+              (chair && dNum && cachedStages[`${chair}-${dNum}`] as any) ||
+              (chair && dName && cachedStages[`${chair}-${dName}`] as any) ||
               (it.dish_id && cachedStages[it.dish_id] as any) ||
               (dNum && cachedStages[dNum] as any) ||
               (dName && cachedStages[dName] as any) ||
               it.stage ||
               'PLACED';
 
-            stages[key] = effStage;
-            if (it.dish_id) stages[it.dish_id] = effStage;
-            if (dNum) {
-              stages[dNum] = effStage;
-              stages[`dish-${dNum}`] = effStage;
-              if (chair) {
-                stages[`${dNum}-${chair}`] = effStage;
-                stages[`dish-${dNum}-${chair}`] = effStage;
-              }
-            }
-            if (dName) {
-              stages[dName] = effStage;
-              if (chair) stages[`${dName}-${chair}`] = effStage;
-            }
-            if (it.dish_name) {
-              const ln = it.dish_name.toLowerCase();
-              stages[ln] = effStage;
-              if (chair) stages[`${ln}-${chair}`] = effStage;
+            it.stage = effStage;
+
+            if (chair) {
+              if (tNum && it.dish_id) stages[`${chair}-${tNum}-${it.dish_id}`] = effStage;
+              if (tNum && dNum) stages[`${chair}-${tNum}-${dNum}`] = effStage;
+              if (it.dish_id) stages[`${chair}-${it.dish_id}`] = effStage;
+              if (dNum) stages[`${chair}-${dNum}`] = effStage;
+              if (dName) stages[`${chair}-${dName}`] = effStage;
+              if (it.id) stages[`${chair}-${it.id}`] = effStage;
             }
           });
         });
@@ -147,79 +141,46 @@ export default function KitchenDisplaySystemPage() {
         });
       },
       onStageChange: (data) => {
+        const chair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        const tNum = data.ticketNumber || '';
+        const dId = data.dishId || data.key || '';
+        const num = dId.replace(/[^0-9]/g, '');
+        const cleanName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+        // Update itemStages strictly under chair-scoped keys to isolate seats
         setItemStages((prev) => {
           const next = { ...prev };
-          const dId = data.dishId || data.key;
-          const chair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
-          const num = dId.replace(/[^0-9]/g, '');
-
-          // When stage is SERVED, strictly record under chair-specific keys to prevent bleed across seats
-          if (data.stage === 'SERVED') {
-            if (chair) {
-              next[`${data.key}-${chair}`] = data.stage;
-              if (dId) {
-                next[`${dId}-${chair}`] = data.stage;
-                next[`dish-${dId.replace('dish-', '')}-${chair}`] = data.stage;
-                next[`${dId.replace('dish-', '')}-${chair}`] = data.stage;
-              }
-              if (num) {
-                next[`${num}-${chair}`] = data.stage;
-                next[`dish-${num}-${chair}`] = data.stage;
-              }
-              if (data.dishName) {
-                const lowName = data.dishName.toLowerCase();
-                const cleanName = lowName.replace(/donne\s*/i, '').trim();
-                next[`${lowName}-${chair}`] = data.stage;
-                next[`${cleanName}-${chair}`] = data.stage;
-              }
-            } else {
-              next[data.key] = data.stage;
+          if (chair) {
+            if (tNum && dId) next[`${chair}-${tNum}-${dId}`] = data.stage;
+            if (tNum && num) next[`${chair}-${tNum}-${num}`] = data.stage;
+            if (dId) {
+              next[`${chair}-${dId}`] = data.stage;
+              next[`${chair}-dish-${dId.replace('dish-', '')}`] = data.stage;
+              next[`${chair}-${dId.replace('dish-', '')}`] = data.stage;
             }
-            return next;
-          }
-
-          next[data.key] = data.stage;
-          if (dId) {
-            next[dId] = data.stage;
-            next[`dish-${dId.replace('dish-', '')}`] = data.stage;
-            next[dId.replace('dish-', '')] = data.stage;
-            if (chair) {
-              next[`${dId}-${chair}`] = data.stage;
-              next[`dish-${dId.replace('dish-', '')}-${chair}`] = data.stage;
-              next[`${dId.replace('dish-', '')}-${chair}`] = data.stage;
+            if (num) {
+              next[`${chair}-${num}`] = data.stage;
+              next[`${chair}-dish-${num}`] = data.stage;
             }
-          }
-          if (num) {
-            next[num] = data.stage;
-            next[`dish-${num}`] = data.stage;
-            next[`menu-0${num}`] = data.stage;
-            next[`menu-${num}`] = data.stage;
-            if (chair) {
-              next[`${num}-${chair}`] = data.stage;
-              next[`dish-${num}-${chair}`] = data.stage;
+            if (cleanName) {
+              next[`${chair}-${cleanName}`] = data.stage;
             }
-          }
-          if (data.dishName) {
-            const lowName = data.dishName.toLowerCase();
-            const cleanName = lowName.replace(/donne\s*/i, '').trim();
-            next[lowName] = data.stage;
-            next[cleanName] = data.stage;
-            if (chair) {
-              next[`${lowName}-${chair}`] = data.stage;
-              next[`${cleanName}-${chair}`] = data.stage;
+            if (data.key) {
+              next[`${chair}-${data.key}`] = data.stage;
             }
           }
           return next;
         });
 
+        // Update activeOrders items strictly for the matching seat and ticket
         setActiveOrders((prev) =>
           prev.map((o) => {
             const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
-            const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
-            if (targetChair && oChair !== targetChair) return o;
+            if (chair && oChair !== chair) return o;
+            if (tNum && o.order.ticket_number && o.order.ticket_number !== tNum) return o;
 
-            const targetNum = (data.dishId || data.key).replace(/[^0-9]/g, '');
-            const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+            const targetNum = num;
+            const targetName = cleanName;
 
             const updatedItems = o.items.map((it) => {
               const itNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
@@ -288,7 +249,63 @@ export default function KitchenDisplaySystemPage() {
     stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
     meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string }
   ) => {
-    setItemStages((prev) => ({ ...prev, [itemKey]: stage }));
+    const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
+    const tNum = meta?.ticketNumber || '';
+    const dId = meta?.dishId || itemKey;
+    const num = dId.replace(/[^0-9]/g, '');
+    const cleanName = meta?.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+    // 1. Update React itemStages using strict chair-scoped keys
+    setItemStages((prev) => {
+      const next = { ...prev };
+      if (chair) {
+        if (tNum && dId) next[`${chair}-${tNum}-${dId}`] = stage;
+        if (tNum && num) next[`${chair}-${tNum}-${num}`] = stage;
+        if (dId) {
+          next[`${chair}-${dId}`] = stage;
+          next[`${chair}-dish-${dId.replace('dish-', '')}`] = stage;
+          next[`${chair}-${dId.replace('dish-', '')}`] = stage;
+        }
+        if (num) {
+          next[`${chair}-${num}`] = stage;
+          next[`${chair}-dish-${num}`] = stage;
+        }
+        if (cleanName) {
+          next[`${chair}-${cleanName}`] = stage;
+        }
+        next[`${chair}-${itemKey}`] = stage;
+      }
+      return next;
+    });
+
+    // 2. Update activeOrders items strictly for this chair and ticket
+    setActiveOrders((prev) =>
+      prev.map((o) => {
+        const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
+        if (chair && oChair !== chair) return o;
+        if (tNum && o.order.ticket_number && o.order.ticket_number !== tNum) return o;
+
+        const updatedItems = o.items.map((it) => {
+          const itNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+          const itName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+          const matches =
+            it.id === itemKey ||
+            it.dish_id === itemKey ||
+            it.dish_id === dId ||
+            (num && itNum === num) ||
+            (cleanName && (itName === cleanName || itName.includes(cleanName) || cleanName.includes(itName)));
+
+          if (matches) {
+            return { ...it, stage };
+          }
+          return it;
+        });
+
+        return { ...o, items: updatedItems };
+      })
+    );
+
+    // 3. Broadcast to all other devices with full seat, ticket, and dish metadata
     realtimeBridge.updateStage(itemKey, stage, meta);
   };
 
@@ -586,6 +603,7 @@ export default function KitchenDisplaySystemPage() {
             const order = active.order;
             const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
 
+            const tNum = order.ticket_number || '';
             const unservedItems = active.items.filter((it, idx) => {
               const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
               const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
@@ -593,13 +611,14 @@ export default function KitchenDisplaySystemPage() {
 
               const isServed =
                 it.stage === 'SERVED' ||
-                (cleanChair && itemStages[`${itemKey}-${cleanChair}`] === 'SERVED') ||
-                (cleanChair && it.dish_id && itemStages[`${it.dish_id}-${cleanChair}`] === 'SERVED') ||
-                (cleanChair && dNum && itemStages[`${dNum}-${cleanChair}`] === 'SERVED') ||
-                (cleanChair && dNum && itemStages[`dish-${dNum}-${cleanChair}`] === 'SERVED') ||
-                (cleanChair && dName && itemStages[`${dName}-${cleanChair}`] === 'SERVED') ||
-                (cleanChair && it.dish_name && itemStages[`${it.dish_name.toLowerCase()}-${cleanChair}`] === 'SERVED') ||
-                itemStages[itemKey] === 'SERVED';
+                (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`] === 'SERVED') ||
+                (cleanChair && tNum && dNum && itemStages[`${cleanChair}-${tNum}-${dNum}`] === 'SERVED') ||
+                (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`] === 'SERVED') ||
+                (cleanChair && dNum && itemStages[`${cleanChair}-${dNum}`] === 'SERVED') ||
+                (cleanChair && dNum && itemStages[`${cleanChair}-dish-${dNum}`] === 'SERVED') ||
+                (cleanChair && dName && itemStages[`${cleanChair}-${dName}`] === 'SERVED') ||
+                (cleanChair && it.dish_name && itemStages[`${cleanChair}-${it.dish_name.toLowerCase()}`] === 'SERVED') ||
+                (cleanChair && itemStages[`${cleanChair}-${itemKey}`] === 'SERVED');
 
               return !isServed;
             });
@@ -682,12 +701,20 @@ export default function KitchenDisplaySystemPage() {
                         ) : (
                           active.unservedItems.map((it, idx) => {
                             const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
+                            const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
+                            const tNum = order.ticket_number || '';
+                            const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+                            const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
                             const currentStage =
-                              itemStages[itemKey] ||
-                              (it.dish_id && itemStages[it.dish_id]) ||
-                              (it.dish_id && it.chair_id && itemStages[`${it.dish_id}-${it.chair_id}`]) ||
-                              (it.dish_id && order.chair_id && itemStages[`${it.dish_id}-${order.chair_id}`]) ||
                               it.stage ||
+                              (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`]) ||
+                              (cleanChair && tNum && dNum && itemStages[`${cleanChair}-${tNum}-${dNum}`]) ||
+                              (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`]) ||
+                              (cleanChair && dNum && itemStages[`${cleanChair}-${dNum}`]) ||
+                              (cleanChair && dNum && itemStages[`${cleanChair}-dish-${dNum}`]) ||
+                              (cleanChair && dName && itemStages[`${cleanChair}-${dName}`]) ||
+                              (cleanChair && itemStages[`${cleanChair}-${itemKey}`]) ||
                               'PLACED';
 
                             return (
