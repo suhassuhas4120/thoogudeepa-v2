@@ -109,6 +109,57 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 
   const cashChange = Math.max(0, cashTendered - grandPayable);
 
+  // Dynamic cash tender quick presets similar and close to the bill amount
+  const dynamicPresets = useMemo(() => {
+    if (grandPayable <= 0) return [100, 200, 500];
+    const presets = new Set<number>();
+    
+    // Always include Exact bill amount
+    presets.add(grandPayable);
+
+    // Next round-up steps similar and close to the bill
+    if (grandPayable < 200) {
+      const round10 = Math.ceil(grandPayable / 10) * 10;
+      if (round10 > grandPayable) presets.add(round10);
+      const round50 = Math.ceil(grandPayable / 50) * 50;
+      if (round50 > grandPayable) presets.add(round50);
+      const round100 = Math.ceil(grandPayable / 100) * 100;
+      if (round100 > grandPayable) presets.add(round100);
+      [200, 500].forEach(note => {
+        if (note > grandPayable) presets.add(note);
+      });
+    } else if (grandPayable < 500) {
+      const round50 = Math.ceil(grandPayable / 50) * 50;
+      if (round50 > grandPayable) presets.add(round50);
+      const round100 = Math.ceil(grandPayable / 100) * 100;
+      if (round100 > grandPayable) presets.add(round100);
+      presets.add(500);
+      presets.add(1000);
+    } else if (grandPayable < 1000) {
+      const round50 = Math.ceil(grandPayable / 50) * 50;
+      if (round50 > grandPayable) presets.add(round50);
+      const round100 = Math.ceil(grandPayable / 100) * 100;
+      if (round100 > grandPayable) presets.add(round100);
+      presets.add(1000);
+      presets.add(2000);
+    } else {
+      const round50 = Math.ceil(grandPayable / 50) * 50;
+      if (round50 > grandPayable) presets.add(round50);
+      const round100 = Math.ceil(grandPayable / 100) * 100;
+      if (round100 > grandPayable) presets.add(round100);
+      const round500 = Math.ceil(grandPayable / 500) * 500;
+      if (round500 > grandPayable) presets.add(round500);
+      if (grandPayable < 2000) {
+        presets.add(2000);
+      } else {
+        const next1000 = Math.ceil((grandPayable + 1) / 1000) * 1000;
+        presets.add(next1000);
+      }
+    }
+
+    return Array.from(presets).sort((a, b) => a - b).slice(0, 5);
+  }, [grandPayable]);
+
   // UPI QR Code Generator URL with added GST grand total
   const qrUrl = useMemo(() => {
     const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${grandPayable}&cu=INR&tn=${encodeURIComponent(seatName)}`;
@@ -218,7 +269,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             {/* Cash Tab */}
             <button
               type="button"
-              onClick={() => { setPaymentMode('cash'); setIsPaymentReceived(false); }}
+              onClick={() => { setPaymentMode('cash'); setIsPaymentReceived(false); setCashTendered(grandPayable); }}
               className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'cash'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
@@ -256,47 +307,46 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               </span>
             </div>
 
-            {/* Cash Tender Input */}
+            {/* Cash Tender Input (Exact total defaulted, spinner controls removed) */}
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-600">Cash Received:</span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <span className="font-bold text-slate-500">₹</span>
                 <input
-                  type="number"
-                  value={cashTendered}
-                  onChange={(e) => setCashTendered(Number(e.target.value) || 0)}
-                  className="w-24 px-2 py-1 text-xs font-black bg-white border border-slate-300 rounded-lg text-right outline-none text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={cashTendered === 0 ? '' : cashTendered}
+                  placeholder={grandPayable.toString()}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    setCashTendered(raw ? parseInt(raw, 10) : 0);
+                  }}
+                  className="w-28 px-2.5 py-1 text-xs font-black bg-white border border-slate-300 rounded-lg text-right outline-none text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-2xs"
                 />
               </div>
             </div>
 
-            {/* Quick Denominations with Exact Presets */}
+            {/* Quick Denominations with Similar / Dynamic Presets */}
             <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setCashTendered(grandPayable)}
-                className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
-                  cashTendered === grandPayable
-                    ? 'bg-amber-500 text-slate-950 font-black border-amber-500'
-                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                Exact (₹{grandPayable})
-              </button>
-              {[500, 1000, 2000].map(val => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setCashTendered(val)}
-                  className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
-                    cashTendered === val
-                      ? 'bg-amber-500 text-slate-950 font-black border-amber-500'
-                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  ₹{val}
-                </button>
-              ))}
+              {dynamicPresets.map((val) => {
+                const isExact = val === grandPayable;
+                const isSelected = cashTendered === val;
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setCashTendered(val)}
+                    className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs ring-1 ring-amber-600/30'
+                        : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
+                    }`}
+                  >
+                    {isExact ? `Exact (₹${val.toLocaleString('en-IN')})` : `₹${val.toLocaleString('en-IN')}`}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Change Due or Remaining Due */}
