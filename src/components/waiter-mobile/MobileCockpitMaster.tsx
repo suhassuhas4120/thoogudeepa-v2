@@ -58,15 +58,41 @@ import MobileBottomNav from './MobileBottomNav';
 
 export const MobileCockpitMaster: React.FC = () => {
   // Navigation & Screen State
-  const [activeScreen, setActiveScreen] = useState<MobileScreenId>('login');
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(DEFAULT_STAFF_ACCOUNTS[0]);
+  const [activeScreen, setActiveScreen] = useState<MobileScreenId>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('thoogudeepa_waiter_mobile_screen') as MobileScreenId;
+      if (saved && ['seats', 'order', 'cart', 'bill', 'alerts', 'profile'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'login';
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('thoogudeepa_waiter_mobile_auth') === 'true';
+    }
+    return false;
+  });
+  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return DEFAULT_STAFF_ACCOUNTS[0];
+  });
   const activeAccountRef = useRef<WaiterAuthAccount>(activeWaiterAccount);
   activeAccountRef.current = activeWaiterAccount;
 
   // Floor Seats State (Generated for active waiter)
   const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
-  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
+  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('thoogudeepa_waiter_mobile_seat') || 'Seat 02';
+    }
+    return 'Seat 02';
+  });
   const selectedSeatRef = useRef<string>(selectedSeatNumber);
   selectedSeatRef.current = selectedSeatNumber;
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
@@ -74,10 +100,7 @@ export const MobileCockpitMaster: React.FC = () => {
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
 
   // Cart & KOT State
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { menuItem: SAMPLE_MENU_ITEMS[0], quantity: 2, lineTotal: 520 },
-    { menuItem: SAMPLE_MENU_ITEMS[2], quantity: 1, lineTotal: 220 }
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   // Floor Service Alerts State
   const [alerts, setAlerts] = useState<FloorAlert[]>([]);
@@ -208,6 +231,58 @@ export const MobileCockpitMaster: React.FC = () => {
 
     return () => unsub();
   }, [refreshSeats, refreshAlerts]);
+
+  // Persist navigation and auth state to survive browser refresh
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_screen', activeScreen);
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_auth', String(isAuthenticated));
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_seat', selectedSeatNumber);
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_account', JSON.stringify(activeWaiterAccount));
+    }
+  }, [activeScreen, isAuthenticated, selectedSeatNumber, activeWaiterAccount]);
+
+  // Synchronize cart items with seat order data on mount or when seat changes
+  useEffect(() => {
+    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
+    if (!cleanChair) return;
+
+    let isMounted = true;
+    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
+      if (!isMounted) return;
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      }
+      if (details.items && details.items.length > 0) {
+        setCartItems(details.items.map(it => {
+          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+            id: String(it.dish_id || '999'),
+            name: it.dish_name,
+            kannadaName: '',
+            price: it.price,
+            category: 'biryani',
+            dietary: 'non_veg',
+            description: 'Authentic preparation',
+            prepTimeMinutes: 15,
+            isAvailable: true,
+            isBestseller: false
+          };
+          return {
+            menuItem: {
+              ...foundMenu,
+              id: it.dish_id || foundMenu.id,
+              name: it.dish_name || foundMenu.name
+            },
+            quantity: it.quantity,
+            lineTotal: it.price * it.quantity,
+            stage: it.stage as any
+          };
+        }));
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [selectedSeatNumber]);
 
   // Waiter Profile Telemetry
   const waiterProfile: WaiterProfile = useMemo(() => ({
@@ -415,6 +490,7 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleServeItemMobile = useCallback((dishId: string) => {
     const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
     const dish = cartItems.find(i => String(i.menuItem.id) === dishId);
+    const cleanDishNum = dishId.replace(/[^0-9]/g, '');
 
     setCartItems(prev => prev.map(i => String(i.menuItem.id) === dishId ? { ...i, stage: 'SERVED' } : i));
 
@@ -425,6 +501,21 @@ export const MobileCockpitMaster: React.FC = () => {
       dishName: dish?.menuItem?.name
     });
 
+    if (cleanDishNum) {
+      realtimeBridge.updateStage(`dish-${cleanDishNum}`, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: activeTicketNumber || undefined,
+        dishId: `dish-${cleanDishNum}`,
+        dishName: dish?.menuItem?.name
+      });
+      realtimeBridge.updateStage(cleanDishNum, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: activeTicketNumber || undefined,
+        dishId: cleanDishNum,
+        dishName: dish?.menuItem?.name
+      });
+    }
+
     const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === selectedSeatNumber) && a.type === 'kitchen_ready');
     if (matchingAlert) {
       realtimeBridge.resolveServiceAlert(matchingAlert.id);
@@ -432,7 +523,7 @@ export const MobileCockpitMaster: React.FC = () => {
     }
 
     showToast(`Marked ${dish?.menuItem?.name || 'dish'} as served!`);
-  }, [selectedSeatNumber, cartItems, alerts, showToast]);
+  }, [selectedSeatNumber, cartItems, alerts, activeTicketNumber, showToast]);
 
   // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {

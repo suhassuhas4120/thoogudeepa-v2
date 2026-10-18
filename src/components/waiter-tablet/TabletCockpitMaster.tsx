@@ -43,18 +43,39 @@ import { TabletProfileShift } from './TabletProfileShift';
 
 export const TabletCockpitMaster: React.FC = () => {
   // Navigation & Screen View State
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>('login');
-  const [profile, setProfile] = useState(INITIAL_WAITER_PROFILE);
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('thoogudeepa_waiter_tablet_screen') as ScreenId;
+      if (saved && ['floor', 'order', 'profile'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'login';
+  });
+  const [profile, setProfile] = useState<typeof INITIAL_WAITER_PROFILE>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem('thoogudeepa_waiter_tablet_profile');
+        if (raw) return JSON.parse(raw);
+      } catch {}
+    }
+    return INITIAL_WAITER_PROFILE;
+  });
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
   const [seats, setSeats] = useState<SeatItem[]>(INITIAL_SEATS);
-  const [ticketItems, setTicketItems] = useState<TicketItem[]>(INITIAL_TICKET_ITEMS);
+  const [ticketItems, setTicketItems] = useState<TicketItem[]>([]);
   const [alerts, setAlerts] = useState<ServiceAlert[]>(INITIAL_ALERTS);
   const [shiftLogs, setShiftLogs] = useState(SHIFT_LOGS);
 
   // Active Target Seat & Cockpit Right Pane Mode ('ticket' or 'bill')
-  const [activeSeatName, setActiveSeatName] = useState<string>('Seat 02: Walk-In');
+  const [activeSeatName, setActiveSeatName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('thoogudeepa_waiter_tablet_seat') || 'Seat 02: Walk-In';
+    }
+    return 'Seat 02: Walk-In';
+  });
   const activeSeatNameRef = useRef<string>(activeSeatName);
   activeSeatNameRef.current = activeSeatName;
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
@@ -64,7 +85,7 @@ export const TabletCockpitMaster: React.FC = () => {
   const [rightPaneMode, setRightPaneMode] = useState<'ticket' | 'bill'>('ticket');
 
   // Menu Dish Steppers State (dishId -> quantity)
-  const [dishQuantities, setDishQuantities] = useState<Record<number, number>>({ 1: 2, 3: 1 });
+  const [dishQuantities, setDishQuantities] = useState<Record<number, number>>({});
 
   // Right-Side Alert Slide-Over Sheet State
   const [isAlertSheetOpen, setIsAlertSheetOpen] = useState<boolean>(false);
@@ -196,6 +217,56 @@ export const TabletCockpitMaster: React.FC = () => {
 
     return () => unsub();
   }, [refreshSeats, refreshAlerts]);
+
+  // Persist tablet navigation and seat state across browser reloads
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('thoogudeepa_waiter_tablet_screen', currentScreen);
+      sessionStorage.setItem('thoogudeepa_waiter_tablet_seat', activeSeatName);
+      sessionStorage.setItem('thoogudeepa_waiter_tablet_profile', JSON.stringify(profile));
+    }
+  }, [currentScreen, activeSeatName, profile]);
+
+  // Load real items and stages for active tablet seat on mount and whenever activeSeatName changes
+  useEffect(() => {
+    const activeSeatNum = activeSeatName.split(':')[0].trim();
+    const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
+    if (!cleanChair) return;
+
+    let isMounted = true;
+    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
+      if (!isMounted) return;
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      }
+      if (details.items && details.items.length > 0) {
+        const qtyMap: Record<number, number> = {};
+        const items: TicketItem[] = details.items.map((it, idx) => {
+          const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
+          qtyMap[numId] = it.quantity;
+          const dish = MENU_DISHES.find(d => d.id === numId);
+          const itStage = it.stage as string;
+          const currentItemStage: KitchenStatus =
+            itStage === 'READY' ? 'READY' :
+            itStage === 'PREP' ? 'PREPARING' :
+            itStage === 'REC' ? 'RECEIVED' :
+            itStage === 'SERVED' ? 'SERVED' : 'PLACED';
+          return {
+            id: numId,
+            name: it.dish_name,
+            quantity: it.quantity,
+            price: it.price,
+            imageUrl: dish?.imageUrl || '/logo.jpg',
+            status: currentItemStage
+          };
+        });
+        setDishQuantities(qtyMap);
+        setTicketItems(items);
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [activeSeatName]);
 
   // Cart & Pricing Calculations
   const cartCount = useMemo(() => Object.values(dishQuantities).reduce((acc, q) => acc + q, 0), [dishQuantities]);

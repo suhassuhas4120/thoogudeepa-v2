@@ -389,7 +389,22 @@ export const realtimeBridge = {
               existing[`menu-0${normDishNum}`] = stage;
               existing[`menu-${normDishNum}`] = stage;
             }
+            if (tNum) {
+              existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
+              if (meta?.dishId) existing[`${chair}-${tNum}-${meta.dishId}`] = stage;
+              if (normDishNum) existing[`${chair}-${tNum}-${normDishNum}`] = stage;
+            }
             localStorage.setItem(key, JSON.stringify(existing));
+
+            // Mirror to padded and unpadded keys to survive any seat formatting
+            const padded = chair.padStart(2, '0');
+            const unpadded = chair.replace(/^0+/, '');
+            if (padded !== chair) {
+              localStorage.setItem(`thoogudeepa_item_stages_${padded}`, JSON.stringify(existing));
+            }
+            if (unpadded !== chair) {
+              localStorage.setItem(`thoogudeepa_item_stages_${unpadded}`, JSON.stringify(existing));
+            }
           } catch {
             // Ignore storage errors
           }
@@ -413,14 +428,43 @@ export const realtimeBridge = {
           const cleanDishNum = dId.replace(/[^0-9]/g, '');
           const possibleDishIds = [dId, `dish-${cleanDishNum}`, cleanDishNum];
 
+          // Query matching order items by chair_id
           const { data: curList } = await supabase
             .from('order_items')
-            .select('id, dish_id, dish_name, addons, chair_id')
+            .select('id, dish_id, dish_name, addons, chair_id, order_id')
             .in('chair_id', possibleChairs);
 
-          if (curList && curList.length > 0) {
+          // Query matching active orders by chair_id
+          const { data: activeOrdersList } = await supabase
+            .from('orders')
+            .select('id, ticket_number, chair_id')
+            .in('chair_id', possibleChairs)
+            .in('status', ['pending', 'in_progress', 'ready']);
+
+          let combinedItemList = [...(curList || [])];
+          if (activeOrdersList && activeOrdersList.length > 0) {
+            const filteredOrders = meta.ticketNumber
+              ? activeOrdersList.filter((o) => o.ticket_number === meta.ticketNumber)
+              : activeOrdersList;
+            const targetIds = (filteredOrders.length > 0 ? filteredOrders : activeOrdersList).map((o) => o.id);
+            if (targetIds.length > 0) {
+              const { data: byOrderItems } = await supabase
+                .from('order_items')
+                .select('id, dish_id, dish_name, addons, chair_id, order_id')
+                .in('order_id', targetIds);
+              if (byOrderItems) {
+                combinedItemList = [...combinedItemList, ...byOrderItems];
+              }
+            }
+          }
+
+          if (combinedItemList.length > 0) {
+            const seenIds = new Set<string>();
             const normName = meta.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-            for (const c of curList) {
+            for (const c of combinedItemList) {
+              if (seenIds.has(c.id)) continue;
+              seenIds.add(c.id);
+
               const cDishNum = c.dish_id ? c.dish_id.replace(/[^0-9]/g, '') : '';
               const cName = c.dish_name ? c.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
               const isMatch =
@@ -568,6 +612,99 @@ export const realtimeBridge = {
     }
   },
 
+  // Hydrate order items with seat-persisted stages and local storage state
+  hydrateOrderItemStages(order: OrderRecord, items: OrderItemRecord[]): OrderItemRecord[] {
+    if (typeof window === 'undefined') return items;
+    try {
+      const chair = (order.chair_id || '').replace(/[^0-9]/g, '');
+      const padded = chair.padStart(2, '0');
+      const unpadded = chair.replace(/^0+/, '');
+      const tNum = order.ticket_number || '';
+
+      // Read seat-scoped stages from localStorage
+      let cached: Record<string, string> = {};
+      const keysToTry = [
+        chair ? `thoogudeepa_item_stages_${chair}` : '',
+        padded ? `thoogudeepa_item_stages_${padded}` : '',
+        unpadded ? `thoogudeepa_item_stages_${unpadded}` : '',
+      ].filter(Boolean);
+
+      for (const k of keysToTry) {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            cached = { ...cached, ...parsed };
+          }
+        } catch {}
+      }
+
+      // Check localOrders list in storage
+      const localOrders = getLocalOrdersList();
+      const matchingLocalOrder = localOrders.find((lo) => {
+        const loChair = (lo.order.chair_id || '').replace(/[^0-9]/g, '');
+        const matchChair = !chair || loChair === chair || loChair === padded || loChair === unpadded;
+        const matchTicket = !tNum || lo.order.ticket_number === tNum;
+        return matchChair && matchTicket;
+      });
+
+      return items.map((it) => {
+        const dId = it.dish_id || '';
+        const dNum = dId.replace(/[^0-9]/g, '');
+        const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+        const fullDishName = it.dish_name ? it.dish_name.toLowerCase() : '';
+
+        // Check matching item in local order
+        let localStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' | undefined;
+        if (matchingLocalOrder) {
+          const localMatch = matchingLocalOrder.items.find((lit) => {
+            const litNum = lit.dish_id ? lit.dish_id.replace(/[^0-9]/g, '') : '';
+            const litName = lit.dish_name ? lit.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+            return (
+              lit.id === it.id ||
+              lit.dish_id === it.dish_id ||
+              (dNum && litNum === dNum) ||
+              (dName && (litName === dName || litName.includes(dName) || dName.includes(litName)))
+            );
+          });
+          if (localMatch?.stage) {
+            localStage = localMatch.stage;
+          }
+        }
+
+        const cachedStage =
+          (chair && tNum && dId && cached[`${chair}-${tNum}-${dId}`]) ||
+          (chair && tNum && dNum && cached[`${chair}-${tNum}-${dNum}`]) ||
+          (chair && dId && cached[`${chair}-${dId}`]) ||
+          (chair && dNum && cached[`${chair}-${dNum}`]) ||
+          (chair && dNum && cached[`${chair}-dish-${dNum}`]) ||
+          (chair && dName && cached[`${chair}-${dName}`]) ||
+          (chair && fullDishName && cached[`${chair}-${fullDishName}`]) ||
+          (it.id && cached[it.id]) ||
+          (dId && cached[dId]) ||
+          (dNum && cached[dNum]) ||
+          (dName && cached[dName]);
+
+        if (localStage === 'SERVED' || cachedStage === 'SERVED') {
+          return { ...it, stage: 'SERVED' };
+        }
+        if (localStage === 'READY' || cachedStage === 'READY') {
+          return { ...it, stage: 'READY' };
+        }
+        if (localStage === 'PREP' || cachedStage === 'PREP') {
+          return { ...it, stage: 'PREP' };
+        }
+        if (localStage === 'REC' || cachedStage === 'REC') {
+          return { ...it, stage: 'REC' };
+        }
+        return it;
+      });
+    } catch (err) {
+      console.warn('Error hydrating order items:', err);
+      return items;
+    }
+  },
+
   // Fetch active orders (pending, in_progress, ready) with fallback and local hydration
   async getActiveOrders(): Promise<{ order: OrderRecord; items: OrderItemRecord[] }[]> {
     const localOrders = getLocalOrdersList();
@@ -591,29 +728,51 @@ export const realtimeBridge = {
             .select('*')
             .in('order_id', orderIds);
 
-          const remoteOrders = orders.map((o) => ({
-            order: o,
-            items: (items || []).filter((it) => it.order_id === o.id).map((it) => {
+          const remoteOrders = orders.map((o) => {
+            const rawItems = (items || []).filter((it) => it.order_id === o.id).map((it) => {
               const hasPlacedAddon = it.addons && Array.isArray(it.addons) && it.addons.includes('PLACED');
               return {
                 ...it,
                 stage: hasPlacedAddon ? ('PLACED' as const) : (it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'),
               };
-            }),
-          }));
+            });
+            const hydrated = this.hydrateOrderItemStages(o, rawItems);
+            return {
+              order: o,
+              items: hydrated,
+            };
+          });
 
           const remoteTickets = new Set(remoteOrders.map((ro) => ro.order.ticket_number));
           const merged = [
             ...remoteOrders,
-            ...localOrders.filter((lo) => !remoteTickets.has(lo.order.ticket_number)),
+            ...localOrders
+              .filter((lo) => !remoteTickets.has(lo.order.ticket_number))
+              .map((lo) => ({
+                order: lo.order,
+                items: this.hydrateOrderItemStages(lo.order, lo.items),
+              })),
           ];
+
+          setLocalOrdersList(merged);
           return merged;
         }
       }
-      return localOrders;
+
+      const hydratedLocal = localOrders.map((lo) => ({
+        order: lo.order,
+        items: this.hydrateOrderItemStages(lo.order, lo.items),
+      }));
+      setLocalOrdersList(hydratedLocal);
+      return hydratedLocal;
     } catch (err) {
       console.error('Error fetching active orders:', err);
-      return localOrders;
+      const hydratedLocal = localOrders.map((lo) => ({
+        order: lo.order,
+        items: this.hydrateOrderItemStages(lo.order, lo.items),
+      }));
+      setLocalOrdersList(hydratedLocal);
+      return hydratedLocal;
     }
   },
 
@@ -898,10 +1057,15 @@ export const realtimeBridge = {
     const unpadded = cleanId.replace(/^0+/, '');
     const activeOrders = await this.getActiveOrders();
     const found = activeOrders.find(
-      (o) => o.order.chair_id === padded || o.order.chair_id === unpadded || o.order.chair_id === chairId
+      (o) =>
+        o.order.chair_id === padded ||
+        o.order.chair_id === unpadded ||
+        o.order.chair_id === chairId ||
+        (o.order.chair_id && o.order.chair_id.replace(/[^0-9]/g, '') === cleanId)
     );
     if (found) {
-      return { order: found.order, items: found.items };
+      const hydratedItems = this.hydrateOrderItemStages(found.order, found.items);
+      return { order: found.order, items: hydratedItems };
     }
     return { order: null, items: [] };
   },
