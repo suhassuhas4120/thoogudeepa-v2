@@ -48,6 +48,15 @@ export default function OrderSummaryBillPage() {
   const tipAmount = selectedTip === '₹ 30' ? 30 : selectedTip === '₹ 50' ? 50 : selectedTip === '₹ 100' ? 100 : 0;
   const grandPayable = billTotal + tipAmount;
 
+  const sessionRef = React.useRef(session);
+  sessionRef.current = session;
+  const grandPayableRef = React.useRef(grandPayable);
+  grandPayableRef.current = grandPayable;
+  const itemsSubtotalRef = React.useRef(itemsSubtotal);
+  itemsSubtotalRef.current = itemsSubtotal;
+  const tipAmountRef = React.useRef(tipAmount);
+  tipAmountRef.current = tipAmount;
+
   useEffect(() => {
     // Restore any previously chosen tip for this seat
     if (typeof window !== 'undefined') {
@@ -131,36 +140,36 @@ export default function OrderSummaryBillPage() {
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
         if (cleanTarget === cleanCurrent || data.chairId === chairId) {
           const modeVal = data.paymentMethod || 'Cash';
-          const amtVal = data.amount || grandPayable;
+          const amtVal = data.amount || grandPayableRef.current;
           try {
             localStorage.setItem(
               `thoogudeepa_settled_receipt_${chairId}`,
               JSON.stringify({
-                ticketNumber: session?.ticketNumber || data.ticketNumber,
+                ticketNumber: sessionRef.current?.ticketNumber || data.ticketNumber,
                 seatId: chairId,
-                items: session?.items || [],
-                subtotal: itemsSubtotal,
-                tip: tipAmount,
+                items: sessionRef.current?.items || [],
+                subtotal: itemsSubtotalRef.current,
+                tip: tipAmountRef.current,
                 totalAmount: amtVal,
                 mode: modeVal,
                 settledAt: Date.now(),
               })
             );
           } catch {}
-          window.location.replace(`/seat/${chairId}/payment-success?mode=${encodeURIComponent(modeVal)}&amount=${amtVal}&tip=${tipAmount}`);
+          window.location.replace(`/seat/${chairId}/payment-success?mode=${encodeURIComponent(modeVal)}&amount=${amtVal}&tip=${tipAmountRef.current}`);
         }
       },
       onSeatOccupancyChange: (data) => {
         const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
         if ((cleanTarget === cleanCurrent || data.chairId === chairId) && !data.isOccupied) {
-          window.location.replace(`/seat/${chairId}/payment-success?mode=Cash&amount=${grandPayable}&tip=${tipAmount}`);
+          window.location.replace(`/seat/${chairId}/payment-success?mode=Cash&amount=${grandPayableRef.current}&tip=${tipAmountRef.current}`);
         }
       }
     });
 
     return () => unsub();
-  }, [chairId, grandPayable, itemsSubtotal, session, tipAmount]);
+  }, [chairId]);
 
   const handleCustomerConfirmQrPayment = async () => {
     setIsReportingPaid(true);
