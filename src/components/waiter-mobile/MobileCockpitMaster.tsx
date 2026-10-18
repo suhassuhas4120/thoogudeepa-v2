@@ -20,7 +20,7 @@
  * - Strict Line Count: Maintained strictly between 300 and 400 lines
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { 
   Info, 
   CheckCircle2, 
@@ -44,6 +44,7 @@ import {
   SAMPLE_MENU_ITEMS,
   RESTAURANT_CONSTANTS
 } from './types';
+import { realtimeBridge } from '../../lib/supabase';
 import MobileLogin from './MobileLogin';
 import MobileHeader from './MobileHeader';
 import MobileSeatGrid from './MobileSeatGrid';
@@ -73,49 +74,7 @@ export const MobileCockpitMaster: React.FC = () => {
   ]);
 
   // Floor Service Alerts State
-  const [alerts, setAlerts] = useState<FloorAlert[]>([
-    {
-      id: 'call-1',
-      type: 'customer_call',
-      seatNumber: 'Seat 03',
-      guestName: 'Rajesh V',
-      title: 'Water Refill Requested',
-      message: 'Water Refill Requested',
-      timeAgo: '2 mins ago',
-      isUrgent: false
-    },
-    {
-      id: 'call-2',
-      type: 'customer_call',
-      seatNumber: 'Seat 04',
-      guestName: 'Kiran R',
-      title: 'Bill Requested (₹840)',
-      message: 'Bill Requested (₹840)',
-      timeAgo: '1 min ago',
-      billAmount: 840,
-      isUrgent: true
-    },
-    {
-      id: 'kitchen-1',
-      type: 'kitchen_ready',
-      seatNumber: 'Seat 01',
-      title: '2x Chicken Donne Biryani',
-      message: 'Freshly cooked & plated in donne pot',
-      timeAgo: '1 min ago',
-      kotNumber: 'KOT #108',
-      isUrgent: false
-    },
-    {
-      id: 'kitchen-2',
-      type: 'kitchen_ready',
-      seatNumber: 'Seat 05',
-      title: '1x Chilli Chicken Dry',
-      message: 'Pass counter ready',
-      timeAgo: 'Just now',
-      kotNumber: 'KOT #109',
-      isUrgent: false
-    }
-  ]);
+  const [alerts, setAlerts] = useState<FloorAlert[]>([]);
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -127,6 +86,81 @@ export const MobileCockpitMaster: React.FC = () => {
       setToastMessage(prev => (prev === msg ? null : prev));
     }, 2600);
   }, []);
+
+  const refreshSeats = useCallback(async () => {
+    try {
+      const floorData = await realtimeBridge.getFloorSeats();
+      setSeats(floorData.map(f => ({
+        id: f.id,
+        seatNumber: f.seatNumber,
+        numericId: f.numericId,
+        status: f.status,
+        guestName: f.guestName,
+        diningDuration: f.diningDuration,
+        itemCount: f.itemCount,
+        runningTotal: f.runningTotal,
+        hasBillRequest: f.hasBillRequest,
+        zone: f.zone
+      })));
+    } catch (err) {
+      console.error('Error loading seats:', err);
+    }
+  }, []);
+
+  const refreshAlerts = useCallback(async () => {
+    try {
+      const activeAlerts = await realtimeBridge.getServiceAlerts();
+      setAlerts(activeAlerts.filter(a => !a.isResolved).map(a => ({
+        id: a.id,
+        type: a.type,
+        seatNumber: a.seatNumber,
+        guestName: a.guestName,
+        title: a.title,
+        message: a.message,
+        timeAgo: a.timeAgo,
+        billAmount: a.billAmount,
+        kotNumber: a.kotNumber,
+        isUrgent: a.isUrgent
+      })));
+    } catch (err) {
+      console.error('Error loading alerts:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSeats();
+    refreshAlerts();
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onNewOrder: () => { refreshSeats(); refreshAlerts(); },
+      onStageChange: () => { refreshAlerts(); },
+      onTicketDispatched: () => { refreshAlerts(); },
+      onSeatOccupancyChange: () => { refreshSeats(); },
+      onNewAlert: (alert) => {
+        setAlerts(prev => {
+          if (prev.some(a => a.id === alert.id)) return prev;
+          return [{
+            id: alert.id,
+            type: alert.type,
+            seatNumber: alert.seatNumber,
+            guestName: alert.guestName,
+            title: alert.title,
+            message: alert.message,
+            timeAgo: alert.timeAgo,
+            billAmount: alert.billAmount,
+            kotNumber: alert.kotNumber,
+            isUrgent: alert.isUrgent
+          }, ...prev];
+        });
+      },
+      onResolveAlert: (alertId) => { setAlerts(prev => prev.filter(a => a.id !== alertId)); },
+      onBillRequested: () => { refreshSeats(); refreshAlerts(); },
+      onBillSettled: () => { refreshSeats(); refreshAlerts(); },
+      onClearAll: () => { refreshSeats(); refreshAlerts(); }
+    });
+
+    return () => unsub();
+  }, [refreshSeats, refreshAlerts]);
 
   // Waiter Profile Telemetry
   const waiterProfile: WaiterProfile = useMemo(() => ({
@@ -164,14 +198,42 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleOpenTakeOrder = useCallback((seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Walk-In Guest');
+    setCartItems([]);
     setActiveScreen('order');
     showToast(`Taking new order for ${seatNum}`);
   }, [showToast]);
 
   // Handle viewing live cart for occupied seat
-  const handleOpenViewOrder = useCallback((seatNum: string, guest?: string) => {
+  const handleOpenViewOrder = useCallback(async (seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Dining Guest');
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    try {
+      const details = await realtimeBridge.getOrderForSeat(cleanChair);
+      if (details.items && details.items.length > 0) {
+        setCartItems(details.items.map(it => {
+          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+            id: String(it.dish_id || '999'),
+            name: it.dish_name,
+            kannadaName: '',
+            price: it.price,
+            category: 'biryani',
+            dietary: 'non_veg',
+            description: 'Authentic preparation',
+            prepTimeMinutes: 15,
+            isAvailable: true,
+            isBestseller: false
+          };
+          return {
+            menuItem: foundMenu,
+            quantity: it.quantity,
+            lineTotal: it.price * it.quantity
+          };
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching order for seat:', err);
+    }
     setActiveScreen('cart');
     showToast(`Viewing live order cart for ${seatNum}`);
   }, [showToast]);
@@ -210,33 +272,67 @@ export const MobileCockpitMaster: React.FC = () => {
     });
   }, [showToast]);
 
-  // Fire KOT submission
+  // Fire KOT submission to Kitchen and update seat
   const handleFireKOT = useCallback((instructions: string) => {
-    showToast(`KOT #110 successfully sent to Kitchen printer!`);
-    // Update seat status to occupied
+    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
+    const ticketNum = String(Date.now()).slice(-4);
+    const totalAmount = cartItems.reduce((acc, c) => acc + c.lineTotal, 0);
+
+    const orderRecord = {
+      ticket_number: ticketNum,
+      chair_id: cleanChair,
+      seat_label: selectedSeatNumber,
+      status: 'pending' as const,
+      total_amount: totalAmount,
+      device_token: `waiter-${activeWaiterAccount.name}`,
+    };
+
+    const orderItems = cartItems.map((c) => ({
+      chair_id: cleanChair,
+      seat_label: selectedSeatNumber,
+      dish_id: String(c.menuItem.id),
+      dish_name: c.menuItem.name,
+      quantity: c.quantity,
+      price: c.menuItem.price,
+      stage: 'REC' as const,
+      notes: instructions || '',
+      addons: [],
+    }));
+
+    realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
+      refreshSeats();
+    });
+
+    showToast(`KOT #${ticketNum} successfully sent to Kitchen printer!`);
     setSeats(prev => prev.map(s => s.seatNumber === selectedSeatNumber ? {
       ...s,
       status: 'occupied',
       guestName: selectedGuestName,
       itemCount: cartItems.length,
-      runningTotal: cartItems.reduce((acc, c) => acc + c.lineTotal, 0)
+      runningTotal: totalAmount
     } : s));
-  }, [selectedSeatNumber, selectedGuestName, cartItems, showToast]);
+  }, [selectedSeatNumber, selectedGuestName, cartItems, activeWaiterAccount, refreshSeats, showToast]);
 
   // Resolve Customer Call
   const handleAttendCall = useCallback((alertId: string) => {
+    realtimeBridge.resolveServiceAlert(alertId);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
     showToast('Customer call marked as Attended!');
   }, [showToast]);
 
   // Serve Kitchen Dish
   const handleServeDish = useCallback((alertId: string, dishName: string) => {
+    realtimeBridge.resolveServiceAlert(alertId);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
     showToast(`Served ${dishName} to table!`);
   }, [showToast]);
 
-  // Settle Bill
+  // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    realtimeBridge.settleBill(cleanChair, method, amount).then(() => {
+      refreshSeats();
+    });
     setSeats(prev => prev.map(s => s.seatNumber === seatNum ? {
       ...s,
       status: 'vacant',
@@ -246,7 +342,7 @@ export const MobileCockpitMaster: React.FC = () => {
     } : s));
     setActiveScreen('seats');
     showToast(`${seatNum} settled via ${method.toUpperCase()} & marked clean!`);
-  }, [showToast]);
+  }, [refreshSeats, showToast]);
 
   // Cart Subtotal for Peek Pill
   const cartSubtotal = useMemo(() => {
@@ -301,7 +397,10 @@ export const MobileCockpitMaster: React.FC = () => {
                   onOpenViewOrder={handleOpenViewOrder}
                   onOpenSeatOrder={handleOpenTakeOrder}
                   onOpenSeatBill={handleOpenSeatBill}
-                  onRefreshSeats={() => showToast('Floor seats refreshed from cloud!')}
+                  onRefreshSeats={() => {
+                    refreshSeats();
+                    showToast('Floor seats refreshed from cloud!');
+                  }}
                 />
               </>
             )}

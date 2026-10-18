@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
+import { realtimeBridge } from '../../../../lib/supabase';
 
 export default function OrderSummaryBillPage() {
   const params = useParams();
@@ -32,6 +33,25 @@ export default function OrderSummaryBillPage() {
       }
       setSession(s);
     }
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onBillSettled: (data) => {
+        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
+        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanCurrent || data.chairId === chairId) {
+          window.location.replace(`/seat/${chairId}/receipt`);
+        }
+      },
+      onSeatOccupancyChange: (data) => {
+        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
+        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
+        if ((cleanTarget === cleanCurrent || data.chairId === chairId) && !data.isOccupied) {
+          window.location.replace(`/seat/${chairId}/receipt`);
+        }
+      }
+    });
+
+    return () => unsub();
   }, [chairId]);
 
   const tipOptions = ['None', '₹ 30', '₹ 50', '₹ 100'];
@@ -284,6 +304,16 @@ export default function OrderSummaryBillPage() {
                 onClick={() => {
                   setWaiterCalled(true);
                   setShowWaiterModal(false);
+                  realtimeBridge.requestBill(chairId, grandPayable);
+                  realtimeBridge.sendServiceAlert({
+                    seatNumber: `Seat ${seatNumber.padStart(2, '0')}`,
+                    title: `Bill Requested (₹${grandPayable})`,
+                    message: `Bill settlement requested for Seat ${seatNumber}: ₹${grandPayable}`,
+                    guestName: `Seat ${seatNumber} Guest`,
+                    type: 'customer_call',
+                    billAmount: grandPayable,
+                    isUrgent: true,
+                  }).catch(console.error);
                 }}
                 className="w-full border-2 border-black bg-black text-white py-3 px-2 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer active:opacity-80 transition-opacity"
               >

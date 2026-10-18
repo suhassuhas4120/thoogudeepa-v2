@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
+import { realtimeBridge } from '../../../../lib/supabase';
 
 interface QuickOption {
   id: string;
@@ -60,7 +61,31 @@ function AssistantPageContent() {
   // Device hardware back button & swipe back: return to the originating screen
   useHardwareBack(null, handleBack);
 
+  // Subscribe to real-time bridge updates for alert resolutions
+  React.useEffect(() => {
+    const unsub = realtimeBridge.subscribeKDS({
+      onResolveAlert: () => {
+        setActiveRequests((prev) =>
+          prev.map((r) => ({ ...r, status: 'Served' }))
+        );
+      },
+    });
+    return () => unsub();
+  }, []);
+
+  const quickOptionLabels: Record<string, string> = {
+    'opt-1': 'Water Refill',
+    'opt-2': 'Extra Napkins',
+    'opt-3': 'Fresh Cutlery',
+    'opt-4': 'Table Cleaning',
+    'opt-5': 'Extra Plates',
+    'opt-6': 'Extra Glasses',
+    'opt-7': 'Condiments / Spices',
+    'opt-8': 'Service Bell Assistance',
+  };
+
   const handleCallWaiter = () => {
+    const serviceLabel = specialNote.trim() || (selectedService ? quickOptionLabels[selectedService] || 'Service Assistance' : 'Waiter Assistance Requested');
     const newReq: SubmittedRequest = {
       id: String(Date.now()),
       timestamp: 'Just now',
@@ -68,6 +93,16 @@ function AssistantPageContent() {
     };
     setActiveRequests((prev) => [newReq, ...prev]);
     setSelectedService(null);
+
+    // Send real-time service alert to floor waitstaff
+    realtimeBridge.sendServiceAlert({
+      seatNumber: `Seat ${seatNumber.padStart(2, '0')}`,
+      title: serviceLabel,
+      message: specialNote.trim() ? `Note: ${specialNote.trim()}` : `Guest requested: ${serviceLabel}`,
+      guestName: `Seat ${seatNumber} Guest`,
+      type: 'customer_call',
+      isUrgent: selectedService === 'opt-8' || Boolean(specialNote.trim())
+    }).catch(console.error);
   };
 
   const quickGridOptions: QuickOption[] = [

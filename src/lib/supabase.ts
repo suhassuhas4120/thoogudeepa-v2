@@ -42,6 +42,21 @@ export interface SeatOccupancyRecord {
   placedAt: number;
 }
 
+export interface ServiceAlertRecord {
+  id: string;
+  type: 'customer_call' | 'kitchen_ready';
+  seatNumber: string;
+  guestName?: string;
+  title: string;
+  message: string;
+  timeAgo: string;
+  billAmount?: number;
+  kotNumber?: string;
+  isUrgent: boolean;
+  isResolved: boolean;
+  createdAt: number;
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -57,6 +72,27 @@ const localChannel = typeof window !== 'undefined' ? new BroadcastChannel('thoog
 // Key for storing active table occupancy across browser tabs / devices
 const STORAGE_OCCUPANCY_KEY = 'thoogudeepa_v2_seat_occupancy_registry';
 const STORAGE_LOCAL_ORDERS_KEY = 'thoogudeepa_v2_active_orders_list';
+const STORAGE_ALERTS_KEY = 'thoogudeepa_v2_service_alerts';
+const STORAGE_SHIFT_STATS_KEY = 'thoogudeepa_v2_waiter_shift_stats';
+
+function getLocalAlertsList(): ServiceAlertRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_ALERTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setLocalAlertsList(list: ServiceAlertRecord[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_ALERTS_KEY, JSON.stringify(list));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 function getLocalOccupancyMap(): Record<string, SeatOccupancyRecord> {
   if (typeof window === 'undefined') return {};
@@ -343,6 +379,23 @@ export const realtimeBridge = {
         });
       }
 
+      // 5. If marked READY, alert waitstaff for immediate pass pickup
+      if (stage === 'READY') {
+        const chair = meta?.chairId || '01';
+        this.sendServiceAlert({
+          id: `pass-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          seatNumber: `Seat ${chair.padStart(2, '0')}`,
+          guestName: 'Kitchen Pass',
+          type: 'kitchen_ready',
+          title: `${meta?.dishId || 'Dish'} Ready to Serve`,
+          message: `Pass counter: Dish ready for Seat ${chair}`,
+          timeAgo: 'Just now',
+          kotNumber: meta?.ticketNumber || 'KOT',
+          isUrgent: false,
+          isResolved: false
+        }).catch(() => {});
+      }
+
       return true;
     } catch (err) {
       console.error('Error updating stage:', err);
@@ -387,6 +440,21 @@ export const realtimeBridge = {
           chairId,
         });
       }
+
+      // 5. Send kitchen pass pickup alert to waiters
+      const chair = chairId || '01';
+      this.sendServiceAlert({
+        id: `pass-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        seatNumber: `Seat ${chair.padStart(2, '0')}`,
+        guestName: 'Chef Pass Counter',
+        type: 'kitchen_ready',
+        title: `Ticket #${ticketNumber} Plated & Ready`,
+        message: `All items prepared on pass counter for Seat ${chair}`,
+        timeAgo: 'Just now',
+        kotNumber: ticketNumber,
+        isUrgent: true,
+        isResolved: false
+      }).catch(() => {});
 
       return true;
     } catch (err) {
@@ -510,6 +578,242 @@ export const realtimeBridge = {
     }
   },
 
+  // Send Service Alert (Call Waiter, Water Refill, Bill Request, Kitchen Ready Pass)
+  async sendServiceAlert(alert: Partial<ServiceAlertRecord> & { seatNumber: string; title: string }): Promise<ServiceAlertRecord> {
+    const newAlert: ServiceAlertRecord = {
+      id: alert.id || `alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      type: alert.type || 'customer_call',
+      seatNumber: alert.seatNumber,
+      guestName: alert.guestName || 'Guest',
+      title: alert.title,
+      message: alert.message || alert.title,
+      timeAgo: alert.timeAgo || 'Just now',
+      billAmount: alert.billAmount,
+      kotNumber: alert.kotNumber,
+      isUrgent: Boolean(alert.isUrgent),
+      isResolved: false,
+      createdAt: Date.now()
+    };
+
+    const alerts = getLocalAlertsList();
+    const updated = [newAlert, ...alerts.filter((a) => a.id !== newAlert.id)];
+    setLocalAlertsList(updated);
+
+    if (localChannel) {
+      localChannel.postMessage({ type: 'NEW_ALERT', alert: newAlert });
+    }
+
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'NEW_ALERT',
+        payload: newAlert
+      });
+    }
+
+    return newAlert;
+  },
+
+  // Get active floor alerts
+  async getServiceAlerts(): Promise<ServiceAlertRecord[]> {
+    return getLocalAlertsList();
+  },
+
+  // Resolve Service Alert
+  async resolveServiceAlert(alertId: string): Promise<boolean> {
+    const alerts = getLocalAlertsList();
+    const updated = alerts.map((a) => (a.id === alertId ? { ...a, isResolved: true } : a));
+    setLocalAlertsList(updated);
+
+    if (localChannel) {
+      localChannel.postMessage({ type: 'RESOLVE_ALERT', alertId });
+    }
+
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'RESOLVE_ALERT',
+        payload: { alertId }
+      });
+    }
+
+    return true;
+  },
+
+  // Customer or Waiter requests bill settlement
+  async requestBill(chairId: string, amount?: number): Promise<boolean> {
+    const map = getLocalOccupancyMap();
+    if (map[chairId]) {
+      map[chairId].status = 'billing';
+      setLocalOccupancyMap(map);
+    }
+    if (localChannel) {
+      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId, amount });
+    }
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'BILL_REQUESTED',
+        payload: { chairId, amount }
+      });
+    }
+    return true;
+  },
+
+  // Settle bill and vacate seat
+  async settleBill(chairId: string, paymentMethod: string, amount: number): Promise<boolean> {
+    // 1. Release seat in local registry
+    await this.releaseSeat(chairId);
+
+    // 2. Mark order completed in Supabase
+    if (supabase) {
+      try {
+        await supabase
+          .from('orders')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .eq('chair_id', chairId)
+          .in('status', ['pending', 'in_progress', 'ready']);
+      } catch (err) {
+        console.warn('Remote settle bill update notice:', err);
+      }
+    }
+
+    // 3. Update shift telemetry stats
+    if (typeof window !== 'undefined') {
+      try {
+        const stats = JSON.parse(
+          localStorage.getItem(STORAGE_SHIFT_STATS_KEY) ||
+            '{"totalSales": 14850, "billsSettled": 18, "tipsEarned": 620, "kotsPunched": 28, "guestsServed": 42}'
+        );
+        stats.totalSales += amount;
+        stats.billsSettled += 1;
+        stats.guestsServed += 2;
+        localStorage.setItem(STORAGE_SHIFT_STATS_KEY, JSON.stringify(stats));
+      } catch {}
+    }
+
+    if (localChannel) {
+      localChannel.postMessage({ type: 'BILL_SETTLED', chairId, paymentMethod, amount });
+    }
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'BILL_SETTLED',
+        payload: { chairId, paymentMethod, amount }
+      });
+    }
+
+    return true;
+  },
+
+  // Get current shift metrics
+  getShiftStats(): { totalSales: number; billsSettled: number; tipsEarned: number; kotsPunched: number; guestsServed: number } {
+    if (typeof window === 'undefined') {
+      return { totalSales: 14850, billsSettled: 18, tipsEarned: 620, kotsPunched: 28, guestsServed: 42 };
+    }
+    try {
+      const raw = localStorage.getItem(STORAGE_SHIFT_STATS_KEY);
+      return raw
+        ? JSON.parse(raw)
+        : { totalSales: 14850, billsSettled: 18, tipsEarned: 620, kotsPunched: 28, guestsServed: 42 };
+    } catch {
+      return { totalSales: 14850, billsSettled: 18, tipsEarned: 620, kotsPunched: 28, guestsServed: 42 };
+    }
+  },
+
+  // Get live status of floor seats (Seats 01-10 Zone 1, dynamically expandable)
+  async getFloorSeats(): Promise<
+    Array<{
+      id: string;
+      seatNumber: string;
+      numericId: number;
+      status: 'vacant' | 'occupied' | 'billing';
+      guestName: string;
+      guestCount: number;
+      diningDuration: string;
+      itemCount: number;
+      runningTotal: number;
+      hasBillRequest: boolean;
+      hasPendingAlert: boolean;
+      alertMessage?: string;
+      zone: string;
+      orderId?: string;
+      ticketNumber?: string;
+    }>
+  > {
+    const occupancyMap = getLocalOccupancyMap();
+    const activeOrders = await this.getActiveOrders();
+    const alerts = getLocalAlertsList().filter((a) => !a.isResolved);
+
+    const list = [];
+    for (let i = 1; i <= 10; i++) {
+      const chairId = i < 10 ? `0${i}` : `${i}`;
+      const seatNumber = `Seat ${chairId}`;
+      const occ = occupancyMap[chairId];
+      const foundOrder = activeOrders.find(
+        (o) => o.order.chair_id === chairId || o.order.chair_id === String(i)
+      );
+      const seatAlert = alerts.find(
+        (a) => a.seatNumber.includes(chairId) || a.seatNumber === seatNumber
+      );
+
+      const isBilling = occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
+      const isOccupied = Boolean(occ || foundOrder);
+
+      const totalAmount = foundOrder ? foundOrder.order.total_amount : (occ ? 840 : 0);
+      const itemCount = foundOrder
+        ? foundOrder.items.reduce((acc, it) => acc + it.quantity, 0)
+        : (isOccupied ? 2 : 0);
+      const guestName =
+        foundOrder?.order?.device_token?.replace('waiter-', '') ||
+        (isOccupied ? `Guest (${seatNumber})` : 'Walk-In Guest');
+
+      let diningDuration = 'Just seated';
+      if (occ?.placedAt) {
+        const mins = Math.max(1, Math.round((Date.now() - occ.placedAt) / 60000));
+        diningDuration = `${mins}m`;
+      }
+
+      list.push({
+        id: chairId,
+        seatNumber,
+        numericId: i,
+        status: isBilling ? ('billing' as const) : isOccupied ? ('occupied' as const) : ('vacant' as const),
+        guestName: isOccupied ? guestName : 'Walk-In Guest',
+        guestCount: isOccupied ? 2 : 0,
+        diningDuration: isOccupied ? diningDuration : '--',
+        itemCount,
+        runningTotal: totalAmount,
+        hasBillRequest: Boolean(isBilling),
+        hasPendingAlert: Boolean(seatAlert),
+        alertMessage: seatAlert?.title,
+        zone: 'Zone 1 (Seats 01-10)',
+        orderId: foundOrder?.order?.id,
+        ticketNumber: foundOrder?.order?.ticket_number
+      });
+    }
+    return list;
+  },
+
+  // Get active order details for a specific seat
+  async getOrderForSeat(chairId: string): Promise<{ order: OrderRecord | null; items: OrderItemRecord[] }> {
+    const cleanId = chairId.replace(/[^0-9]/g, '');
+    const padded = cleanId.padStart(2, '0');
+    const unpadded = cleanId.replace(/^0+/, '');
+    const activeOrders = await this.getActiveOrders();
+    const found = activeOrders.find(
+      (o) => o.order.chair_id === padded || o.order.chair_id === unpadded || o.order.chair_id === chairId
+    );
+    if (found) {
+      return { order: found.order, items: found.items };
+    }
+    return { order: null, items: [] };
+  },
+
   // Subscribe to KDS & Seat Occupancy changes
   subscribeKDS(callbacks: {
     onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
@@ -517,6 +821,10 @@ export const realtimeBridge = {
     onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
     onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
     onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
+    onNewAlert?: (alert: ServiceAlertRecord) => void;
+    onResolveAlert?: (alertId: string) => void;
+    onBillRequested?: (data: { chairId: string; amount?: number }) => void;
+    onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
     onClearAll?: () => void;
   }) {
     // 1. Supabase Realtime Channel
@@ -541,6 +849,26 @@ export const realtimeBridge = {
         .on('broadcast', { event: 'TICKET_DISPATCHED' }, (msg) => {
           if (callbacks.onTicketDispatched && msg.payload) {
             callbacks.onTicketDispatched(msg.payload);
+          }
+        })
+        .on('broadcast', { event: 'NEW_ALERT' }, (msg) => {
+          if (callbacks.onNewAlert && msg.payload) {
+            callbacks.onNewAlert(msg.payload);
+          }
+        })
+        .on('broadcast', { event: 'RESOLVE_ALERT' }, (msg) => {
+          if (callbacks.onResolveAlert && msg.payload?.alertId) {
+            callbacks.onResolveAlert(msg.payload.alertId);
+          }
+        })
+        .on('broadcast', { event: 'BILL_REQUESTED' }, (msg) => {
+          if (callbacks.onBillRequested && msg.payload) {
+            callbacks.onBillRequested(msg.payload);
+          }
+        })
+        .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
+          if (callbacks.onBillSettled && msg.payload) {
+            callbacks.onBillSettled(msg.payload);
           }
         })
         .on('broadcast', { event: 'CLEAR_ALL_ORDERS' }, () => {
@@ -604,6 +932,14 @@ export const realtimeBridge = {
         callbacks.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: true });
       } else if (data.type === 'SEAT_RELEASED' && callbacks.onSeatOccupancyChange) {
         callbacks.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: false });
+      } else if (data.type === 'NEW_ALERT' && callbacks.onNewAlert) {
+        callbacks.onNewAlert(data.alert);
+      } else if (data.type === 'RESOLVE_ALERT' && callbacks.onResolveAlert) {
+        callbacks.onResolveAlert(data.alertId);
+      } else if (data.type === 'BILL_REQUESTED' && callbacks.onBillRequested) {
+        callbacks.onBillRequested({ chairId: data.chairId, amount: data.amount });
+      } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {
+        callbacks.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod });
       } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {
         callbacks.onAvailabilityChange({ dishId: data.dishId, isAvailable: data.isAvailable });
       } else if (data.type === 'CLEAR_ALL_ORDERS' && callbacks.onClearAll) {

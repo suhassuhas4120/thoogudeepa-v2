@@ -14,7 +14,7 @@
  * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   ScreenId, 
   PaymentMode, 
@@ -28,6 +28,7 @@ import {
   ServiceAlert,
   TicketItem
 } from './types';
+import { realtimeBridge } from '../../lib/supabase';
 import { TabletLogin } from './TabletLogin';
 import { TabletHeader } from './TabletHeader';
 import { TabletFloorGrid } from './TabletFloorGrid';
@@ -68,6 +69,83 @@ export const TabletCockpitMaster: React.FC = () => {
     setTimeout(() => { setToastMessage(null); }, 2400);
   }, []);
 
+  const refreshSeats = useCallback(async () => {
+    try {
+      const floorData = await realtimeBridge.getFloorSeats();
+      setSeats(floorData.map(f => ({
+        id: f.id,
+        seatNumber: f.seatNumber,
+        status: f.status === 'vacant' ? ('vacant' as const) : ('occupied' as const),
+        guestName: f.guestName,
+        guestCount: f.guestCount || 2,
+        diningTime: f.diningDuration || '15m',
+        totalAmount: f.runningTotal,
+        orderCount: f.itemCount,
+        hasBillRequest: f.hasBillRequest
+      })));
+    } catch (err) {
+      console.error('Error loading tablet seats:', err);
+    }
+  }, []);
+
+  const refreshAlerts = useCallback(async () => {
+    try {
+      const activeAlerts = await realtimeBridge.getServiceAlerts();
+      setAlerts(activeAlerts.map(a => ({
+        id: a.id,
+        type: a.type === 'kitchen_ready' ? ('kitchen' as const) : ('customer' as const),
+        seatNumber: a.seatNumber,
+        guestName: a.guestName || 'Guest',
+        title: a.title,
+        description: a.message || a.title,
+        timeAgo: a.timeAgo,
+        amount: a.billAmount,
+        kotId: a.kotNumber,
+        isResolved: Boolean(a.isResolved)
+      })));
+    } catch (err) {
+      console.error('Error loading tablet alerts:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSeats();
+    refreshAlerts();
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onNewOrder: () => { refreshSeats(); refreshAlerts(); },
+      onStageChange: () => { refreshAlerts(); },
+      onTicketDispatched: () => { refreshAlerts(); },
+      onSeatOccupancyChange: () => { refreshSeats(); },
+      onNewAlert: (alert) => {
+        setAlerts(prev => {
+          if (prev.some(a => a.id === alert.id)) return prev;
+          const mapped: ServiceAlert = {
+            id: alert.id,
+            type: alert.type === 'kitchen_ready' ? 'kitchen' : 'customer',
+            seatNumber: alert.seatNumber,
+            guestName: alert.guestName || 'Guest',
+            title: alert.title,
+            description: alert.message || alert.title,
+            timeAgo: alert.timeAgo,
+            amount: alert.billAmount,
+            kotId: alert.kotNumber,
+            isResolved: false
+          };
+          return [mapped, ...prev];
+        });
+      },
+      onResolveAlert: (alertId) => {
+        setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isResolved: true } : a));
+      },
+      onBillRequested: () => { refreshSeats(); refreshAlerts(); },
+      onBillSettled: () => { refreshSeats(); refreshAlerts(); },
+      onClearAll: () => { refreshSeats(); refreshAlerts(); }
+    });
+
+    return () => unsub();
+  }, [refreshSeats, refreshAlerts]);
+
   // Cart & Pricing Calculations
   const cartCount = useMemo(() => Object.values(dishQuantities).reduce((acc, q) => acc + q, 0), [dishQuantities]);
 
@@ -99,19 +177,45 @@ export const TabletCockpitMaster: React.FC = () => {
   };
 
   // Handler: Open Order Screen for a Seat
-  const handleOpenOrder = (seatId: string, seatName: string, customer: string, amount: number, dining: boolean) => {
+  const handleOpenOrder = async (seatId: string, seatName: string, customer: string, amount: number, dining: boolean) => {
     setActiveSeatName(`${seatName}: ${customer}`);
     setActiveSeatCustomer(customer);
     setActiveSeatAmount(amount);
     setIsDining(dining);
     setRightPaneMode('ticket');
 
+    const cleanChair = seatName.replace(/[^0-9]/g, '');
     if (!dining) {
       setDishQuantities({});
       setTicketItems([]);
     } else {
-      setDishQuantities({ 1: 2, 3: 1 });
-      setTicketItems(INITIAL_TICKET_ITEMS);
+      try {
+        const details = await realtimeBridge.getOrderForSeat(cleanChair);
+        if (details.items && details.items.length > 0) {
+          const qtyMap: Record<number, number> = {};
+          const items: TicketItem[] = details.items.map((it, idx) => {
+            const numId = Number(it.dish_id) || (idx + 1);
+            qtyMap[numId] = it.quantity;
+            const dish = MENU_DISHES.find(d => d.id === numId);
+            return {
+              id: numId,
+              name: it.dish_name,
+              quantity: it.quantity,
+              price: it.price,
+              imageUrl: dish?.imageUrl || '/logo.jpg',
+              status: it.stage === 'READY' ? 'READY' : 'RECEIVED'
+            };
+          });
+          setDishQuantities(qtyMap);
+          setTicketItems(items);
+        } else {
+          setDishQuantities({ 1: 2, 3: 1 });
+          setTicketItems(INITIAL_TICKET_ITEMS);
+        }
+      } catch {
+        setDishQuantities({ 1: 2, 3: 1 });
+        setTicketItems(INITIAL_TICKET_ITEMS);
+      }
     }
     setCurrentScreen('order');
   };
@@ -173,11 +277,39 @@ export const TabletCockpitMaster: React.FC = () => {
 
   // Handler: Fire KOT to Kitchen
   const handlePunchKot = () => {
-    setTicketItems(prev => prev.map(item => (item.status === 'PLACED' ? { ...item, status: 'RECEIVED' } : item)));
     const activeSeatNum = activeSeatName.split(':')[0].trim();
+    const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
+    const ticketNum = String(Date.now()).slice(-4);
+
+    const orderRecord = {
+      ticket_number: ticketNum,
+      chair_id: cleanChair,
+      seat_label: activeSeatNum,
+      status: 'pending' as const,
+      total_amount: grandTotal,
+      device_token: `tablet-${profile.name}`,
+    };
+
+    const orderItems = ticketItems.map((item) => ({
+      chair_id: cleanChair,
+      seat_label: activeSeatNum,
+      dish_id: String(item.id),
+      dish_name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      stage: 'REC' as const,
+      notes: '',
+      addons: [],
+    }));
+
+    realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
+      refreshSeats();
+    });
+
+    setTicketItems(prev => prev.map(item => (item.status === 'PLACED' ? { ...item, status: 'RECEIVED' } : item)));
     setSeats(prev => prev.map(s => s.seatNumber === activeSeatNum ? { ...s, status: 'occupied', totalAmount: grandTotal, orderCount: cartCount } : s));
     setIsDining(true);
-    showToast(`KOT fired to kitchen for ${activeSeatNum}`);
+    showToast(`KOT #${ticketNum} fired to kitchen for ${activeSeatNum}`);
   };
 
   // Handler: Clear ticket pad
@@ -190,6 +322,10 @@ export const TabletCockpitMaster: React.FC = () => {
   // Handler: Confirm Settlement and Vacate
   const handleConfirmSettlement = () => {
     const activeSeatNum = activeSeatName.split(':')[0].trim();
+    const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
+    realtimeBridge.settleBill(cleanChair, 'cash', grandTotal).then(() => {
+      refreshSeats();
+    });
     setSeats(prev => prev.map(s => s.seatNumber === activeSeatNum ? { ...s, status: 'vacant', guestName: 'Available', totalAmount: 0, orderCount: 0, hasBillRequest: false } : s));
     setRightPaneMode('ticket');
     setCurrentScreen('seats');
@@ -203,6 +339,7 @@ export const TabletCockpitMaster: React.FC = () => {
   };
 
   const handleResolveAlert = (alertId: string) => {
+    realtimeBridge.resolveServiceAlert(alertId);
     setAlerts(prev => prev.map(a => (a.id === alertId ? { ...a, isResolved: true } : a)));
     showToast('Alert attended and synchronized');
   };
