@@ -129,11 +129,11 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
             <span className="text-xs font-bold text-slate-800">Floor</span>
           </button>
 
-          {/* Complete Full Brand Title in Deep Dark Color (Never Lite, Never Half) */}
+          {/* Sub-header Context (Clean title, zero duplicate brand name or duplicate seat label) */}
           <div className="min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
               <span className="text-xs sm:text-sm font-black text-slate-900 whitespace-nowrap">
-                ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
+                Menu & Ordering
               </span>
               <span
                 className={`h-5 px-2 inline-flex items-center justify-center text-[9px] font-black uppercase tracking-wider rounded-full border shadow-2xs shrink-0 ${
@@ -142,13 +142,11 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
                     : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 }`}
               >
-                {isDining ? 'Dining' : 'New'}
+                {isDining ? 'Dining' : 'New Order'}
               </span>
             </div>
-            <div className="flex items-center gap-1 text-[10px] text-slate-800 font-extrabold mt-0.5 whitespace-nowrap">
-              <span>ಮಿಲಿಟರಿ ಹೋಟೆಲ್</span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-900 font-black">{activeSeatName}</span>
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold mt-0.5 whitespace-nowrap">
+              <span>Select dishes to add to live order</span>
             </div>
           </div>
         </div>

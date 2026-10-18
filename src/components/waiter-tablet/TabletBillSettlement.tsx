@@ -307,22 +307,18 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               </span>
             </div>
 
-            {/* Cash Tender Input (Exact total defaulted, spinner controls removed) */}
+            {/* Cash Tender Input (Fixed to exact payable, disabled & not changeable) */}
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-600">Cash Received:</span>
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-slate-500">₹</span>
                 <input
                   type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={cashTendered === 0 ? '' : cashTendered}
-                  placeholder={grandPayable.toString()}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/[^0-9]/g, '');
-                    setCashTendered(raw ? parseInt(raw, 10) : 0);
-                  }}
-                  className="w-28 px-2.5 py-1 text-xs font-black bg-white border border-slate-300 rounded-lg text-right outline-none text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-2xs"
+                  readOnly
+                  disabled
+                  value={cashTendered.toLocaleString('en-IN')}
+                  className="w-28 px-2.5 py-1 text-xs font-black bg-slate-100 border border-slate-300 rounded-lg text-right text-slate-900 cursor-not-allowed select-none shadow-2xs disabled:opacity-100 disabled:text-slate-900 disabled:bg-slate-100"
+                  title="Cash received is fixed and auto-synced with bill total"
                 />
               </div>
             </div>
