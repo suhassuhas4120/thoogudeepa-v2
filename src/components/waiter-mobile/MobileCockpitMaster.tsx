@@ -57,44 +57,47 @@ import MobileProfileShift from './MobileProfileShift';
 import MobileBottomNav from './MobileBottomNav';
 
 export const MobileCockpitMaster: React.FC = () => {
+  const [hasMounted, setHasMounted] = useState<boolean>(false);
+
   // Navigation & Screen State
-  const [activeScreen, setActiveScreen] = useState<MobileScreenId>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('thoogudeepa_waiter_mobile_screen') as MobileScreenId;
-      if (saved && ['seats', 'order', 'cart', 'bill', 'alerts', 'profile'].includes(saved)) {
-        return saved;
-      }
-    }
-    return 'login';
-  });
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('thoogudeepa_waiter_mobile_auth') === 'true';
-    }
-    return false;
-  });
-  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
-        if (raw) return JSON.parse(raw);
-      } catch {}
-    }
-    return DEFAULT_STAFF_ACCOUNTS[0];
-  });
+  const [activeScreen, setActiveScreen] = useState<MobileScreenId>('login');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(DEFAULT_STAFF_ACCOUNTS[0]);
   const activeAccountRef = useRef<WaiterAuthAccount>(activeWaiterAccount);
   activeAccountRef.current = activeWaiterAccount;
 
   // Floor Seats State (Generated for active waiter)
   const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
-  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('thoogudeepa_waiter_mobile_seat') || 'Seat 02';
-    }
-    return 'Seat 02';
-  });
+  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
   const selectedSeatRef = useRef<string>(selectedSeatNumber);
   selectedSeatRef.current = selectedSeatNumber;
+
+  // Restore navigation and auth state on initial client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedScreen = sessionStorage.getItem('thoogudeepa_waiter_mobile_screen') as MobileScreenId;
+      if (savedScreen && ['seats', 'order', 'cart', 'bill', 'alerts', 'profile'].includes(savedScreen)) {
+        setActiveScreen(savedScreen);
+      }
+      const savedAuth = sessionStorage.getItem('thoogudeepa_waiter_mobile_auth') === 'true';
+      if (savedAuth) {
+        setIsAuthenticated(true);
+      }
+      const savedSeat = sessionStorage.getItem('thoogudeepa_waiter_mobile_seat');
+      if (savedSeat) {
+        setSelectedSeatNumber(savedSeat);
+      }
+      try {
+        const rawAccount = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
+        if (rawAccount) {
+          const parsed = JSON.parse(rawAccount);
+          setActiveWaiterAccount(parsed);
+          setSeats(generateSeatsForStaff(parsed));
+        }
+      } catch {}
+    }
+    setHasMounted(true);
+  }, []);
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
@@ -587,6 +590,14 @@ export const MobileCockpitMaster: React.FC = () => {
   const totalCartCount = useMemo(() => {
     return cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
   }, [cartItems]);
+
+  if (!hasMounted) {
+    return (
+      <div className="w-full h-full min-h-screen bg-slate-900 flex items-center justify-center text-white text-sm font-medium">
+        Loading Waiter Cockpit...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col justify-center items-center bg-slate-900 p-0 sm:p-4 select-none">

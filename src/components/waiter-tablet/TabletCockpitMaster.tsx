@@ -42,25 +42,11 @@ import { TabletAlertSheet } from './TabletAlertSheet';
 import { TabletProfileShift } from './TabletProfileShift';
 
 export const TabletCockpitMaster: React.FC = () => {
+  const [hasMounted, setHasMounted] = useState<boolean>(false);
+
   // Navigation & Screen View State
-  const [currentScreen, setCurrentScreen] = useState<ScreenId>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('thoogudeepa_waiter_tablet_screen') as ScreenId;
-      if (saved && ['floor', 'order', 'profile'].includes(saved)) {
-        return saved;
-      }
-    }
-    return 'login';
-  });
-  const [profile, setProfile] = useState<typeof INITIAL_WAITER_PROFILE>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = sessionStorage.getItem('thoogudeepa_waiter_tablet_profile');
-        if (raw) return JSON.parse(raw);
-      } catch {}
-    }
-    return INITIAL_WAITER_PROFILE;
-  });
+  const [currentScreen, setCurrentScreen] = useState<ScreenId>('login');
+  const [profile, setProfile] = useState<typeof INITIAL_WAITER_PROFILE>(INITIAL_WAITER_PROFILE);
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
@@ -70,14 +56,33 @@ export const TabletCockpitMaster: React.FC = () => {
   const [shiftLogs, setShiftLogs] = useState(SHIFT_LOGS);
 
   // Active Target Seat & Cockpit Right Pane Mode ('ticket' or 'bill')
-  const [activeSeatName, setActiveSeatName] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('thoogudeepa_waiter_tablet_seat') || 'Seat 02: Walk-In';
-    }
-    return 'Seat 02: Walk-In';
-  });
+  const [activeSeatName, setActiveSeatName] = useState<string>('Seat 02: Walk-In');
   const activeSeatNameRef = useRef<string>(activeSeatName);
   activeSeatNameRef.current = activeSeatName;
+
+  // Restore navigation and profile on initial client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedScreen = sessionStorage.getItem('thoogudeepa_waiter_tablet_screen') as ScreenId;
+      if (savedScreen && ['floor', 'order', 'profile'].includes(savedScreen)) {
+        setCurrentScreen(savedScreen);
+      }
+      try {
+        const rawProfile = sessionStorage.getItem('thoogudeepa_waiter_tablet_profile');
+        if (rawProfile) {
+          const parsed = JSON.parse(rawProfile);
+          setProfile(parsed);
+          profileRef.current = parsed;
+        }
+      } catch {}
+      const savedSeat = sessionStorage.getItem('thoogudeepa_waiter_tablet_seat');
+      if (savedSeat) {
+        setActiveSeatName(savedSeat);
+        activeSeatNameRef.current = savedSeat;
+      }
+    }
+    setHasMounted(true);
+  }, []);
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [activeSeatCustomer, setActiveSeatCustomer] = useState<string>('Walk-In Guest');
   const [activeSeatAmount, setActiveSeatAmount] = useState<number>(1029);
@@ -560,6 +565,14 @@ export const TabletCockpitMaster: React.FC = () => {
     setAlerts(prev => prev.map(a => (a.id === alertId ? { ...a, isResolved: true } : a)));
     showToast('Alert attended and synchronized');
   };
+
+  if (!hasMounted) {
+    return (
+      <div className="w-full h-full min-h-screen bg-slate-900 flex items-center justify-center text-white text-sm font-medium">
+        Loading Tablet Cockpit...
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-0 lg:p-4 select-none bg-[#E2E8F0]">
