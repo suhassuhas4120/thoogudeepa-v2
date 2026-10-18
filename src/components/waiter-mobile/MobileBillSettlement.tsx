@@ -136,6 +136,14 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
     return receivedCashAmount - finalGrandTotal;
   }, [receivedCashAmount, finalGrandTotal]);
 
+  // Whether bill can be settled and seat vacated
+  const canSettle = useMemo(() => {
+    if (selectedMethod === 'upi') {
+      return customerPaidUpi || isUpiVerified || isVerifiedByCustomer;
+    }
+    return receivedCashAmount >= finalGrandTotal || isVerifiedByCustomer;
+  }, [selectedMethod, customerPaidUpi, isUpiVerified, isVerifiedByCustomer, receivedCashAmount, finalGrandTotal]);
+
   // Method selection with immediate customer broadcast
   const handleSelectMethod = useCallback((m: PaymentMethod) => {
     setSelectedMethod(m);
@@ -452,19 +460,19 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
 
         </div>
 
-        {/* Settle Bill Action Button (Enabled only when verified by customer) */}
+        {/* Settle Bill Action Button */}
         <button
           type="button"
           onClick={handleExecuteSettle}
-          disabled={!isVerifiedByCustomer}
+          disabled={!canSettle}
           className={`w-full h-12 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center justify-center gap-2 btn-press transition-all ${
-            isVerifiedByCustomer
-              ? (selectedMethod === 'upi' && customerPaidUpi
+            canSettle
+              ? (customerPaidUpi
                   ? 'bg-emerald-600 hover:bg-emerald-500 ring-2 ring-emerald-400 active:scale-95 cursor-pointer'
                   : 'bg-slate-900 hover:bg-slate-800 active:scale-95 cursor-pointer')
               : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
           }`}
-          title={isVerifiedByCustomer ? 'Settle bill and vacate seat' : 'Awaiting customer to click Pay via Waiter'}
+          title={canSettle ? 'Settle bill and vacate seat' : 'Awaiting payment confirmation'}
         >
           {selectedMethod === 'upi' ? (
             customerPaidUpi ? (

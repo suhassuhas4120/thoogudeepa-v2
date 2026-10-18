@@ -319,6 +319,12 @@ export const TabletCockpitMaster: React.FC = () => {
           setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
         }
       },
+      onCustomerPaidUpi: (data) => {
+        if (data?.chairId) {
+          const clean = data.chairId.replace(/[^0-9]/g, '');
+          setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
+        }
+      },
       onBillSettled: (data) => {
         refreshSeats();
         refreshAlerts();

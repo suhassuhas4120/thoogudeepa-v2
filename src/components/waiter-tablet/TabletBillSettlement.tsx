@@ -462,7 +462,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       {/* ======================================================== */}
       <div className="pt-3 border-t border-slate-200 mt-2 space-y-2">
         {/* Verification banner if awaiting customer request */}
-        {!isVerifiedByCustomer && (
+        {!isVerifiedByCustomer && !isPaymentReceived && (
           <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-bold text-center">
             Awaiting customer bill verification from seat
           </div>
@@ -481,26 +481,22 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         {/* Single Icon Button: Settle & Vacate */}
         <button
           type="button"
-          disabled={!isPaymentReceived || !isVerifiedByCustomer}
+          disabled={!isPaymentReceived && !isVerifiedByCustomer}
           onClick={handleConfirmVacate}
           className={`w-full h-11 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-            isPaymentReceived && isVerifiedByCustomer
+            isPaymentReceived || isVerifiedByCustomer
               ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs cursor-pointer'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
           }`}
           title={
-            !isVerifiedByCustomer
-              ? "Awaiting customer 'Pay via Waiter' confirmation"
-              : isPaymentReceived
+            isPaymentReceived || isVerifiedByCustomer
               ? "Vacate seat and close bill"
               : "Confirm payment received before vacating seat"
           }
         >
           <CheckCircle className="w-3.5 h-3.5" />
           <span>
-            {!isVerifiedByCustomer
-              ? 'Awaiting Customer Confirmation'
-              : isPaymentReceived
+            {isPaymentReceived || isVerifiedByCustomer
               ? 'Confirm & Vacate Seat'
               : 'Awaiting Payment from Customer'}
           </span>
