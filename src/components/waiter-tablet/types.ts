@@ -50,6 +50,8 @@ export interface DishItem {
 
 export interface TicketItem {
   id: number;
+  orderItemId?: string;
+  ticketNumber?: string;
   name: string;
   quantity: number;
   price: number;

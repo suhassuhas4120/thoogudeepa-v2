@@ -186,12 +186,70 @@ export const MobileCockpitMaster: React.FC = () => {
     }
   }, []);
 
+  const syncCartForSeat = useCallback((chairId: string) => {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    if (!cleanChair) return;
+
+    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
+      if (details.order?.ticket_number) {
+        setActiveTicketNumber(details.order.ticket_number);
+      } else {
+        setActiveTicketNumber('');
+      }
+      if (details.items && details.items.length > 0) {
+        setCartItems(details.items.map(it => {
+          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+            id: String(it.dish_id || '999'),
+            name: it.dish_name,
+            kannadaName: '',
+            price: it.price,
+            category: 'biryani',
+            dietary: 'non_veg',
+            description: 'Authentic preparation',
+            prepTimeMinutes: 15,
+            isAvailable: true,
+            isBestseller: false
+          };
+          return {
+            menuItem: {
+              ...foundMenu,
+              id: it.dish_id || foundMenu.id,
+              name: it.dish_name || foundMenu.name
+            },
+            quantity: it.quantity,
+            lineTotal: it.price * it.quantity,
+            stage: it.stage as any,
+            orderItemId: it.id,
+            ticketNumber: details.order?.ticket_number
+          };
+        }));
+      } else {
+        setCartItems([]);
+      }
+
+      // Check if bill request is already active for this seat
+      const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
+      if (activeReq) {
+        setVerifiedBillSeats(prev => ({ ...prev, [cleanChair]: true, [selectedSeatRef.current || cleanChair]: true }));
+      }
+    });
+  }, []);
+
   useEffect(() => {
     refreshSeats();
     refreshAlerts();
 
     const unsub = realtimeBridge.subscribeKDS({
-      onNewOrder: () => { refreshSeats(); refreshAlerts(); },
+      onNewOrder: (payload) => {
+        refreshSeats();
+        refreshAlerts();
+        const curSeat = selectedSeatRef.current || '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+        const targetChair = payload?.order?.chair_id ? payload.order.chair_id.replace(/[^0-9]/g, '') : '';
+        if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
+          syncCartForSeat(cleanCurSeat);
+        }
+      },
       onStageChange: (data) => {
         refreshAlerts();
         const curSeat = selectedSeatRef.current || '';
@@ -203,24 +261,37 @@ export const MobileCockpitMaster: React.FC = () => {
           return;
         }
 
-        const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
-        const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-
-        setCartItems(prev => prev.map(item => {
-          const itemNum = String(item.menuItem.id).replace(/[^0-9]/g, '');
-          const itemName = item.menuItem.name.toLowerCase().replace(/donne\s*/i, '').trim();
-
-          const matches =
-            String(item.menuItem.id) === data.dishId ||
-            data.key === String(item.menuItem.id) ||
-            (targetNum && itemNum === targetNum) ||
-            (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
-
-          if (matches) {
-            return { ...item, stage: data.stage };
+        setCartItems(prev => {
+          let hasExactMatch = false;
+          if (data.itemId) {
+            hasExactMatch = prev.some(item => item.orderItemId === data.itemId);
           }
-          return item;
-        }));
+          if (hasExactMatch) {
+            return prev.map(item => item.orderItemId === data.itemId ? { ...item, stage: data.stage } : item);
+          }
+
+          const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
+          const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+          let updatedOne = false;
+          return prev.map(item => {
+            if (updatedOne) return item;
+            const itemNum = String(item.menuItem.id).replace(/[^0-9]/g, '');
+            const itemName = item.menuItem.name.toLowerCase().replace(/donne\s*/i, '').trim();
+
+            const matches =
+              String(item.menuItem.id) === data.dishId ||
+              data.key === String(item.menuItem.id) ||
+              (targetNum && itemNum === targetNum) ||
+              (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
+
+            if (matches && (!data.ticketNumber || !item.ticketNumber || data.ticketNumber === item.ticketNumber)) {
+              updatedOne = true;
+              return { ...item, stage: data.stage };
+            }
+            return item;
+          });
+        });
       },
       onTicketDispatched: () => { refreshAlerts(); },
       onSeatOccupancyChange: (data) => {
@@ -302,55 +373,8 @@ export const MobileCockpitMaster: React.FC = () => {
 
   // Synchronize cart items with seat order data on mount or when seat changes
   useEffect(() => {
-    const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
-    if (!cleanChair) return;
-
-    let isMounted = true;
-    realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
-      if (!isMounted) return;
-      if (details.order?.ticket_number) {
-        setActiveTicketNumber(details.order.ticket_number);
-      } else {
-        setActiveTicketNumber('');
-      }
-      if (details.items && details.items.length > 0) {
-        setCartItems(details.items.map(it => {
-          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
-            id: String(it.dish_id || '999'),
-            name: it.dish_name,
-            kannadaName: '',
-            price: it.price,
-            category: 'biryani',
-            dietary: 'non_veg',
-            description: 'Authentic preparation',
-            prepTimeMinutes: 15,
-            isAvailable: true,
-            isBestseller: false
-          };
-          return {
-            menuItem: {
-              ...foundMenu,
-              id: it.dish_id || foundMenu.id,
-              name: it.dish_name || foundMenu.name
-            },
-            quantity: it.quantity,
-            lineTotal: it.price * it.quantity,
-            stage: it.stage as any
-          };
-        }));
-      } else {
-        setCartItems([]);
-      }
-
-      // Check if bill request is already active for this seat
-      const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
-      if (activeReq) {
-        setVerifiedBillSeats(prev => ({ ...prev, [cleanChair]: true, [selectedSeatNumber]: true }));
-      }
-    });
-
-    return () => { isMounted = false; };
-  }, [selectedSeatNumber]);
+    syncCartForSeat(selectedSeatNumber);
+  }, [selectedSeatNumber, syncCartForSeat]);
 
   // Waiter Profile Telemetry
   const waiterProfile: WaiterProfile = useMemo(() => ({
@@ -556,32 +580,36 @@ export const MobileCockpitMaster: React.FC = () => {
   }, [showToast]);
 
   // Handle serving an item from live cart
-  const handleServeItemMobile = useCallback((dishId: string) => {
+  const handleServeItemMobile = useCallback((identifier: string) => {
     const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
-    const dish = cartItems.find(i => String(i.menuItem.id) === dishId);
-    const cleanDishNum = dishId.replace(/[^0-9]/g, '');
+    const dish = cartItems.find(i => i.orderItemId === identifier || String(i.menuItem.id) === identifier);
+    const cleanDishNum = identifier.replace(/[^0-9]/g, '');
 
-    setCartItems(prev => prev.map(i => String(i.menuItem.id) === dishId ? { ...i, stage: 'SERVED' } : i));
+    setCartItems(prev => prev.map(i => (i.orderItemId === identifier || String(i.menuItem.id) === identifier) ? { ...i, stage: 'SERVED' } : i));
 
-    realtimeBridge.updateStage(dishId, 'SERVED', {
+    const targetKey = dish?.orderItemId || identifier;
+    realtimeBridge.updateStage(targetKey, 'SERVED', {
       chairId: cleanChair,
       ticketNumber: activeTicketNumber || undefined,
-      dishId: dishId,
-      dishName: dish?.menuItem?.name
+      dishId: String(dish?.menuItem?.id || identifier),
+      dishName: dish?.menuItem?.name,
+      itemId: dish?.orderItemId
     });
 
-    if (cleanDishNum) {
+    if (cleanDishNum && (!dish?.orderItemId || dish.orderItemId === identifier)) {
       realtimeBridge.updateStage(`dish-${cleanDishNum}`, 'SERVED', {
         chairId: cleanChair,
         ticketNumber: activeTicketNumber || undefined,
         dishId: `dish-${cleanDishNum}`,
-        dishName: dish?.menuItem?.name
+        dishName: dish?.menuItem?.name,
+        itemId: dish?.orderItemId
       });
       realtimeBridge.updateStage(cleanDishNum, 'SERVED', {
         chairId: cleanChair,
         ticketNumber: activeTicketNumber || undefined,
         dishId: cleanDishNum,
-        dishName: dish?.menuItem?.name
+        dishName: dish?.menuItem?.name,
+        itemId: dish?.orderItemId
       });
     }
 

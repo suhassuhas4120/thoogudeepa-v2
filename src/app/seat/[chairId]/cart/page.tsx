@@ -7,7 +7,7 @@ import { ChevronLeft, Heart, Minus, Plus, Bell, ShoppingBag, ArrowRight } from '
 import { useCart } from '../../../../lib/context/CartContext';
 import CustomerBottomNav from '../../../../components/navigation/CustomerBottomNav';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
-import { realtimeBridge } from '../../../../lib/supabase';
+import { realtimeBridge, OrderItemRecord } from '../../../../lib/supabase';
 import { 
   setActiveDiningSession, 
   getActiveDiningSession,
@@ -74,7 +74,8 @@ export default function CustomerCartPage() {
     try {
       const ticketNum = `TK-${chairId}-${Math.floor(1000 + Math.random() * 9000)}`;
       
-      const orderItems = activeItemIds.map((id) => {
+      const nowTs = Date.now();
+      const orderItems: OrderItemRecord[] = activeItemIds.map((id, idx) => {
         const qty = items[id]?.quantity || 1;
         const catalogEntry = getMenuItemById(id);
         const cartEntry = items[id];
@@ -86,8 +87,10 @@ export default function CustomerCartPage() {
           notesParts.push(`Add-ons: ${cartEntry.addOns.join(', ')}`);
         }
         const notes = notesParts.length > 0 ? notesParts.join(' • ') : undefined;
+        const uniqueId = `item-${chairId}-${id}-${nowTs}-${idx}`;
 
         return {
+          id: uniqueId,
           chair_id: chairId,
           seat_label: `SEAT ${chairId}`,
           dish_id: id.startsWith('dish-') ? id : `dish-${id}`,
@@ -136,7 +139,8 @@ export default function CustomerCartPage() {
       const generatedOrderId = result.orderId || `ord-${Date.now()}`;
 
       const newDishes = orderItems.map((oi) => ({
-        id: oi.dish_id,
+        id: oi.id || oi.dish_id,
+        dish_id: oi.dish_id,
         title: oi.dish_name,
         quantity: oi.quantity,
         price: oi.price,

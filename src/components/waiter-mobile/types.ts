@@ -71,6 +71,8 @@ export interface CartItem {
   lineTotal: number;
   kitchenNote?: string;
   stage?: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
+  orderItemId?: string;
+  ticketNumber?: string;
 }
 
 /**

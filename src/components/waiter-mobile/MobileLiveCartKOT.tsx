@@ -204,13 +204,14 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
 
           {displayItems.map((item, idx) => {
             const itemStage = item.stage;
-            const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
+            const itemKey = item.orderItemId || item.menuItem.id;
+            const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || (item.orderItemId ? dishStatuses[item.orderItemId] : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
             const isServed = status === 'SERVED';
             const isNonVeg = item.menuItem.dietary === 'non_veg';
 
             return (
               <div
-                key={item.menuItem.id}
+                key={item.orderItemId || `${item.menuItem.id}-${idx}`}
                 className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
                   isServed
                     ? 'border-slate-200 bg-slate-100/70 opacity-70'
@@ -253,7 +254,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleMarkServed(item.menuItem.id)}
+                        onClick={() => handleMarkServed(itemKey)}
                         className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                         title="Mark as Served to Seat"
                       >
