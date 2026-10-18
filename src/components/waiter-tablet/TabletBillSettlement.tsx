@@ -9,9 +9,9 @@
  * - Header with [ ← Back ] to Live Ticket and customer context
  * - Itemized tax invoice breakdown: Subtotal, CGST (2.5%), SGST (2.5%), Total
  * - Payment Method Selector:
- *   * Cash Tender with quick rupee calculator & change return
- *   * Dynamic UPI QR Code for Google Pay, PhonePe, Paytm, and BHIM
- * - Optional Tip Preset selector (+₹20, +₹50, +₹100)
+ *   * Cash Tender with dynamic tip synchronization, exact preset & change return
+ *   * Dynamic UPI QR Code for Google Pay, PhonePe, Paytm, and BHIM with tip included
+ * - Tip Preset selector (+₹0, +₹20, +₹50, +₹100) that automatically updates cash tender
  * - Conditional Payment Settlement Enablement:
  *   * Waiter must toggle/verify "Payment Received" before vacating!
  * - Single clean icon per action button:
@@ -24,11 +24,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, 
-  Check,
-  Printer,
-  CheckCircle,
-  Banknote,
-  QrCode
+  Check, 
+  Printer, 
+  CheckCircle, 
+  Banknote, 
+  QrCode 
 } from 'lucide-react';
 import { PaymentMode } from './types';
 
@@ -64,7 +64,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   // Conditional Payment Verification State (Must be verified by waiter to enable vacate)
   const [isPaymentReceived, setIsPaymentReceived] = useState<boolean>(false);
 
-  // Financial calculations
+  // Financial calculations with tip dynamically included
   const payableAmount = totalAmount + selectedTip;
   const subtotal = Math.round(totalAmount / 1.05);
   const gst = totalAmount - subtotal;
@@ -72,7 +72,14 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   const sgst = gst - cgst;
   const cashChange = Math.max(0, cashTendered - payableAmount);
 
-  // UPI QR Code Generator URL
+  // Handler: Selecting tip automatically syncs cash tender amount
+  const handleSelectTip = (tip: number) => {
+    setSelectedTip(tip);
+    const updatedPayable = totalAmount + tip;
+    setCashTendered(updatedPayable);
+  };
+
+  // UPI QR Code Generator URL including tip
   const qrUrl = useMemo(() => {
     const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${payableAmount}&cu=INR&tn=${encodeURIComponent(seatName)}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUri)}`;
@@ -100,14 +107,14 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
     >
       <div className="overflow-y-auto no-scrollbar flex-1 pr-0.5">
         {/* ======================================================== */}
-        {/* 1. HEADER: RETURN TO TICKET BUTTON & INVOICE TARGET */}
+        {/* 1. HEADER: RETURN TO TICKET BUTTON & INVOICE TARGET      */}
         {/* ======================================================== */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 mb-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onBackToTicket}
-              className="w-8 h-8 rounded-xl border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 active:scale-90 flex items-center justify-center transition-all shadow-2xs"
+              className="w-8 h-8 rounded-xl border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 active:scale-90 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
               title="Return to Live Order Ticket"
             >
               <ArrowLeft className="w-4 h-4 text-slate-700" />
@@ -121,14 +128,14 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               </p>
             </div>
           </div>
-          {/* Standardized Uniform Badge Size: h-6 px-2.5 text-[10px] */}
+          {/* Standardized Uniform Badge Size */}
           <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
             Tax Invoice
           </span>
         </div>
 
         {/* ======================================================== */}
-        {/* 2. ITEMIZED INVOICE BREAKDOWN */}
+        {/* 2. ITEMIZED INVOICE BREAKDOWN                            */}
         {/* ======================================================== */}
         <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/70 mb-3 text-xs shadow-2xs">
           {/* Sample Bill Items */}
@@ -183,7 +190,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* 3. OPTIONAL TIP PRESETS (UNIFORM HEIGHT: h-8) */}
+        {/* 3. OPTIONAL TIP PRESETS (DYNAMICALLY SYNCED TO CASH)     */}
         {/* ======================================================== */}
         <div className="mb-3">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">
@@ -194,10 +201,10 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               <button
                 key={tip}
                 type="button"
-                onClick={() => setSelectedTip(tip)}
-                className={`h-8 rounded-xl text-xs font-bold border transition-all flex items-center justify-center ${
+                onClick={() => handleSelectTip(tip)}
+                className={`h-8 rounded-xl text-xs font-bold border transition-all flex items-center justify-center cursor-pointer ${
                   selectedTip === tip
-                    ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs'
+                    ? 'bg-amber-500 text-slate-950 font-black border-amber-500 shadow-xs ring-2 ring-amber-500/20'
                     : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
                 }`}
               >
@@ -208,18 +215,18 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* 4. PAYMENT METHOD SELECTOR: CASH VS DYNAMIC UPI QR */}
+        {/* 4. PAYMENT METHOD SELECTOR: CASH VS DYNAMIC UPI QR       */}
         {/* ======================================================== */}
         <div className="mb-3">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-1.5">
             Payment Mode
           </span>
           <div className="grid grid-cols-2 gap-2">
-            {/* Cash Tab with single icon */}
+            {/* Cash Tab */}
             <button
               type="button"
               onClick={() => { setPaymentMode('cash'); setIsPaymentReceived(false); }}
-              className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs ${
+              className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'cash'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -229,11 +236,11 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               <span>Cash</span>
             </button>
 
-            {/* UPI QR Tab with single icon */}
+            {/* UPI QR Tab */}
             <button
               type="button"
               onClick={() => { setPaymentMode('upi'); setIsPaymentReceived(false); }}
-              className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs ${
+              className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'upi'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -245,9 +252,25 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
           </div>
         </div>
 
-        {/* Cash Tender Calculator View */}
+        {/* Cash Tender Calculator View with Tip Integration */}
         {paymentMode === 'cash' && (
-          <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50 mb-3 space-y-2">
+          <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50 mb-3 space-y-2.5">
+            {/* Total Payable Row with Tip Indicator */}
+            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-200">
+              <span className="font-bold text-slate-700">Total Payable:</span>
+              <div className="text-right">
+                <span className="font-black text-amber-700 text-sm">
+                  ₹{payableAmount.toLocaleString('en-IN')}
+                </span>
+                {selectedTip > 0 && (
+                  <span className="text-[9px] text-slate-500 block font-semibold">
+                    (₹{totalAmount} bill + ₹{selectedTip} tip)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Cash Tender Input */}
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-600">Cash Received:</span>
               <div className="flex items-center gap-1">
@@ -256,31 +279,57 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
                   type="number"
                   value={cashTendered}
                   onChange={(e) => setCashTendered(Number(e.target.value) || 0)}
-                  className="w-20 px-2 py-0.5 text-xs font-black bg-white border border-slate-300 rounded-lg text-right outline-none text-slate-900"
+                  className="w-24 px-2 py-1 text-xs font-black bg-white border border-slate-300 rounded-lg text-right outline-none text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
 
-            {/* Quick Denominations */}
-            <div className="flex items-center gap-1.5 pt-1">
+            {/* Quick Denominations with Exact Presets */}
+            <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setCashTendered(payableAmount)}
+                className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
+                  cashTendered === payableAmount
+                    ? 'bg-amber-500 text-slate-950 font-black border-amber-500'
+                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                Exact (₹{payableAmount})
+              </button>
               {[500, 1000, 2000].map(val => (
                 <button
                   key={val}
                   type="button"
                   onClick={() => setCashTendered(val)}
-                  className="h-7 px-3 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg text-[10px] font-bold text-slate-700 active:scale-95 transition-all shadow-2xs"
+                  className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
+                    cashTendered === val
+                      ? 'bg-amber-500 text-slate-950 font-black border-amber-500'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                  }`}
                 >
                   ₹{val}
                 </button>
               ))}
             </div>
 
-            {/* Change Due */}
+            {/* Change Due or Remaining Due */}
             <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-black">
-              <span className="text-slate-500">Change Due:</span>
-              <span className="text-emerald-600 font-black">
-                ₹{cashChange.toLocaleString('en-IN')}
-              </span>
+              {cashTendered >= payableAmount ? (
+                <>
+                  <span className="text-slate-600">Change Due:</span>
+                  <span className="text-emerald-600 font-black text-sm">
+                    ₹{cashChange.toLocaleString('en-IN')}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-rose-600 font-bold">Remaining Due:</span>
+                  <span className="text-rose-600 font-black text-sm">
+                    -₹{(payableAmount - cashTendered).toLocaleString('en-IN')}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -299,13 +348,13 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               />
             </div>
             <span className="text-xs font-black text-amber-700 mt-2">
-              ₹{payableAmount.toLocaleString('en-IN')}
+              ₹{payableAmount.toLocaleString('en-IN')} {selectedTip > 0 ? `(incl. ₹${selectedTip} tip)` : ''}
             </span>
           </div>
         )}
 
         {/* ======================================================== */}
-        {/* CONDITIONAL PAYMENT VERIFICATION SWITCH (USER REQUIRED!) */}
+        {/* CONDITIONAL PAYMENT VERIFICATION SWITCH                  */}
         {/* ======================================================== */}
         <div 
           onClick={() => setIsPaymentReceived(!isPaymentReceived)}
@@ -342,13 +391,13 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         <button
           type="button"
           onClick={handlePrint}
-          className="w-full h-10 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-all"
+          className="w-full h-10 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
         >
           <Printer className="w-3.5 h-3.5 text-slate-600" />
           <span>{isReceiptPrinting ? 'Printing Receipt...' : 'Print Receipt'}</span>
         </button>
 
-        {/* Single Icon Button: Settle & Vacate (USER REQUESTED!) */}
+        {/* Single Icon Button: Settle & Vacate */}
         <button
           type="button"
           disabled={!isPaymentReceived}
@@ -369,4 +418,3 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 };
 
 export default TabletBillSettlement;
-

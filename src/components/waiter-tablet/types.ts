@@ -192,7 +192,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'biryani',
     price: 260,
     description: 'Traditional seeraga samba rice cooked with military spiced chicken',
-    imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/chicken-donne-biryani.jpg',
     isVeg: false
   },
   {
@@ -201,7 +201,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'biryani',
     price: 340,
     description: 'Slow-cooked tender military spiced mutton with flavored samba rice',
-    imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/mutton-donne-biryani.jpg',
     isVeg: false
   },
   {
@@ -210,7 +210,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'starters',
     price: 220,
     description: 'Crispy chicken pieces tossed with green chillies, curry leaves and spices',
-    imageUrl: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/chilli-chicken.jpg',
     isVeg: false
   },
   {
@@ -219,7 +219,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'starters',
     price: 210,
     description: 'Deep-fried spiced crispy bone chicken kabab (4 pieces)',
-    imageUrl: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/chicken-kabab.jpg',
     isVeg: false
   },
   {
@@ -228,7 +228,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'gravy',
     price: 180,
     description: 'Steamed aromatic rice tossed with pure desi ghee and roasted podi',
-    imageUrl: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/biryani-rice.webp',
     isVeg: true
   },
   {
@@ -237,7 +237,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'drinks',
     price: 60,
     description: 'Chilled sparkling club soda with freshly squeezed lime',
-    imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=150&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=200&q=80',
     isVeg: true
   },
   {
@@ -246,7 +246,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'biryani',
     price: 160,
     description: 'Flavor-infused authentic seeraga samba biryani rice without meat pieces',
-    imageUrl: 'https://images.unsplash.com/photo-1596797038530-2c107229654b?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/donne-khushka.jpg',
     isVeg: true
   },
   {
@@ -255,7 +255,7 @@ export const MENU_DISHES: DishItem[] = [
     category: 'starters',
     price: 320,
     description: 'Boneless tender mutton roasted with fresh ground black pepper & shallots',
-    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=150&q=80',
+    imageUrl: '/images/dishes/mutton-fry.jpg',
     isVeg: false
   }
 ];
@@ -266,7 +266,7 @@ export const INITIAL_TICKET_ITEMS: TicketItem[] = [
     name: 'Chicken Donne Biryani',
     quantity: 2,
     price: 520,
-    imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=120&q=80',
+    imageUrl: '/images/dishes/chicken-donne-biryani.jpg',
     status: 'READY'
   },
   {
@@ -274,7 +274,7 @@ export const INITIAL_TICKET_ITEMS: TicketItem[] = [
     name: 'Chilli Chicken (Dry)',
     quantity: 1,
     price: 220,
-    imageUrl: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=120&q=80',
+    imageUrl: '/images/dishes/chilli-chicken.jpg',
     status: 'PREPARING'
   },
   {
@@ -290,7 +290,7 @@ export const INITIAL_TICKET_ITEMS: TicketItem[] = [
     name: 'Gunpowder Ghee Rice',
     quantity: 1,
     price: 180,
-    imageUrl: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=120&q=80',
+    imageUrl: '/images/dishes/biryani-rice.webp',
     status: 'PLACED'
   }
 ];
