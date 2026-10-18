@@ -25,7 +25,8 @@ interface SeatQR {
 }
 
 export default function SeatQRsPage() {
-  const [hostPreset, setHostPreset] = useState<'cloud' | 'wifi' | 'local' | 'custom'>('cloud');
+  const [hostPreset, setHostPreset] = useState<'current' | 'cloud' | 'wifi' | 'local' | 'custom'>('current');
+  const [currentOrigin, setCurrentOrigin] = useState<string>('');
   const [customOrigin, setCustomOrigin] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [seatRange, setSeatRange] = useState<'all' | '1-25' | '26-50' | '51-75' | '76-100'>('1-25');
@@ -33,13 +34,20 @@ export default function SeatQRsPage() {
   const [generatedQRs, setGeneratedQRs] = useState<SeatQR[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentOrigin(window.location.origin);
+    }
+  }, []);
+
   const effectiveBaseUrl = useMemo(() => {
+    if (hostPreset === 'current') return currentOrigin || 'https://amenities-mods-point-diving.trycloudflare.com';
     if (hostPreset === 'cloud') return 'https://thoogudeepa-v2.netlify.app';
     if (hostPreset === 'wifi') return 'http://192.168.0.4:3005';
     if (hostPreset === 'local') return 'http://localhost:3005';
     if (hostPreset === 'custom' && customOrigin.trim()) return customOrigin.trim().replace(/\/$/, '');
-    return 'https://thoogudeepa-v2.netlify.app';
-  }, [hostPreset, customOrigin]);
+    return currentOrigin || 'http://localhost:3005';
+  }, [hostPreset, currentOrigin, customOrigin]);
 
   // Generate 100 QR codes
   useEffect(() => {
@@ -51,7 +59,7 @@ export default function SeatQRsPage() {
 
       for (let i = 1; i <= 100; i++) {
         const seatId = String(i).padStart(2, '0');
-        const targetUrl = `${effectiveBaseUrl}/seat/${seatId}`;
+        const targetUrl = `${effectiveBaseUrl}/seat/${seatId}/`;
         try {
           const qrDataUrl = await QRCode.toDataURL(targetUrl, {
             errorCorrectionLevel: 'H',
@@ -175,6 +183,18 @@ export default function SeatQRsPage() {
             <div className="flex items-center bg-zinc-100 p-0.5 rounded-lg border border-zinc-200">
               <button
                 type="button"
+                onClick={() => setHostPreset('current')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  hostPreset === 'current'
+                    ? 'bg-zinc-950 text-white shadow-xs'
+                    : 'text-zinc-600 hover:text-zinc-950'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Live Tunnel / Current</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setHostPreset('cloud')}
                 className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                   hostPreset === 'cloud'
@@ -183,7 +203,7 @@ export default function SeatQRsPage() {
                 }`}
               >
                 <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Cloud Live (Recommended)</span>
+                <span>Netlify Cloud</span>
               </button>
               <button
                 type="button"
