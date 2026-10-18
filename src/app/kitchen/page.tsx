@@ -148,11 +148,37 @@ export default function KitchenDisplaySystemPage() {
       },
       onStageChange: (data) => {
         setItemStages((prev) => {
-          const next = { ...prev, [data.key]: data.stage };
+          const next = { ...prev };
           const dId = data.dishId || data.key;
           const chair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
           const num = dId.replace(/[^0-9]/g, '');
 
+          // When stage is SERVED, strictly record under chair-specific keys to prevent bleed across seats
+          if (data.stage === 'SERVED') {
+            if (chair) {
+              next[`${data.key}-${chair}`] = data.stage;
+              if (dId) {
+                next[`${dId}-${chair}`] = data.stage;
+                next[`dish-${dId.replace('dish-', '')}-${chair}`] = data.stage;
+                next[`${dId.replace('dish-', '')}-${chair}`] = data.stage;
+              }
+              if (num) {
+                next[`${num}-${chair}`] = data.stage;
+                next[`dish-${num}-${chair}`] = data.stage;
+              }
+              if (data.dishName) {
+                const lowName = data.dishName.toLowerCase();
+                const cleanName = lowName.replace(/donne\s*/i, '').trim();
+                next[`${lowName}-${chair}`] = data.stage;
+                next[`${cleanName}-${chair}`] = data.stage;
+              }
+            } else {
+              next[data.key] = data.stage;
+            }
+            return next;
+          }
+
+          next[data.key] = data.stage;
           if (dId) {
             next[dId] = data.stage;
             next[`dish-${dId.replace('dish-', '')}`] = data.stage;
@@ -555,16 +581,43 @@ export default function KitchenDisplaySystemPage() {
         );
 
         {/* SCREEN 2: All Seats & Feeds (Dynamic Orders) */}
+        const activeTicketsToDisplay = activeOrders
+          .map((active) => {
+            const order = active.order;
+            const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
+
+            const unservedItems = active.items.filter((it, idx) => {
+              const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
+              const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+              const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
+              const isServed =
+                it.stage === 'SERVED' ||
+                (cleanChair && itemStages[`${itemKey}-${cleanChair}`] === 'SERVED') ||
+                (cleanChair && it.dish_id && itemStages[`${it.dish_id}-${cleanChair}`] === 'SERVED') ||
+                (cleanChair && dNum && itemStages[`${dNum}-${cleanChair}`] === 'SERVED') ||
+                (cleanChair && dNum && itemStages[`dish-${dNum}-${cleanChair}`] === 'SERVED') ||
+                (cleanChair && dName && itemStages[`${dName}-${cleanChair}`] === 'SERVED') ||
+                (cleanChair && it.dish_name && itemStages[`${it.dish_name.toLowerCase()}-${cleanChair}`] === 'SERVED') ||
+                itemStages[itemKey] === 'SERVED';
+
+              return !isServed;
+            });
+
+            return { ...active, unservedItems };
+          })
+          .filter((active) => active.items.length === 0 || active.unservedItems.length > 0);
+
         const screen2Content = (
           <div className="flex-1 flex flex-col justify-between w-full h-full overflow-hidden">
             {/* Header Status */}
             <div className="flex items-center justify-between pb-1 shrink-0 border-b border-zinc-200">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                  ALL SEATS ({activeOrders.length} ACTIVE {activeOrders.length === 1 ? 'TICKET' : 'TICKETS'})
+                  ALL SEATS ({activeTicketsToDisplay.length} ACTIVE {activeTicketsToDisplay.length === 1 ? 'TICKET' : 'TICKETS'})
                 </h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {activeOrders.length > 0 && (
+                {activeTicketsToDisplay.length > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAllOrders}
@@ -582,7 +635,7 @@ export default function KitchenDisplaySystemPage() {
             </div>
 
             {/* Zero Orders Fresh State */}
-            {activeOrders.length === 0 ? (
+            {activeTicketsToDisplay.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-300 rounded-2xl bg-white/60 my-auto">
                 <div className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-600 flex items-center justify-center text-emerald-700 mb-2.5 shadow-2xs">
                   <CheckCircle2 className="w-7 h-7" />
@@ -601,9 +654,8 @@ export default function KitchenDisplaySystemPage() {
             ) : (
               /* Grid of Active Orders (Content-fitting, compact, neatly aligned) */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 w-full flex-1 overflow-y-auto py-1 items-start content-start">
-                {activeOrders.map((active) => {
+                {activeTicketsToDisplay.map((active) => {
                   const order = active.order;
-                  const items = active.items;
                   const chairId = order.chair_id || '12';
 
                   return (
@@ -623,47 +675,12 @@ export default function KitchenDisplaySystemPage() {
 
                       {/* Items List (Tight spacing, no excessive gaps) */}
                       <div className="flex flex-col gap-1.5 py-0.5">
-                        {(() => {
-                          const unservedItems = items.filter((it, idx) => {
-                            const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
-                            const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
-                            const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-                            const cleanChair = order.chair_id ? order.chair_id.replace(/[^0-9]/g, '') : '';
-
-                            const isServed =
-                              it.stage === 'SERVED' ||
-                              itemStages[itemKey] === 'SERVED' ||
-                              (it.dish_id && itemStages[it.dish_id] === 'SERVED') ||
-                              (dNum && itemStages[dNum] === 'SERVED') ||
-                              (dNum && itemStages[`dish-${dNum}`] === 'SERVED') ||
-                              (dNum && cleanChair && itemStages[`${dNum}-${cleanChair}`] === 'SERVED') ||
-                              (dNum && cleanChair && itemStages[`dish-${dNum}-${cleanChair}`] === 'SERVED') ||
-                              (dName && itemStages[dName] === 'SERVED') ||
-                              (dName && cleanChair && itemStages[`${dName}-${cleanChair}`] === 'SERVED') ||
-                              (it.dish_name && itemStages[it.dish_name.toLowerCase()] === 'SERVED') ||
-                              (it.dish_name && cleanChair && itemStages[`${it.dish_name.toLowerCase()}-${cleanChair}`] === 'SERVED');
-
-                            return !isServed;
-                          });
-
-                          if (items.length === 0) {
-                            return (
-                              <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
-                                Order received (compiling line items...)
-                              </div>
-                            );
-                          }
-
-                          if (unservedItems.length === 0) {
-                            return (
-                              <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-3 flex items-center justify-center gap-1.5 text-emerald-800 text-xs font-black">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                <span>All items served to Seat {chairId}</span>
-                              </div>
-                            );
-                          }
-
-                          return unservedItems.map((it, idx) => {
+                        {active.items.length === 0 ? (
+                          <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
+                            Order received (compiling line items...)
+                          </div>
+                        ) : (
+                          active.unservedItems.map((it, idx) => {
                             const itemKey = it.id || it.dish_id || `${order.ticket_number}-${idx}`;
                             const currentStage =
                               itemStages[itemKey] ||
@@ -689,12 +706,12 @@ export default function KitchenDisplaySystemPage() {
                                 </div>
 
                                 {/* Customizations & Add-ons Clearly Visible */}
-                                {(it.notes || (it.addons && it.addons.length > 0 && !it.addons.every(a => a === 'PLACED'))) && (
+                                {(it.notes || (it.addons && it.addons.length > 0 && !it.addons.every((a) => a === 'PLACED'))) && (
                                   <div className="text-[10px] font-bold text-amber-950 bg-amber-50/90 border border-amber-300 rounded px-2 py-1 leading-snug">
                                     <span className="font-black text-[9px] uppercase tracking-wide text-amber-800 block">
                                       ADD-ONS &amp; CUSTOMIZATION:
                                     </span>
-                                    <span>{(it.notes || it.addons?.filter(a => a !== 'PLACED').join(', '))}</span>
+                                    <span>{(it.notes || it.addons?.filter((a) => a !== 'PLACED').join(', '))}</span>
                                   </div>
                                 )}
 
@@ -756,8 +773,8 @@ export default function KitchenDisplaySystemPage() {
                                 </div>
                               </div>
                             );
-                          });
-                        })()}
+                          })
+                        )}
                       </div>
                     </div>
                   );
