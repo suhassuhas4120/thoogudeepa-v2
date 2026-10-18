@@ -333,14 +333,28 @@ export const realtimeBridge = {
     try {
       // 1. Update in local orders list
       const orders = getLocalOrdersList();
+      const cleanChair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
+      const normDishNum = (meta?.dishId || itemIdOrKey).replace(/[^0-9]/g, '');
+      const normName = meta?.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
       orders.forEach((o) => {
-        if (!meta?.chairId || o.order.chair_id === meta.chairId) {
+        const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
+        const isTargetChair = !cleanChair || oChair === cleanChair || o.order.chair_id === meta?.chairId;
+        if (isTargetChair) {
           o.items.forEach((it) => {
+            const itDishNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
+            const itNormName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+
             const matches =
               it.id === itemIdOrKey ||
               it.dish_id === itemIdOrKey ||
+              it.dish_id === meta?.dishId ||
+              `dish-${it.dish_id}` === itemIdOrKey ||
+              `dish-${meta?.dishId}` === it.dish_id ||
               `${it.dish_id}-${it.chair_id}` === itemIdOrKey ||
-              (meta?.dishId && it.dish_id === meta.dishId);
+              (cleanChair && oChair === cleanChair && itDishNum && normDishNum && itDishNum === normDishNum) ||
+              (cleanChair && oChair === cleanChair && normName && (itNormName === normName || itNormName.includes(normName) || normName.includes(itNormName)));
+
             if (matches) {
               it.stage = stage;
             }
@@ -351,13 +365,28 @@ export const realtimeBridge = {
 
       // 2. Persist to seat-specific stage cache
       if (typeof window !== 'undefined') {
-        const chair = meta?.chairId || '';
+        const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
         if (chair) {
           try {
             const key = `thoogudeepa_item_stages_${chair}`;
             const existing = JSON.parse(localStorage.getItem(key) || '{}');
             existing[itemIdOrKey] = stage;
-            if (meta?.dishId) existing[meta.dishId] = stage;
+            if (meta?.dishId) {
+              existing[meta.dishId] = stage;
+              existing[`dish-${meta.dishId.replace('dish-', '')}`] = stage;
+              existing[meta.dishId.replace('dish-', '')] = stage;
+            }
+            if (meta?.dishName) {
+              const ln = meta.dishName.toLowerCase();
+              existing[ln] = stage;
+              existing[ln.replace(/donne\s*/i, '').trim()] = stage;
+            }
+            if (normDishNum) {
+              existing[normDishNum] = stage;
+              existing[`dish-${normDishNum}`] = stage;
+              existing[`menu-0${normDishNum}`] = stage;
+              existing[`menu-${normDishNum}`] = stage;
+            }
             localStorage.setItem(key, JSON.stringify(existing));
           } catch {
             // Ignore storage errors
@@ -376,15 +405,34 @@ export const realtimeBridge = {
             : curAddons.filter((x: string) => x !== 'PLACED');
           await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', itemIdOrKey);
         } else if (meta?.chairId) {
+          const cleanChair = meta.chairId.replace(/[^0-9]/g, '');
+          const possibleChairs = [meta.chairId, cleanChair, cleanChair.padStart(2, '0')];
           const dId = meta.dishId || itemIdOrKey;
-          const { data: curList } = await supabase.from('order_items').select('id, addons').match({ chair_id: meta.chairId, dish_id: dId });
+          const cleanDishNum = dId.replace(/[^0-9]/g, '');
+          const possibleDishIds = [dId, `dish-${cleanDishNum}`, cleanDishNum];
+
+          const { data: curList } = await supabase
+            .from('order_items')
+            .select('id, dish_id, dish_name, addons, chair_id')
+            .in('chair_id', possibleChairs);
+
           if (curList && curList.length > 0) {
+            const normName = meta.dishName ? meta.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
             for (const c of curList) {
-              const curAddons: string[] = c.addons || [];
-              const nextAddons = stage === 'PLACED'
-                ? (curAddons.includes('PLACED') ? curAddons : [...curAddons, 'PLACED'])
-                : curAddons.filter((x: string) => x !== 'PLACED');
-              await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', c.id);
+              const cDishNum = c.dish_id ? c.dish_id.replace(/[^0-9]/g, '') : '';
+              const cName = c.dish_name ? c.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
+              const isMatch =
+                possibleDishIds.includes(c.dish_id) ||
+                (cleanDishNum && cDishNum === cleanDishNum) ||
+                (normName && (cName === normName || cName.includes(normName) || normName.includes(cName)));
+
+              if (isMatch) {
+                const curAddons: string[] = c.addons || [];
+                const nextAddons = stage === 'PLACED'
+                  ? (curAddons.includes('PLACED') ? curAddons : [...curAddons, 'PLACED'])
+                  : curAddons.filter((x: string) => x !== 'PLACED');
+                await supabase.from('order_items').update({ stage: dbStage, addons: nextAddons, updated_at: new Date().toISOString() }).eq('id', c.id);
+              }
             }
           }
         }

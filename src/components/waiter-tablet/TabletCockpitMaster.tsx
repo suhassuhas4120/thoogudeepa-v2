@@ -245,7 +245,7 @@ export const TabletCockpitMaster: React.FC = () => {
         if (details.items && details.items.length > 0) {
           const qtyMap: Record<number, number> = {};
           const items: TicketItem[] = details.items.map((it, idx) => {
-            const numId = Number(it.dish_id) || (idx + 1);
+            const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
             qtyMap[numId] = it.quantity;
             const dish = MENU_DISHES.find(d => d.id === numId);
             const itStage = it.stage as string;
@@ -333,6 +333,12 @@ export const TabletCockpitMaster: React.FC = () => {
     const dish = ticketItems.find(item => item.id === itemId);
 
     setTicketItems(prev => prev.map(item => (item.id === itemId ? { ...item, status: 'SERVED' } : item)));
+
+    realtimeBridge.updateStage(`dish-${itemId}`, 'SERVED', {
+      chairId: cleanChair,
+      dishId: `dish-${itemId}`,
+      dishName: dish?.name
+    });
 
     realtimeBridge.updateStage(String(itemId), 'SERVED', {
       chairId: cleanChair,

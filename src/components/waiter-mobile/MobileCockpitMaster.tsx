@@ -280,7 +280,11 @@ export const MobileCockpitMaster: React.FC = () => {
             isBestseller: false
           };
           return {
-            menuItem: foundMenu,
+            menuItem: {
+              ...foundMenu,
+              id: it.dish_id || foundMenu.id,
+              name: it.dish_name || foundMenu.name
+            },
             quantity: it.quantity,
             lineTotal: it.price * it.quantity,
             stage: it.stage as any
