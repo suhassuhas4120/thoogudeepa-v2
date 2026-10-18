@@ -100,16 +100,37 @@ export default function KitchenDisplaySystemPage() {
             const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
             const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
 
-            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' =
-              (chair && tNum && it.dish_id && cachedStages[`${chair}-${tNum}-${it.dish_id}`] as any) ||
-              (chair && it.dish_id && cachedStages[`${chair}-${it.dish_id}`] as any) ||
-              (chair && dNum && cachedStages[`${chair}-${dNum}`] as any) ||
-              (chair && dName && cachedStages[`${chair}-${dName}`] as any) ||
-              (it.dish_id && cachedStages[it.dish_id] as any) ||
-              (dNum && cachedStages[dNum] as any) ||
-              (dName && cachedStages[dName] as any) ||
-              it.stage ||
-              'PLACED';
+            const candList: string[] = [];
+            if (it.stage) candList.push(it.stage);
+
+            const lookupKeys = [
+              chair && tNum && it.dish_id && `${chair}-${tNum}-${it.dish_id}`,
+              chair && tNum && dNum && `${chair}-${tNum}-${dNum}`,
+              chair && it.dish_id && `${chair}-${it.dish_id}`,
+              chair && dNum && `${chair}-${dNum}`,
+              chair && dNum && `${chair}-dish-${dNum}`,
+              chair && dName && `${chair}-${dName}`,
+              chair && it.dish_name && `${chair}-${it.dish_name.toLowerCase()}`,
+              it.id && `${chair}-${it.id}`,
+              it.dish_id,
+              dNum,
+              dName,
+            ].filter(Boolean) as string[];
+
+            for (const k of lookupKeys) {
+              if (cachedStages[k]) candList.push(cachedStages[k]);
+            }
+
+            let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
+            if (candList.includes('SERVED')) {
+              effStage = 'SERVED';
+            } else if (candList.includes('READY')) {
+              effStage = 'READY';
+            } else if (candList.includes('PREP')) {
+              effStage = 'PREP';
+            } else if (candList.includes('REC')) {
+              effStage = 'REC';
+            }
 
             it.stage = effStage;
 
@@ -634,11 +655,15 @@ export default function KitchenDisplaySystemPage() {
                 (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`] === 'SERVED') ||
                 (cleanChair && tNum && dNum && itemStages[`${cleanChair}-${tNum}-${dNum}`] === 'SERVED') ||
                 (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`] === 'SERVED') ||
+                (cleanChair && it.dish_id && itemStages[`${cleanChair}-dish-${it.dish_id.replace('dish-', '')}`] === 'SERVED') ||
                 (cleanChair && dNum && itemStages[`${cleanChair}-${dNum}`] === 'SERVED') ||
                 (cleanChair && dNum && itemStages[`${cleanChair}-dish-${dNum}`] === 'SERVED') ||
                 (cleanChair && dName && itemStages[`${cleanChair}-${dName}`] === 'SERVED') ||
                 (cleanChair && it.dish_name && itemStages[`${cleanChair}-${it.dish_name.toLowerCase()}`] === 'SERVED') ||
-                (cleanChair && itemStages[`${cleanChair}-${itemKey}`] === 'SERVED');
+                (cleanChair && itemStages[`${cleanChair}-${itemKey}`] === 'SERVED') ||
+                (it.dish_id && itemStages[it.dish_id] === 'SERVED') ||
+                (dNum && itemStages[dNum] === 'SERVED') ||
+                (dName && itemStages[dName] === 'SERVED');
 
               return !isServed;
             });
@@ -726,16 +751,38 @@ export default function KitchenDisplaySystemPage() {
                             const dNum = it.dish_id ? it.dish_id.replace(/[^0-9]/g, '') : '';
                             const dName = it.dish_name ? it.dish_name.toLowerCase().replace(/donne\s*/i, '').trim() : '';
 
-                            const currentStage =
-                              it.stage ||
-                              (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`]) ||
-                              (cleanChair && tNum && dNum && itemStages[`${cleanChair}-${tNum}-${dNum}`]) ||
-                              (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`]) ||
-                              (cleanChair && dNum && itemStages[`${cleanChair}-${dNum}`]) ||
-                              (cleanChair && dNum && itemStages[`${cleanChair}-dish-${dNum}`]) ||
-                              (cleanChair && dName && itemStages[`${cleanChair}-${dName}`]) ||
-                              (cleanChair && itemStages[`${cleanChair}-${itemKey}`]) ||
-                              'PLACED';
+                            const candStages: string[] = [];
+                            if (it.stage) candStages.push(it.stage);
+
+                            const renderKeys = [
+                              cleanChair && tNum && it.dish_id && `${cleanChair}-${tNum}-${it.dish_id}`,
+                              cleanChair && tNum && dNum && `${cleanChair}-${tNum}-${dNum}`,
+                              cleanChair && it.dish_id && `${cleanChair}-${it.dish_id}`,
+                              cleanChair && it.dish_id && `${cleanChair}-dish-${it.dish_id.replace('dish-', '')}`,
+                              cleanChair && dNum && `${cleanChair}-${dNum}`,
+                              cleanChair && dNum && `${cleanChair}-dish-${dNum}`,
+                              cleanChair && dName && `${cleanChair}-${dName}`,
+                              cleanChair && it.dish_name && `${cleanChair}-${it.dish_name.toLowerCase()}`,
+                              cleanChair && `${cleanChair}-${itemKey}`,
+                              it.dish_id,
+                              dNum,
+                              dName,
+                            ].filter(Boolean) as string[];
+
+                            for (const k of renderKeys) {
+                              if (itemStages[k]) candStages.push(itemStages[k]);
+                            }
+
+                            let currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
+                            if (candStages.includes('SERVED')) {
+                              currentStage = 'SERVED';
+                            } else if (candStages.includes('READY')) {
+                              currentStage = 'READY';
+                            } else if (candStages.includes('PREP')) {
+                              currentStage = 'PREP';
+                            } else if (candStages.includes('REC')) {
+                              currentStage = 'REC';
+                            }
 
                             return (
                               <div

@@ -90,7 +90,7 @@ export default function CustomerCartPage() {
         return {
           chair_id: chairId,
           seat_label: `SEAT ${chairId}`,
-          dish_id: `dish-${id}`,
+          dish_id: id.startsWith('dish-') ? id : `dish-${id}`,
           dish_name: catalogEntry.title,
           quantity: qty,
           price: catalogEntry.price,

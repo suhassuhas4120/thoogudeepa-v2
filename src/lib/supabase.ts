@@ -416,19 +416,28 @@ export const realtimeBridge = {
             const key = `thoogudeepa_item_stages_${chair}`;
             const existing = JSON.parse(localStorage.getItem(key) || '{}');
             existing[itemIdOrKey] = stage;
+            existing[`${chair}-${itemIdOrKey}`] = stage;
             if (meta?.dishId) {
               existing[meta.dishId] = stage;
+              existing[`${chair}-${meta.dishId}`] = stage;
               existing[`dish-${meta.dishId.replace('dish-', '')}`] = stage;
+              existing[`${chair}-dish-${meta.dishId.replace('dish-', '')}`] = stage;
               existing[meta.dishId.replace('dish-', '')] = stage;
+              existing[`${chair}-${meta.dishId.replace('dish-', '')}`] = stage;
             }
             if (meta?.dishName) {
               const ln = meta.dishName.toLowerCase();
               existing[ln] = stage;
-              existing[ln.replace(/donne\s*/i, '').trim()] = stage;
+              existing[`${chair}-${ln}`] = stage;
+              const cleanDish = ln.replace(/donne\s*/i, '').trim();
+              existing[cleanDish] = stage;
+              existing[`${chair}-${cleanDish}`] = stage;
             }
             if (normDishNum) {
               existing[normDishNum] = stage;
+              existing[`${chair}-${normDishNum}`] = stage;
               existing[`dish-${normDishNum}`] = stage;
+              existing[`${chair}-dish-${normDishNum}`] = stage;
               existing[`menu-0${normDishNum}`] = stage;
               existing[`menu-${normDishNum}`] = stage;
             }
@@ -715,29 +724,38 @@ export const realtimeBridge = {
           }
         }
 
-        const cachedStage =
-          (chair && tNum && dId && cached[`${chair}-${tNum}-${dId}`]) ||
-          (chair && tNum && dNum && cached[`${chair}-${tNum}-${dNum}`]) ||
-          (chair && dId && cached[`${chair}-${dId}`]) ||
-          (chair && dNum && cached[`${chair}-${dNum}`]) ||
-          (chair && dNum && cached[`${chair}-dish-${dNum}`]) ||
-          (chair && dName && cached[`${chair}-${dName}`]) ||
-          (chair && fullDishName && cached[`${chair}-${fullDishName}`]) ||
-          (it.id && cached[it.id]) ||
-          (dId && cached[dId]) ||
-          (dNum && cached[dNum]) ||
-          (dName && cached[dName]);
+        const candidates: string[] = [];
+        if (localStage) candidates.push(localStage);
+        if (it.stage) candidates.push(it.stage);
 
-        if (localStage === 'SERVED' || cachedStage === 'SERVED') {
+        const checkKeys = [
+          chair && tNum && dId && `${chair}-${tNum}-${dId}`,
+          chair && tNum && dNum && `${chair}-${tNum}-${dNum}`,
+          chair && dId && `${chair}-${dId}`,
+          chair && dNum && `${chair}-${dNum}`,
+          chair && dNum && `${chair}-dish-${dNum}`,
+          chair && dName && `${chair}-${dName}`,
+          chair && fullDishName && `${chair}-${fullDishName}`,
+          it.id,
+          dId,
+          dNum,
+          dName,
+        ].filter(Boolean) as string[];
+
+        for (const k of checkKeys) {
+          if (cached[k]) candidates.push(cached[k]);
+        }
+
+        if (candidates.includes('SERVED')) {
           return { ...it, stage: 'SERVED' };
         }
-        if (localStage === 'READY' || cachedStage === 'READY') {
+        if (candidates.includes('READY')) {
           return { ...it, stage: 'READY' };
         }
-        if (localStage === 'PREP' || cachedStage === 'PREP') {
+        if (candidates.includes('PREP')) {
           return { ...it, stage: 'PREP' };
         }
-        if (localStage === 'REC' || cachedStage === 'REC') {
+        if (candidates.includes('REC')) {
           return { ...it, stage: 'REC' };
         }
         return it;
