@@ -5,14 +5,13 @@
  * Real-world enterprise Menu Ordering Panel (60% split screen width):
  * - Balanced In-Between Theme: Soft slate canvas (#F8FAFC), crisp white cards (#FFFFFF),
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
+ * - Complete, un-truncated brand title in deep dark color: "ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ"
  * - Subheader with explicit [ Floor ] navigation button on ONE single line
- * - STRICTLY NO "TARGET SEAT:" LABEL (Removed as requested by user)
  * - Properly sized and constrained Seat Selector that never spills outside or into right pane
  * - Standalone ShoppingCart icon button with live item count badge positioned directly on top right
  * - Fixed shrink-0 category filter pills (All Items, Donne Biryani, Starters, Gravy, Beverages)
- * - Food cards with authentic high-res food images, veg/non-veg badge, price, and stepper controls
- * - [ + Add ] action button for first-time selection with Plus icon
- * - Clean spacing across left, right, top, bottom, and after seat selector
+ * - Food cards with authentic high-res food images, veg/non-veg badge, price on LEFT, and [ + Add ] on RIGHT
+ * - "Selected: 1" label removed as requested by user
  * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
  */
 
@@ -115,7 +114,7 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
       aria-label="Menu Catalog Ordering Terminal"
     >
       {/* ======================================================== */}
-      {/* 1. SUB-HEADER: FLOOR BACK, BRAND & CONSTRAINED SELECTOR  */}
+      {/* 1. SUB-HEADER: FLOOR BACK, COMPLETE TITLE & SELECTOR     */}
       {/* ======================================================== */}
       <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 mb-4 gap-2 shrink-0 w-full overflow-hidden">
         <div className="flex items-center gap-2 min-w-0 shrink">
@@ -130,39 +129,41 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
             <span className="text-xs font-bold text-slate-800">Floor</span>
           </button>
 
-          {/* Brand & Active Seat Name and Dining Status Tag */}
+          {/* Complete Full Brand Title in Deep Dark Color (Never Lite, Never Half) */}
           <div className="min-w-0 flex flex-col">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-xs font-black text-slate-900 truncate">ತೂಗುದೀಪ</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm font-black text-slate-900 whitespace-nowrap">
+                ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ
+              </span>
               <span
-                className={`h-5 px-2 inline-flex items-center justify-center text-[9px] font-extrabold uppercase tracking-wider rounded-full border shadow-2xs shrink-0 ${
+                className={`h-5 px-2 inline-flex items-center justify-center text-[9px] font-black uppercase tracking-wider rounded-full border shadow-2xs shrink-0 ${
                   isDining 
-                    ? 'bg-amber-50 text-amber-800 border-amber-300' 
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                    ? 'bg-amber-50 text-amber-900 border-amber-300' 
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 }`}
               >
                 {isDining ? 'Dining' : 'New'}
               </span>
             </div>
-            <div className="flex items-center gap-1 text-[10px] text-amber-700 font-bold mt-0.5 truncate">
+            <div className="flex items-center gap-1 text-[10px] text-slate-800 font-extrabold mt-0.5 whitespace-nowrap">
               <span>ಮಿಲಿಟರಿ ಹೋಟೆಲ್</span>
-              <span className="text-slate-300">•</span>
-              <span className="text-slate-700 font-bold truncate">{activeSeatName}</span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-900 font-black">{activeSeatName}</span>
             </div>
           </div>
         </div>
 
         {/* PROPER CONSTRAINED SEAT DROPDOWN (NEVER OVERFLOWS OUTSIDE) */}
-        <div className="relative shrink-0 max-w-[170px] sm:max-w-[190px]">
+        <div className="relative shrink-0 max-w-[155px] sm:max-w-[175px]">
           <div className="relative flex items-center">
             <select
               value={currentSeatId}
               onChange={(e) => onQuickSeatSwitch(e.target.value)}
-              className="appearance-none h-9 pl-2.5 pr-7 w-full max-w-[170px] sm:max-w-[190px] bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-bold text-slate-800 cursor-pointer shadow-2xs outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all truncate"
+              className="appearance-none h-9 pl-2.5 pr-7 w-full max-w-[155px] sm:max-w-[175px] bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-black text-slate-900 cursor-pointer shadow-2xs outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all truncate"
               title="Quickly switch order target seat"
             >
               {allSeatsList.map(seat => (
-                <option key={seat.id} value={seat.id} className="bg-white text-slate-800">
+                <option key={seat.id} value={seat.id} className="bg-white text-slate-900">
                   {seat.label}
                 </option>
               ))}
@@ -240,7 +241,7 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* 4. DISHES CARD GRID WITH IMAGES, STEPPERS & BADGES       */}
+      {/* 4. DISHES CARD GRID: PRICE ON LEFT, ADD ON RIGHT         */}
       {/* ======================================================== */}
       <div className="flex-1 overflow-y-auto no-scrollbar pr-0.5 pb-4">
         {filteredDishes.length === 0 ? (
@@ -287,37 +288,33 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
                       </span>
                     </div>
 
-                    {/* Dish Name, Price Badge & Description */}
+                    {/* Dish Name & Description */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-1 mb-1">
-                        <h4 className="font-extrabold text-xs text-slate-900 leading-snug line-clamp-2">
-                          {dish.name}
-                        </h4>
-                        <span className="text-xs font-black text-amber-700 whitespace-nowrap bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
-                          ₹{dish.price}
-                        </span>
-                      </div>
-
-                      <p className="text-[10px] text-slate-500 font-medium line-clamp-2 leading-relaxed">
+                      <h4 className="font-black text-xs sm:text-sm text-slate-900 leading-snug line-clamp-2">
+                        {dish.name}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium line-clamp-2 leading-relaxed mt-1">
                         {dish.description}
                       </p>
                     </div>
                   </div>
 
-                  {/* Bottom Action Row: Stepper or Clean + Add Button */}
+                  {/* Bottom Action Row: Price on LEFT, Add Button / Stepper on RIGHT (NO "Selected: 1") */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-slate-400">
-                      {qty > 0 ? `Selected: ${qty}` : 'Ready to add'}
+                    {/* Price on Left Side (Bold Dark Color) */}
+                    <span className="text-sm font-black text-slate-900 tracking-tight">
+                      ₹{dish.price}
                     </span>
 
+                    {/* Add Button or Stepper on Right Side */}
                     {qty === 0 ? (
                       // Clean Standardized Button: + Add
                       <button
                         type="button"
                         onClick={() => onAddDishFirstTime(dish.id, dish.price)}
-                        className="h-8 px-3.5 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                        className="h-8 px-3.5 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-900 border border-slate-300 rounded-xl text-xs font-black flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
                       >
-                        <Plus className="w-3 h-3 text-slate-600" />
+                        <Plus className="w-3.5 h-3.5 text-slate-700 stroke-[2.5]" />
                         <span>Add</span>
                       </button>
                     ) : (

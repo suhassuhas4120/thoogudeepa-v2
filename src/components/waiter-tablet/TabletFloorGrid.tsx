@@ -297,14 +297,14 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                       <span>Collect Bill</span>
                     </button>
                   ) : (
-                    // Regular Occupied Dining -> View Order (Dark Button with Eye Icon)
+                    // Regular Occupied Dining -> View Order (Lite Button with Eye Icon as requested)
                     <button
                       type="button"
                       onClick={() => onOpenOrder(seat.id, seat.seatNumber, seat.guestName, seat.totalAmount, true)}
-                      className="w-full h-8 mt-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      className="w-full h-8 mt-3 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                       title="View Active Seat Order"
                     >
-                      <Eye className="w-3.5 h-3.5" />
+                      <Eye className="w-3.5 h-3.5 text-amber-800" />
                       <span>View Order</span>
                     </button>
                   )
