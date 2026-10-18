@@ -1089,7 +1089,19 @@ export const realtimeBridge = {
       const isBilling = occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
       const isOccupied = Boolean(occ || foundOrder);
 
-      const totalAmount = foundOrder ? foundOrder.order.total_amount : (occ ? 840 : 0);
+      let calculatedTotal = 0;
+      if (foundOrder) {
+        if (foundOrder.items && foundOrder.items.length > 0) {
+          const sub = foundOrder.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
+          calculatedTotal = sub + Math.round(sub * 0.05);
+        } else {
+          calculatedTotal = foundOrder.order.total_amount || 0;
+        }
+      } else if (occ) {
+        calculatedTotal = 840;
+      }
+
+      const totalAmount = calculatedTotal;
       const itemCount = foundOrder
         ? foundOrder.items.reduce((acc, it) => acc + it.quantity, 0)
         : (isOccupied ? 2 : 0);

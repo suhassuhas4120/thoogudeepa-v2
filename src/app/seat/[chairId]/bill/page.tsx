@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight, Download, MessageCircle } from 'lucide-react';
+import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { realtimeBridge } from '../../../../lib/supabase';
@@ -112,53 +112,6 @@ export default function OrderSummaryBillPage() {
 
   const tipAmount = selectedTip === '₹ 30' ? 30 : selectedTip === '₹ 50' ? 50 : selectedTip === '₹ 100' ? 100 : 0;
   const grandPayable = billTotal + tipAmount;
-
-  const handleShareWhatsApp = () => {
-    const dateStr = new Date().toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-    const timeStr = new Date().toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    let text = `*THOOGUDEEPA MILITARY HOTEL*\n`;
-    text += `Authentic Donne Biryani Mane\n`;
-    text += `--------------------------------\n`;
-    text += `Seat: Seat #${seatNumber}\n`;
-    text += `Ticket: #${session?.ticketNumber || 'TKT-' + seatNumber}\n`;
-    text += `Date: ${dateStr} at ${timeStr}\n`;
-    text += `--------------------------------\n`;
-    text += `*ITEMS ORDERED:*\n`;
-    if (itemsList.length > 0) {
-      itemsList.forEach((it) => {
-        text += `• ${it.quantity}x ${it.title} - ₹${it.price * it.quantity}\n`;
-      });
-    } else {
-      text += `• Authentic Military Dining - ₹${itemsSubtotal}\n`;
-    }
-    text += `--------------------------------\n`;
-    text += `Item Subtotal: ₹${itemsSubtotal}\n`;
-    text += `CGST (2.5%): ₹${cgst}\n`;
-    text += `SGST (2.5%): ₹${sgst}\n`;
-    if (tipAmount > 0) {
-      text += `Staff Tip: ₹${tipAmount}\n`;
-    }
-    text += `*TOTAL PAYABLE: ₹${grandPayable}*\n`;
-    text += `--------------------------------\n`;
-    text += `Thank you for dining with us! 🙏`;
-
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
-
-  const handleDownloadBill = () => {
-    if (typeof window !== 'undefined') {
-      window.print();
-    }
-  };
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
@@ -291,28 +244,6 @@ export default function OrderSummaryBillPage() {
             </>
           )}
         </div>
-
-        {/* Action Buttons: Download Bill & Share via WhatsApp */}
-        {session && (
-          <div className="w-full grid grid-cols-2 gap-2.5 print:hidden">
-            <button
-              type="button"
-              onClick={handleDownloadBill}
-              className="w-full border-2 border-black bg-white hover:bg-zinc-50 text-black py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
-            >
-              <Download className="w-4 h-4 text-black shrink-0" />
-              <span className="text-xs font-black uppercase tracking-wider">Download Bill</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleShareWhatsApp}
-              className="w-full border-2 border-black bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer active:opacity-75 transition-all shadow-xs"
-            >
-              <MessageCircle className="w-4 h-4 text-white shrink-0" />
-              <span className="text-xs font-black uppercase tracking-wider">Share WhatsApp</span>
-            </button>
-          </div>
-        )}
 
         {/* Promo Code Section */}
         {session && (

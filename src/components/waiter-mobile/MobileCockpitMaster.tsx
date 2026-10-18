@@ -699,6 +699,7 @@ export const MobileCockpitMaster: React.FC = () => {
                 seatNumber={selectedSeatNumber}
                 guestName={selectedGuestName}
                 totalAmount={selectedBillAmount}
+                cartItems={cartItems}
                 pendingAlertCount={alerts.length}
                 onBackToSeats={() => setActiveScreen('seats')}
                 onOpenAlerts={() => setActiveScreen('alerts')}

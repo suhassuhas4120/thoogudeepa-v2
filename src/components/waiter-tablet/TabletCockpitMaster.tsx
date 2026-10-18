@@ -316,11 +316,14 @@ export const TabletCockpitMaster: React.FC = () => {
   const cartCount = useMemo(() => Object.values(dishQuantities).reduce((acc, q) => acc + q, 0), [dishQuantities]);
 
   const subtotal = useMemo(() => {
+    if (ticketItems && ticketItems.length > 0) {
+      return ticketItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
+    }
     return Object.entries(dishQuantities).reduce((acc, [id, qty]) => {
       const dish = MENU_DISHES.find(d => d.id === Number(id));
       return acc + (dish ? dish.price * qty : 200 * qty);
     }, 0);
-  }, [dishQuantities]);
+  }, [ticketItems, dishQuantities]);
 
   const gst = useMemo(() => Math.round(subtotal * 0.05), [subtotal]);
   const grandTotal = useMemo(() => subtotal + gst, [subtotal, gst]);
