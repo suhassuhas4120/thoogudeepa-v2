@@ -501,10 +501,49 @@ export const MobileCockpitMaster: React.FC = () => {
   }, [showToast]);
 
   // Handle opening seat bill checkout
-  const handleOpenSeatBill = useCallback((seatNum: string, guest: string, amount: number) => {
+  const handleOpenSeatBill = useCallback(async (seatNum: string, guest: string, amount: number) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest);
     setSelectedBillAmount(amount);
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    if (cleanChair) {
+      try {
+        const details = await realtimeBridge.getOrderForSeat(cleanChair);
+        if (details.order?.ticket_number) {
+          setActiveTicketNumber(details.order.ticket_number);
+        }
+        if (details.items && details.items.length > 0) {
+          setCartItems(details.items.map(it => {
+            const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+              id: String(it.dish_id || '999'),
+              name: it.dish_name,
+              kannadaName: '',
+              price: it.price,
+              category: 'biryani',
+              dietary: 'non_veg',
+              description: 'Authentic preparation',
+              prepTimeMinutes: 15,
+              isAvailable: true,
+              isBestseller: false
+            };
+            return {
+              menuItem: {
+                ...foundMenu,
+                id: it.dish_id || foundMenu.id,
+                name: it.dish_name || foundMenu.name
+              },
+              quantity: it.quantity,
+              lineTotal: it.price * it.quantity,
+              stage: it.stage as any,
+              orderItemId: it.id,
+              ticketNumber: details.order?.ticket_number
+            };
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching seat order for bill:', err);
+      }
+    }
     setActiveScreen('bill');
     realtimeBridge.notifyBillModeActive(seatNum, amount);
     showToast(`Loaded checkout receipt for ${seatNum}`);

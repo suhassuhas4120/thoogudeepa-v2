@@ -85,7 +85,7 @@ export const TabletCockpitMaster: React.FC = () => {
   }, []);
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [activeSeatCustomer, setActiveSeatCustomer] = useState<string>('Walk-In Guest');
-  const [activeSeatAmount, setActiveSeatAmount] = useState<number>(1029);
+  const [activeSeatAmount, setActiveSeatAmount] = useState<number>(0);
   const [isDining, setIsDining] = useState<boolean>(false);
   const [rightPaneMode, setRightPaneMode] = useState<'ticket' | 'bill'>('ticket');
 
@@ -475,13 +475,12 @@ export const TabletCockpitMaster: React.FC = () => {
   };
 
   // Handler: Open Bill Settlement Screen (Right-pane mode switch)
-  const handleOpenBill = (seatName: string, customer: string, amount: number) => {
-    setActiveSeatName(`${seatName}: ${customer}`);
-    setActiveSeatCustomer(customer);
-    setActiveSeatAmount(amount);
+  const handleOpenBill = async (seatName: string, customer: string, amount: number) => {
+    const seatObj = seats.find(s => s.seatNumber === seatName);
+    const seatId = seatObj?.id || seatName.replace(/[^0-9]/g, '');
+    await handleOpenOrder(seatId, seatName, customer, amount, true);
     setIsDining(true);
     setRightPaneMode('bill');
-    setCurrentScreen('order');
     realtimeBridge.notifyBillModeActive(seatName, amount);
   };
 
@@ -738,8 +737,8 @@ export const TabletCockpitMaster: React.FC = () => {
                   <TabletBillSettlement
                     seatName={activeSeatName.split(':')[0].trim()}
                     guestName={activeSeatCustomer}
-                    totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
-                    subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                    totalAmount={isDining && ticketItems.length > 0 ? grandTotal : (activeSeatAmount || grandTotal)}
+                    subtotal={isDining && ticketItems.length > 0 ? subtotal : (activeSeatAmount ? Math.round(activeSeatAmount / 1.05) : subtotal)}
                     ticketItems={ticketItems}
                     isVerifiedByCustomer={isVerified}
                     onBackToTicket={() => setRightPaneMode('ticket')}

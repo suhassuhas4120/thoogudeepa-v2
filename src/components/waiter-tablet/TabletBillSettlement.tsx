@@ -89,7 +89,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       return ticketItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
     }
     if (subtotal && subtotal > 0) return subtotal;
-    return totalAmount > 0 ? totalAmount : 0;
+    return totalAmount > 0 ? Math.round(totalAmount / 1.05) : 0;
   }, [ticketItems, subtotal, totalAmount]);
 
   // GST 5% (2.5% CGST + 2.5% SGST) ADDED on top of subtotal

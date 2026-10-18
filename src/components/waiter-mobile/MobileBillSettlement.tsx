@@ -98,7 +98,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
     if (billLines.length > 0) {
       return billLines.reduce((acc, curr) => acc + curr.lineTotal, 0);
     }
-    return totalAmount > 0 ? totalAmount : 0;
+    return totalAmount > 0 ? Math.round(totalAmount / 1.05) : 0;
   }, [billLines, totalAmount]);
 
   const cgst = useMemo(() => Math.round(subtotal * RESTAURANT_CONSTANTS.TAX_RATE_CGST), [subtotal]);
