@@ -443,12 +443,20 @@ export const realtimeBridge = {
         const isTargetChair = !cleanChair || oChair === cleanChair || o.order.chair_id === meta?.chairId;
         const isTargetTicket = !tNum || o.order.ticket_number === tNum;
         if (isTargetChair && isTargetTicket) {
-          o.items.forEach((it, idx) => {
+          o.items.forEach((it) => {
             const matches =
-              it.id === targetItemId ||
-              it.id === itemIdOrKey ||
-              (typeof meta?.itemIndex === 'number' && meta.itemIndex === idx) ||
-              (!it.id && it.dish_id === meta?.dishId);
+              Boolean(targetItemId && it.id && it.id === targetItemId) ||
+              Boolean(itemIdOrKey && it.id && it.id === itemIdOrKey) ||
+              Boolean(
+                meta?.dishId &&
+                it.dish_id &&
+                (it.dish_id === meta.dishId || it.dish_id.replace(/^dish-/, '') === meta.dishId.replace(/^dish-/, ''))
+              ) ||
+              Boolean(
+                meta?.dishName &&
+                it.dish_name &&
+                it.dish_name.toLowerCase().trim() === meta.dishName.toLowerCase().trim()
+              );
 
             if (matches) {
               it.stage = stage;
@@ -474,15 +482,18 @@ export const realtimeBridge = {
             if (tNum) {
               existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
               existing[`${tNum}-${itemIdOrKey}`] = stage;
-              if (typeof meta?.itemIndex === 'number') {
-                existing[`${tNum}-${meta.itemIndex}`] = stage;
-                existing[`${chair}-${tNum}-${meta.itemIndex}`] = stage;
-              }
               if (meta?.dishId) {
                 existing[`${tNum}-${meta.dishId}`] = stage;
+                existing[`${chair}-${tNum}-${meta.dishId}`] = stage;
+                const cleanD = meta.dishId.replace(/^dish-/, '');
+                existing[`${tNum}-${cleanD}`] = stage;
+                existing[`${chair}-${tNum}-${cleanD}`] = stage;
               }
               if (meta?.dishName) {
                 existing[`${tNum}-${meta.dishName}`] = stage;
+                existing[`${chair}-${tNum}-${meta.dishName}`] = stage;
+                existing[`${tNum}-${meta.dishName.toLowerCase()}`] = stage;
+                existing[`${chair}-${tNum}-${meta.dishName.toLowerCase()}`] = stage;
               }
             }
             localStorage.setItem(key, JSON.stringify(existing));
@@ -706,9 +717,9 @@ export const realtimeBridge = {
       });
 
       return items.map((it, idx) => {
-        // Check matching item in local order
+        // Check matching item in local order only for local-backed orders
         let localStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' | undefined;
-        if (matchingLocalOrder) {
+        if (matchingLocalOrder && (!order.id || order.id.startsWith('local-'))) {
           const localMatch = matchingLocalOrder.items.find((lit) => {
             return (it.id && lit.id === it.id) || (!it.id && lit.dish_id === it.dish_id);
           });

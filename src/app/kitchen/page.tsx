@@ -402,7 +402,6 @@ export default function KitchenDisplaySystemPage() {
     const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
     const tNum = meta?.ticketNumber || '';
     const targetItemId = meta?.itemId || itemKey;
-    const itemIdx = typeof meta?.itemIndex === 'number' ? meta.itemIndex : undefined;
 
     // 1. Update React itemStages using strict item-scoped keys
     setItemStages((prev) => {
@@ -415,9 +414,16 @@ export default function KitchenDisplaySystemPage() {
         if (chair) next[`${chair}-${targetItemId}`] = stage;
         if (chair && tNum) next[`${chair}-${tNum}-${targetItemId}`] = stage;
       }
-      if (typeof itemIdx === 'number' && tNum) {
-        next[`${tNum}-${itemIdx}`] = stage;
-        if (chair) next[`${chair}-${tNum}-${itemIdx}`] = stage;
+      if (tNum && meta?.dishId) {
+        next[`${tNum}-${meta.dishId}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${meta.dishId}`] = stage;
+        const cleanD = meta.dishId.replace(/^dish-/, '');
+        next[`${tNum}-${cleanD}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${cleanD}`] = stage;
+      }
+      if (tNum && meta?.dishName) {
+        next[`${tNum}-${meta.dishName}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${meta.dishName}`] = stage;
       }
       return next;
     });
@@ -431,9 +437,18 @@ export default function KitchenDisplaySystemPage() {
 
         const updatedItems = o.items.map((it) => {
           const matches =
-            it.id === targetItemId ||
-            it.id === itemKey ||
-            (!it.id && it.dish_id === meta?.dishId);
+            Boolean(targetItemId && it.id && it.id === targetItemId) ||
+            Boolean(itemKey && it.id && it.id === itemKey) ||
+            Boolean(
+              meta?.dishId &&
+              it.dish_id &&
+              (it.dish_id === meta.dishId || it.dish_id.replace(/^dish-/, '') === meta.dishId.replace(/^dish-/, ''))
+            ) ||
+            Boolean(
+              meta?.dishName &&
+              it.dish_name &&
+              it.dish_name.toLowerCase().trim() === meta.dishName.toLowerCase().trim()
+            );
 
           if (matches) {
             return { ...it, stage };
@@ -972,7 +987,6 @@ export default function KitchenDisplaySystemPage() {
                                             ticketNumber: order.ticket_number,
                                             dishName: it.dish_name,
                                             itemId: it.id || itemKey,
-                                            itemIndex: idx,
                                           })
                                         }
                                         className={`h-7 rounded-md text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${
