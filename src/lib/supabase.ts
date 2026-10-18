@@ -765,7 +765,7 @@ export const realtimeBridge = {
   },
 
   // Get live status of floor seats (Seats 01-10 Zone 1, dynamically expandable)
-  async getFloorSeats(): Promise<
+  async getFloorSeats(start = 1, count = 10): Promise<
     Array<{
       id: string;
       seatNumber: string;
@@ -789,10 +789,11 @@ export const realtimeBridge = {
     const alerts = getLocalAlertsList().filter((a) => !a.isResolved);
 
     const list = [];
-    for (let i = 1; i <= 10; i++) {
+    const end = start + count - 1;
+    for (let i = start; i <= end; i++) {
       const chairId = i < 10 ? `0${i}` : `${i}`;
       const seatNumber = `Seat ${chairId}`;
-      const occ = occupancyMap[chairId];
+      const occ = occupancyMap[chairId] || occupancyMap[String(i)];
       const foundOrder = activeOrders.find(
         (o) => o.order.chair_id === chairId || o.order.chair_id === String(i)
       );
@@ -817,6 +818,8 @@ export const realtimeBridge = {
         diningDuration = `${mins}m`;
       }
 
+      const zoneName = i <= 10 ? 'Zone 1 (Seats 01-10)' : i <= 20 ? 'Zone 2 (Seats 11-20)' : i <= 30 ? 'Zone 3 (Seats 21-30)' : 'Zone 4 (Seats 31-40)';
+
       list.push({
         id: chairId,
         seatNumber,
@@ -830,7 +833,7 @@ export const realtimeBridge = {
         hasBillRequest: Boolean(isBilling),
         hasPendingAlert: Boolean(seatAlert),
         alertMessage: seatAlert?.title,
-        zone: 'Zone 1 (Seats 01-10)',
+        zone: zoneName,
         orderId: foundOrder?.order?.id,
         ticketNumber: foundOrder?.order?.ticket_number
       });

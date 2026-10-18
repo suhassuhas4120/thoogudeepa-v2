@@ -28,7 +28,8 @@ import {
   ServiceAlert,
   TicketItem,
   KitchenStatus,
-  WaiterOption
+  WaiterOption,
+  getSeatsForWaiter
 } from './types';
 import { realtimeBridge } from '../../lib/supabase';
 import { TabletLogin } from './TabletLogin';
@@ -73,22 +74,29 @@ export const TabletCockpitMaster: React.FC = () => {
 
   const refreshSeats = useCallback(async () => {
     try {
-      const floorData = await realtimeBridge.getFloorSeats();
-      setSeats(floorData.map(f => ({
-        id: f.id,
-        seatNumber: f.seatNumber,
-        status: f.status === 'vacant' ? ('vacant' as const) : ('occupied' as const),
-        guestName: f.guestName,
-        guestCount: f.guestCount || 2,
-        diningTime: f.diningDuration || '15m',
-        totalAmount: f.runningTotal,
-        orderCount: f.itemCount,
-        hasBillRequest: f.hasBillRequest
-      })));
+      const startSeat = profile.id === 'w2' ? 11 : profile.id === 'w3' ? 21 : profile.id === 'w4' ? 31 : 1;
+      const floorData = await realtimeBridge.getFloorSeats(startSeat, 10);
+      const defaultWaiterSeats = getSeatsForWaiter(profile.id);
+
+      setSeats(floorData.map(f => {
+        const fallback = defaultWaiterSeats.find(s => s.seatNumber === f.seatNumber);
+        const isVacant = f.status === 'vacant';
+        return {
+          id: f.id,
+          seatNumber: f.seatNumber,
+          status: !isVacant ? ('occupied' as const) : (fallback ? fallback.status : ('vacant' as const)),
+          guestName: !isVacant ? f.guestName : (fallback?.guestName || 'Available'),
+          guestCount: !isVacant ? (f.guestCount || 2) : (fallback?.guestCount ?? 0),
+          diningTime: !isVacant ? (f.diningDuration || '15m') : (fallback?.diningTime ?? 'Ready'),
+          totalAmount: !isVacant ? f.runningTotal : (fallback?.totalAmount ?? 0),
+          orderCount: !isVacant ? f.itemCount : (fallback?.orderCount ?? 0),
+          hasBillRequest: f.hasBillRequest || Boolean(fallback?.hasBillRequest)
+        };
+      }));
     } catch (err) {
       console.error('Error loading tablet seats:', err);
     }
-  }, []);
+  }, [profile.id]);
 
   const refreshAlerts = useCallback(async () => {
     try {
@@ -192,6 +200,13 @@ export const TabletCockpitMaster: React.FC = () => {
       assignedZone: waiter.assignedZone || 'Zone 1 (Seats 01-10)',
       avatarInitials: waiter.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)
     }));
+    const newSeats = getSeatsForWaiter(waiter.id);
+    setSeats(newSeats);
+    if (newSeats.length > 0) {
+      setActiveSeatName(`${newSeats[0].seatNumber}: ${newSeats[0].guestName}`);
+      setActiveSeatCustomer(newSeats[0].guestName);
+      setActiveSeatAmount(newSeats[0].totalAmount);
+    }
     setCurrentScreen('seats');
     showToast(`Shift Started: ${waiter.name} (${waiter.assignedZone || 'Seats 01-10'})`);
   };

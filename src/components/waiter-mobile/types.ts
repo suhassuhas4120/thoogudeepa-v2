@@ -40,6 +40,7 @@ export interface SeatEntity {
   readonly runningTotal?: number;
   readonly diningDuration?: string;
   readonly zone: string;
+  readonly hasBillRequest?: boolean;
   readonly hasPendingAlert?: boolean;
   readonly alertMessage?: string;
 }

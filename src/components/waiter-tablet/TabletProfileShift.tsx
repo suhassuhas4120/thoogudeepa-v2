@@ -147,7 +147,9 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
                 Staff ID: <span className="font-bold text-slate-800">{profile.staffId}</span> • Section: <span className="font-bold text-amber-700">{profile.assignedZone}</span>
               </p>
               <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-semibold">
-                <span className="text-emerald-700 font-bold">Zone 1 Operations Active</span>
+                <span className="text-emerald-700 font-bold">
+                  {profile.assignedZone.split('(')[0].trim() || 'Floor'} Operations Active
+                </span>
                 <span>•</span>
                 <span>100-Seat Military Hotel Suite</span>
               </div>

@@ -41,6 +41,7 @@ import {
   PaymentMethod,
   INITIAL_SEAT_DATA,
   DEFAULT_STAFF_ACCOUNTS,
+  generateSeatsForStaff,
   SAMPLE_MENU_ITEMS,
   RESTAURANT_CONSTANTS
 } from './types';
@@ -89,23 +90,34 @@ export const MobileCockpitMaster: React.FC = () => {
 
   const refreshSeats = useCallback(async () => {
     try {
-      const floorData = await realtimeBridge.getFloorSeats();
-      setSeats(floorData.map(f => ({
-        id: f.id,
-        seatNumber: f.seatNumber,
-        numericId: f.numericId,
-        status: f.status,
-        guestName: f.guestName,
-        diningDuration: f.diningDuration,
-        itemCount: f.itemCount,
-        runningTotal: f.runningTotal,
-        hasBillRequest: f.hasBillRequest,
-        zone: f.zone
-      })));
+      let baseNumber = 1;
+      if (activeWaiterAccount.id === '2' || activeWaiterAccount.name.includes('Suresh')) baseNumber = 11;
+      else if (activeWaiterAccount.id === '3' || activeWaiterAccount.name.includes('Anand')) baseNumber = 21;
+      else if (activeWaiterAccount.id === '4' || activeWaiterAccount.name.includes('Deepa') || activeWaiterAccount.name.includes('Dinesh')) baseNumber = 31;
+
+      const floorData = await realtimeBridge.getFloorSeats(baseNumber, 10);
+      const defaultStaffSeats = generateSeatsForStaff(activeWaiterAccount);
+
+      setSeats(floorData.map(f => {
+        const fallback = defaultStaffSeats.find(s => s.seatNumber === f.seatNumber);
+        const isVacant = f.status === 'vacant';
+        return {
+          id: f.id,
+          seatNumber: f.seatNumber,
+          numericId: f.numericId,
+          status: !isVacant ? f.status : (fallback ? fallback.status : f.status),
+          guestName: !isVacant ? f.guestName : (fallback?.guestName || 'Walk-In Guest'),
+          diningDuration: !isVacant ? f.diningDuration : (fallback?.diningDuration || '--'),
+          itemCount: !isVacant ? f.itemCount : (fallback?.itemCount || 0),
+          runningTotal: !isVacant ? f.runningTotal : (fallback?.runningTotal || 0),
+          hasBillRequest: f.hasBillRequest || Boolean(fallback?.hasBillRequest),
+          zone: activeWaiterAccount.zone
+        };
+      }));
     } catch (err) {
       console.error('Error loading seats:', err);
     }
-  }, []);
+  }, [activeWaiterAccount]);
 
   const refreshAlerts = useCallback(async () => {
     try {
@@ -179,8 +191,8 @@ export const MobileCockpitMaster: React.FC = () => {
     staffId: RESTAURANT_CONSTANTS.DEFAULT_WAITER_ID,
     name: activeWaiterAccount.name,
     initials: activeWaiterAccount.initials,
-    assignedSection: 'Zone 1 (Seats 01 – 10)',
-    assignedSeats: activeWaiterAccount.seatRange,
+    assignedSection: `${activeWaiterAccount.zone} (${activeWaiterAccount.seatRange})`,
+    assignedSeats: `${activeWaiterAccount.zone} (${activeWaiterAccount.seatRange})`,
     clockInTime: '11:00 AM',
     activeDuration: '4h 15m active',
     totalSales: 14850,
@@ -195,6 +207,13 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleLoginSuccess = useCallback((account: WaiterAuthAccount) => {
     setActiveWaiterAccount(account);
     setIsAuthenticated(true);
+    const newSeats = generateSeatsForStaff(account);
+    setSeats(newSeats);
+    if (newSeats.length > 0) {
+      setSelectedSeatNumber(newSeats[0].seatNumber);
+      setSelectedGuestName(newSeats[0].guestName || 'Walk-In Guest');
+      setSelectedBillAmount(newSeats[0].runningTotal || 0);
+    }
     setActiveScreen('seats');
     showToast(`Shift Authenticated: Welcome ${account.name}!`);
   }, [showToast]);
@@ -206,6 +225,13 @@ export const MobileCockpitMaster: React.FC = () => {
       zoneLabel.toLowerCase().includes(s.zone.toLowerCase())
     ) || activeWaiterAccount;
     setActiveWaiterAccount(staff);
+    const newSeats = generateSeatsForStaff(staff);
+    setSeats(newSeats);
+    if (newSeats.length > 0) {
+      setSelectedSeatNumber(newSeats[0].seatNumber);
+      setSelectedGuestName(newSeats[0].guestName || 'Walk-In Guest');
+      setSelectedBillAmount(newSeats[0].runningTotal || 0);
+    }
     showToast(`Switched to ${staff.seatRange}`);
   }, [activeWaiterAccount, showToast]);
 
