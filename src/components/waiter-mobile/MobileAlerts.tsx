@@ -286,7 +286,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
                         </span>
                       </div>
                       <span className="text-[9px] text-slate-400 font-semibold block mt-0.5">
-                        {order.kotNumber || 'KOT #108'} • {order.timeAgo || 'Just now'}
+                        {order.kotNumber ? `${order.kotNumber} • ` : ''}{order.timeAgo || 'Just now'}
                       </span>
                     </div>
                   </div>

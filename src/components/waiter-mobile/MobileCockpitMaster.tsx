@@ -100,7 +100,7 @@ export const MobileCockpitMaster: React.FC = () => {
   }, []);
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
-  const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
+  const [selectedBillAmount, setSelectedBillAmount] = useState<number>(0);
 
   // Cart & KOT State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -440,7 +440,9 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleOpenTakeOrder = useCallback((seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Walk-In Guest');
+    setActiveTicketNumber('');
     setCartItems([]);
+    setSelectedBillAmount(0);
     setActiveScreen('order');
     showToast(`Taking new order for ${seatNum}`);
   }, [showToast]);
@@ -449,11 +451,17 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleOpenViewOrder = useCallback(async (seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Dining Guest');
+    setActiveTicketNumber('');
+    setCartItems([]);
+    setSelectedBillAmount(0);
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
     try {
       const details = await realtimeBridge.getOrderForSeat(cleanChair);
       if (details.order?.ticket_number) {
         setActiveTicketNumber(details.order.ticket_number);
+      }
+      if (details.order?.total_amount) {
+        setSelectedBillAmount(details.order.total_amount);
       }
       if (details.items && details.items.length > 0) {
         setCartItems(details.items.map(it => {
@@ -477,9 +485,13 @@ export const MobileCockpitMaster: React.FC = () => {
             },
             quantity: it.quantity,
             lineTotal: it.price * it.quantity,
-            stage: it.stage as any
+            stage: it.stage as any,
+            orderItemId: it.id,
+            ticketNumber: details.order?.ticket_number
           };
         }));
+      } else {
+        setCartItems([]);
       }
     } catch (err) {
       console.error('Error fetching order for seat:', err);
@@ -734,6 +746,7 @@ export const MobileCockpitMaster: React.FC = () => {
               <MobileLiveCartKOT
                 seatNumber={selectedSeatNumber}
                 guestName={selectedGuestName}
+                activeTicketNumber={activeTicketNumber}
                 cartItems={cartItems}
                 pendingAlertCount={alerts.length}
                 isBillRequested={

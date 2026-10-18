@@ -71,7 +71,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   // Conditional Payment Verification State (Must be verified by waiter to enable vacate)
   const [isPaymentReceived, setIsPaymentReceived] = useState<boolean>(false);
 
-  // Food items list: use actual ticketItems if available, otherwise fallback to default military hotel items
+  // Food items list: use actual ticketItems if available, otherwise empty
   const billItems = useMemo(() => {
     if (ticketItems && ticketItems.length > 0) {
       return ticketItems.map((item, idx) => ({
@@ -80,12 +80,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         amount: item.price * item.quantity
       }));
     }
-    return [
-      { id: 'sample-1', name: '2x Chicken Donne Biryani', amount: 520 },
-      { id: 'sample-2', name: '1x Chilli Chicken (Dry)', amount: 220 },
-      { id: 3, name: '1x Fresh Lime Soda', amount: 60 },
-      { id: 4, name: '1x Gunpowder Ghee Rice', amount: 180 }
-    ];
+    return [];
   }, [ticketItems]);
 
   // Financial calculations: Subtotal + Added GST (5%) = Grand Payable
@@ -94,7 +89,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       return ticketItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
     }
     if (subtotal && subtotal > 0) return subtotal;
-    return totalAmount > 0 ? totalAmount : 980;
+    return totalAmount > 0 ? totalAmount : 0;
   }, [ticketItems, subtotal, totalAmount]);
 
   // GST 5% (2.5% CGST + 2.5% SGST) ADDED on top of subtotal
@@ -224,12 +219,19 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/70 mb-3 text-xs shadow-2xs">
           {/* Itemized Bill Items List */}
           <div className="space-y-1.5 pb-2.5 border-b border-slate-200 text-[11px] max-h-36 overflow-y-auto no-scrollbar">
-            {billItems.map((item, idx) => (
-              <div key={item.id || `bill-item-${idx}`} className="flex justify-between font-bold text-slate-800">
-                <span>{item.name}</span>
-                <span className="text-amber-800 font-extrabold">₹{item.amount.toLocaleString('en-IN')}</span>
+            {billItems.length === 0 ? (
+              <div className="py-4 text-center text-slate-400">
+                <p className="text-xs font-semibold">No items in bill</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Orders placed for this seat will appear here</p>
               </div>
-            ))}
+            ) : (
+              billItems.map((item, idx) => (
+                <div key={item.id || `bill-item-${idx}`} className="flex justify-between font-bold text-slate-800">
+                  <span>{item.name}</span>
+                  <span className="text-amber-800 font-extrabold">₹{item.amount.toLocaleString('en-IN')}</span>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Subtotal & GST breakdown with GST clearly ADDED */}

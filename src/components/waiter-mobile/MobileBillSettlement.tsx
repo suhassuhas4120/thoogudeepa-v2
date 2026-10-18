@@ -63,15 +63,15 @@ export interface MobileBillSettlementProps {
 }
 
 export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
-  seatNumber = 'Seat 04',
-  guestName = 'Kiran R',
-  totalAmount = 840,
+  seatNumber = 'Seat 01',
+  guestName = 'Dining Guest',
+  totalAmount = 0,
   cartItems,
-  pendingAlertCount = 2,
+  pendingAlertCount = 0,
   onBackToSeats,
   onOpenAlerts,
   onSettleSuccess,
-  isVerifiedByCustomer = true,
+  isVerifiedByCustomer = false,
   onShowToast
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
@@ -79,7 +79,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
   const [isUpiVerified, setIsUpiVerified] = useState<boolean>(true);
 
-  // Dynamic bill lines using real cart items if available, or fallback
+  // Dynamic bill lines using real cart items if available, or empty
   const billLines = useMemo(() => {
     if (cartItems && cartItems.length > 0) {
       return cartItems.map((c, idx) => ({
@@ -90,17 +90,16 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
         lineTotal: c.lineTotal,
       }));
     }
-    return [
-      { id: 'sample-1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
-      { id: 'sample-2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
-      { id: '3', name: 'Mineral Water Bottle', quantity: 1, unitPrice: 40, lineTotal: 40 }
-    ];
+    return [];
   }, [cartItems]);
 
   // Compute breakdown
   const subtotal = useMemo(() => {
-    return billLines.reduce((acc, curr) => acc + curr.lineTotal, 0);
-  }, [billLines]);
+    if (billLines.length > 0) {
+      return billLines.reduce((acc, curr) => acc + curr.lineTotal, 0);
+    }
+    return totalAmount > 0 ? totalAmount : 0;
+  }, [billLines, totalAmount]);
 
   const cgst = useMemo(() => Math.round(subtotal * RESTAURANT_CONSTANTS.TAX_RATE_CGST), [subtotal]);
   const sgst = useMemo(() => Math.round(subtotal * RESTAURANT_CONSTANTS.TAX_RATE_SGST), [subtotal]);
@@ -215,24 +214,31 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
 
           {/* Dish Rows */}
           <div className="space-y-2 text-xs">
-            {billLines.map((line, idx) => (
-              <div 
-                key={line.id || `bill-line-${idx}`}
-                className="flex items-center justify-between pb-1.5 border-b border-slate-100"
-              >
-                <div className="flex items-center gap-2 min-w-0">
+            {billLines.length === 0 ? (
+              <div className="py-6 text-center text-slate-400">
+                <p className="text-xs font-semibold">No items in bill</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Orders placed for this seat will appear here</p>
+              </div>
+            ) : (
+              billLines.map((line, idx) => (
+                <div 
+                  key={line.id || `bill-line-${idx}`}
+                  className="flex items-center justify-between pb-1.5 border-b border-slate-100"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-bold text-slate-900 shrink-0">
+                      {line.quantity}x
+                    </span>
+                    <span className="text-slate-800 truncate">
+                      {line.name}
+                    </span>
+                  </div>
                   <span className="font-bold text-slate-900 shrink-0">
-                    {line.quantity}x
-                  </span>
-                  <span className="text-slate-800 truncate">
-                    {line.name}
+                    ₹{line.lineTotal}
                   </span>
                 </div>
-                <span className="font-bold text-slate-900 shrink-0">
-                  ₹{line.lineTotal}
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
           {/* Tax Calculation Breakdown */}
