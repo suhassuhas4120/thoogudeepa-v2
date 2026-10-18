@@ -116,21 +116,8 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
   return (
     <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden">
       
-      {/* Sticky Floor Header & Filter Controls Sub-Bar */}
-      <div className="p-3 bg-white border-b border-slate-200 shrink-0 space-y-2.5 shadow-2xs">
-        
-        {/* Floor Context Title Row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight">
-              Floor Board • Assigned {seatRange}
-            </h2>
-          </div>
-          <span className="text-[10px] font-bold text-slate-500">
-            Waiter: <span className="text-slate-800 font-black">{waiterName.split(' ')[0]}</span>
-          </span>
-        </div>
-
+      {/* Sticky Filter Controls Sub-Bar */}
+      <div className="px-3 py-2 bg-white border-b border-slate-200 shrink-0 shadow-2xs">
         {/* Filter Pills Row */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">

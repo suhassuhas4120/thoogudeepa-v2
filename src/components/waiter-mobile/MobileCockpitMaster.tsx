@@ -305,6 +305,7 @@ export const MobileCockpitMaster: React.FC = () => {
                 <MobileHeader
                   profile={waiterProfile}
                   pendingAlertCount={alerts.length}
+                  onBack={() => setActiveScreen('login')}
                   onOpenAlerts={() => setActiveScreen('alerts')}
                   onOpenProfile={() => setActiveScreen('profile')}
                   onZoneChange={handleZoneChange}
@@ -378,6 +379,7 @@ export const MobileCockpitMaster: React.FC = () => {
             {activeScreen === 'alerts' && (
               <MobileAlerts
                 alerts={alerts}
+                onBack={() => setActiveScreen('seats')}
                 onAttendCall={handleAttendCall}
                 onCollectBill={handleOpenSeatBill}
                 onServeDish={handleServeDish}
@@ -388,6 +390,7 @@ export const MobileCockpitMaster: React.FC = () => {
             {activeScreen === 'profile' && (
               <MobileProfileShift
                 profile={waiterProfile}
+                onBack={() => setActiveScreen('seats')}
                 onEndShift={handleEndShift}
                 onShowToast={showToast}
               />
