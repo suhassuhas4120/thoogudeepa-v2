@@ -7,7 +7,6 @@
     "build": "next build --webpack",
     "build:export": "next build --webpack",
     "start": "next start",
-    "start:mobile": "npx serve mobile",
     "lint": "eslint"
   },
   "dependencies": {
