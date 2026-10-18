@@ -242,7 +242,6 @@ function PaymentSuccessContent() {
       <CustomerBottomNav
         chairId={chairId}
         disabledTabs={['home', 'likes', 'cart']}
-        showIndicatorArrowOnProfile={true}
       />
     </div>
   );
