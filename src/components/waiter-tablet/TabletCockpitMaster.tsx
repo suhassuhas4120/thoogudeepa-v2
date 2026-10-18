@@ -307,7 +307,9 @@ export const TabletCockpitMaster: React.FC = () => {
                 <TabletBillSettlement
                   seatName={activeSeatName.split(':')[0].trim()}
                   guestName={activeSeatCustomer}
-                  totalAmount={activeSeatAmount}
+                  totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                  subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                  ticketItems={ticketItems}
                   onBackToTicket={() => setRightPaneMode('ticket')}
                   onConfirmSettlement={handleConfirmSettlement}
                   onPrintReceipt={() => showToast('Tax invoice sent to thermal printer')}

@@ -7,20 +7,21 @@
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
  * - Renders directly inside the right container (NO POPUP MODAL)
  * - Header with [ ← Back ] to Live Ticket and customer context
- * - Itemized tax invoice breakdown: Subtotal, CGST (2.5%), SGST (2.5%), Total Payable
+ * - Itemized tax invoice breakdown: Subtotal, CGST (+2.5%), SGST (+2.5%), Total GST (+5%)
+ * - Grand Total Payable = Subtotal + GST (GST is explicitly ADDED as requested)
  * - Payment Method Selector:
  *   * Cash Tender with exact rupee preset & change return calculation
- *   * Dynamic UPI QR Code for Google Pay, PhonePe, Paytm, and BHIM
+ *   * Dynamic UPI QR Code for Google Pay, PhonePe, Paytm, and BHIM (including added GST)
  * - NO TIPS / NO WAITER TIP CONTAINER (Completely removed as requested)
  * - Conditional Payment Settlement Enablement:
  *   * Waiter toggles "Payment Received & Verified" before vacating!
  * - Single clean icon per action button:
  *   * [ Print Receipt ] (Printer icon)
  *   * [ Settle & Vacate ] (CheckCircle icon, disabled until payment confirmed)
- * - Strict line count maintained between 250 and 350 lines.
+ * - Strict line count maintained between 280 and 380 lines.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Check, 
@@ -29,15 +30,19 @@ import {
   Banknote, 
   QrCode 
 } from 'lucide-react';
-import { PaymentMode } from './types';
+import { PaymentMode, TicketItem } from './types';
 
 export interface TabletBillSettlementProps {
   /** Target seat identifier (e.g. 'Seat 04') */
   seatName: string;
   /** Customer / Guest name */
   guestName: string;
-  /** Gross payable amount */
+  /** Gross payable / subtotal food amount */
   totalAmount: number;
+  /** Optional subtotal before taxes */
+  subtotal?: number;
+  /** Optional active ticket items list */
+  ticketItems?: TicketItem[];
   /** Callback to return back to live ticket mode */
   onBackToTicket: () => void;
   /** Callback to complete settlement and vacate seat on floor grid */
@@ -50,30 +55,65 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   seatName,
   guestName,
   totalAmount,
+  subtotal,
+  ticketItems,
   onBackToTicket,
   onConfirmSettlement,
   onPrintReceipt
 }) => {
   // Selected payment method: cash or upi
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
-  const [cashTendered, setCashTendered] = useState<number>(totalAmount);
   const [isReceiptPrinting, setIsReceiptPrinting] = useState<boolean>(false);
   
   // Conditional Payment Verification State (Must be verified by waiter to enable vacate)
   const [isPaymentReceived, setIsPaymentReceived] = useState<boolean>(false);
 
-  // Financial calculations
-  const subtotal = Math.round(totalAmount / 1.05);
-  const gst = totalAmount - subtotal;
-  const cgst = Math.round(gst / 2);
-  const sgst = gst - cgst;
-  const cashChange = Math.max(0, cashTendered - totalAmount);
+  // Food items list: use actual ticketItems if available, otherwise fallback to default military hotel items
+  const billItems = useMemo(() => {
+    if (ticketItems && ticketItems.length > 0) {
+      return ticketItems.map(item => ({
+        id: item.id,
+        name: `${item.quantity}x ${item.name}`,
+        amount: item.price * item.quantity
+      }));
+    }
+    return [
+      { id: 1, name: '2x Chicken Donne Biryani', amount: 520 },
+      { id: 2, name: '1x Chilli Chicken (Dry)', amount: 220 },
+      { id: 3, name: '1x Fresh Lime Soda', amount: 60 },
+      { id: 4, name: '1x Gunpowder Ghee Rice', amount: 180 }
+    ];
+  }, [ticketItems]);
 
-  // UPI QR Code Generator URL
+  // Financial calculations: Subtotal + Added GST (5%) = Grand Payable
+  const itemsSubtotal = useMemo(() => {
+    if (ticketItems && ticketItems.length > 0) {
+      return ticketItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
+    }
+    if (subtotal && subtotal > 0) return subtotal;
+    return totalAmount > 0 ? totalAmount : 980;
+  }, [ticketItems, subtotal, totalAmount]);
+
+  // GST 5% (2.5% CGST + 2.5% SGST) ADDED on top of subtotal
+  const cgst = Math.round(itemsSubtotal * 0.025);
+  const sgst = Math.round(itemsSubtotal * 0.025);
+  const totalGst = cgst + sgst;
+  const grandPayable = itemsSubtotal + totalGst;
+
+  const [cashTendered, setCashTendered] = useState<number>(grandPayable);
+
+  // Auto-sync cash tendered whenever grandPayable updates
+  useEffect(() => {
+    setCashTendered(grandPayable);
+  }, [grandPayable]);
+
+  const cashChange = Math.max(0, cashTendered - grandPayable);
+
+  // UPI QR Code Generator URL with added GST grand total
   const qrUrl = useMemo(() => {
-    const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${totalAmount}&cu=INR&tn=${encodeURIComponent(seatName)}`;
+    const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${grandPayable}&cu=INR&tn=${encodeURIComponent(seatName)}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUri)}`;
-  }, [totalAmount, seatName]);
+  }, [grandPayable, seatName]);
 
   const handlePrint = () => {
     setIsReceiptPrinting(true);
@@ -125,50 +165,44 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         </div>
 
         {/* ======================================================== */}
-        {/* 2. ITEMIZED INVOICE BREAKDOWN                            */}
+        {/* 2. ITEMIZED INVOICE BREAKDOWN WITH EXPLICIT ADDED GST     */}
         {/* ======================================================== */}
         <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/70 mb-3 text-xs shadow-2xs">
-          {/* Sample Bill Items */}
-          <div className="space-y-1.5 pb-2 border-b border-slate-200 text-[11px]">
-            <div className="flex justify-between font-bold text-slate-800">
-              <span>2x Chicken Donne Biryani</span>
-              <span className="text-amber-700 font-extrabold">₹520</span>
-            </div>
-            <div className="flex justify-between font-bold text-slate-800">
-              <span>1x Chilli Chicken (Dry)</span>
-              <span className="text-amber-700 font-extrabold">₹220</span>
-            </div>
-            <div className="flex justify-between font-bold text-slate-800">
-              <span>1x Fresh Lime Soda</span>
-              <span className="text-amber-700 font-extrabold">₹60</span>
-            </div>
-            <div className="flex justify-between font-bold text-slate-800">
-              <span>1x Gunpowder Ghee Rice</span>
-              <span className="text-amber-700 font-extrabold">₹180</span>
-            </div>
+          {/* Itemized Bill Items List */}
+          <div className="space-y-1.5 pb-2.5 border-b border-slate-200 text-[11px] max-h-36 overflow-y-auto no-scrollbar">
+            {billItems.map(item => (
+              <div key={item.id} className="flex justify-between font-bold text-slate-800">
+                <span>{item.name}</span>
+                <span className="text-amber-800 font-extrabold">₹{item.amount.toLocaleString('en-IN')}</span>
+              </div>
+            ))}
           </div>
 
-          {/* Subtotal & GST breakdown */}
-          <div className="space-y-1 pt-2 border-b border-slate-200 pb-2 text-[10px] text-slate-500 font-semibold">
+          {/* Subtotal & GST breakdown with GST clearly ADDED */}
+          <div className="space-y-1 pt-2 border-b border-slate-200 pb-2 text-[10px] text-slate-600 font-semibold">
             <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>₹{subtotal.toLocaleString('en-IN')}</span>
+              <span>Items Subtotal:</span>
+              <span className="font-bold text-slate-900">₹{itemsSubtotal.toLocaleString('en-IN')}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between text-amber-800 font-semibold">
               <span>CGST (2.5%):</span>
-              <span>₹{cgst}</span>
+              <span>+₹{cgst.toLocaleString('en-IN')}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between text-amber-800 font-semibold">
               <span>SGST (2.5%):</span>
-              <span>₹{sgst}</span>
+              <span>+₹{sgst.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-amber-900 font-bold pt-1 border-t border-slate-200/80">
+              <span>Total GST (5%):</span>
+              <span>+₹{totalGst.toLocaleString('en-IN')}</span>
             </div>
           </div>
 
-          {/* Grand Payable */}
+          {/* Grand Payable: Subtotal + Added GST */}
           <div className="pt-2 flex justify-between items-center text-xs font-black">
             <span className="text-slate-900">Total Payable:</span>
             <span className="text-base font-black text-amber-700">
-              ₹{totalAmount.toLocaleString('en-IN')}
+              ₹{grandPayable.toLocaleString('en-IN')}
             </span>
           </div>
         </div>
@@ -211,14 +245,14 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
           </div>
         </div>
 
-        {/* Cash Tender Calculator View (No Tips) */}
+        {/* Cash Tender Calculator View (With Added GST Total) */}
         {paymentMode === 'cash' && (
           <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50 mb-3 space-y-2.5">
             {/* Total Payable Row */}
             <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-200">
-              <span className="font-bold text-slate-700">Total Payable:</span>
+              <span className="font-bold text-slate-700">Total Payable (with GST):</span>
               <span className="font-black text-amber-700 text-sm">
-                ₹{totalAmount.toLocaleString('en-IN')}
+                ₹{grandPayable.toLocaleString('en-IN')}
               </span>
             </div>
 
@@ -240,14 +274,14 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => setCashTendered(totalAmount)}
+                onClick={() => setCashTendered(grandPayable)}
                 className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all shadow-2xs cursor-pointer ${
-                  cashTendered === totalAmount
+                  cashTendered === grandPayable
                     ? 'bg-amber-500 text-slate-950 font-black border-amber-500'
                     : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                Exact (₹{totalAmount})
+                Exact (₹{grandPayable})
               </button>
               {[500, 1000, 2000].map(val => (
                 <button
@@ -267,7 +301,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 
             {/* Change Due or Remaining Due */}
             <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-black">
-              {cashTendered >= totalAmount ? (
+              {cashTendered >= grandPayable ? (
                 <>
                   <span className="text-slate-600">Change Due:</span>
                   <span className="text-emerald-600 font-black text-sm">
@@ -278,7 +312,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
                 <>
                   <span className="text-rose-600 font-bold">Remaining Due:</span>
                   <span className="text-rose-600 font-black text-sm">
-                    -₹{(totalAmount - cashTendered).toLocaleString('en-IN')}
+                    -₹{(grandPayable - cashTendered).toLocaleString('en-IN')}
                   </span>
                 </>
               )}
@@ -300,7 +334,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               />
             </div>
             <span className="text-xs font-black text-amber-700 mt-2">
-              ₹{totalAmount.toLocaleString('en-IN')}
+              ₹{grandPayable.toLocaleString('en-IN')}
             </span>
           </div>
         )}

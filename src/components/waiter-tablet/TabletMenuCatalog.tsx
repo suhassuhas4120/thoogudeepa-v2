@@ -301,8 +301,8 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
 
                   {/* Bottom Action Row: Price on LEFT, Add Button / Stepper on RIGHT (NO "Selected: 1") */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                    {/* Price on Left Side (Bold Dark Color) */}
-                    <span className="text-sm font-black text-slate-900 tracking-tight">
+                    {/* Price on Left Side (Highlighted Badge as requested) */}
+                    <span className="text-xs font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs tracking-tight">
                       ₹{dish.price}
                     </span>
 

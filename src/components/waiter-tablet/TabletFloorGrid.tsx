@@ -271,14 +271,19 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                     )}
                   </div>
 
-                  {/* Bottom: Running Bill Amount */}
-                  <div className="text-xs font-black mt-2">
+                  {/* Properly Positioned & Highlighted Price / Capacity Row */}
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {isOccupied ? 'Total Bill:' : 'Capacity:'}
+                    </span>
                     {isOccupied ? (
-                      <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block font-extrabold">
+                      <span className="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg shadow-2xs">
                         ₹{seat.totalAmount.toLocaleString('en-IN')}
                       </span>
                     ) : (
-                      <span className="text-slate-400 font-bold">--</span>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                        4 Guests
+                      </span>
                     )}
                   </div>
                 </div>
