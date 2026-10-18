@@ -268,81 +268,49 @@ export default function CustomerSeatPage() {
 
   // --- VIEW 4: VACANT TABLE (NEW CUSTOMER ACCESS) ---
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-between px-6 pt-6 pb-8 max-w-md mx-auto text-[#1A2621] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#FFFDF9] via-[#FAF5EC] to-[#F5ECE0]">
-      {/* Upper area with terracotta ring logo */}
-      <div className="w-full flex flex-col items-center pt-2">
-        <div className="w-24 h-24 rounded-full border-2 border-[#C85A32] p-1 bg-[#FFFEFC] shadow-[0_4px_16px_rgba(200,90,50,0.12)] flex flex-col items-center justify-center overflow-hidden text-center">
-          <span className="text-[8px] font-bold text-[#8C7A6B] uppercase tracking-wider">Thoogudeepa</span>
-          <span className="text-[10px] font-black text-[#1E3A2F] uppercase tracking-tight leading-tight">Donne Biryani</span>
-        </div>
-      </div>
-
-      {/* Seat Badge & Welcome Heading */}
-      <div className="w-full flex flex-col items-center gap-1.5 mt-3 text-center">
-        {/* Compact Pill Badge */}
-        <div className="px-5 py-1.5 rounded-full bg-[#1E3A2F] text-white shadow-sm">
-          <span className="text-xs font-black tracking-wider uppercase">SEAT NO: {seatNumber}</span>
-        </div>
-
-        {/* Welcome Heading */}
-        <h1 className="text-xl font-black tracking-tight text-[#1E3A2F] uppercase mt-2">
-          WELCOME TO THE TABLE
-        </h1>
-        <p className="text-sm font-semibold text-[#1A2621]">
-          We&apos;re delighted to serve you today!
-        </p>
-
-        {/* Seat Confirmed Status */}
-        <div className="flex items-center gap-1.5 text-xs text-[#52796F] font-semibold mt-0.5">
-          <span className="w-2 h-2 rounded-full bg-[#52796F]" />
-          <span>Seat confirmed</span>
-        </div>
-      </div>
-
-      {/* Hero Circular Dish Image with Floating Terracotta Badge */}
-      <div className="relative my-3 flex flex-col items-center justify-center">
-        <div className="w-60 h-60 sm:w-64 sm:h-64 rounded-full overflow-hidden shadow-[0_16px_35px_-8px_rgba(180,100,50,0.28)] border-4 border-white">
+    <div className="min-h-screen w-full flex flex-col items-center justify-between px-6 py-12 max-w-md mx-auto text-[#1A2621]">
+      {/* Upper area with enlarged circular logo */}
+      <div className="w-full flex flex-col items-center pt-4 sm:pt-8">
+        <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border border-[rgba(220,226,222,0.8)] p-1 bg-[#FFFEFC] shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-center justify-center overflow-hidden">
           <img
-            src="/images/dishes/chicken-donne-biryani.jpg"
-            alt="Authentic Donne Biryani"
-            className="w-full h-full object-cover scale-105"
+            src="/logo.jpg"
+            alt="ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ ಮನೆ"
+            className="w-full h-full object-cover rounded-full"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
         </div>
-
-        {/* Floating Terracotta Pill Badge */}
-        <div className="absolute -bottom-2 bg-gradient-to-r from-[#C85A32] to-[#B84E28] text-white px-4 py-1.5 rounded-full shadow-[0_4px_14px_rgba(200,90,50,0.35)] text-center whitespace-nowrap">
-          <span className="text-[11px] font-bold">Rich, aromatic &amp; fresh from the kitchen! 😋</span>
-        </div>
       </div>
 
-      {/* Input Area */}
-      <div className="w-full flex flex-col gap-1.5 mt-2">
-        <label htmlFor="customerName" className="text-[11px] font-black uppercase tracking-wider text-[#8C7A6B]">
-          NAME (OPTIONAL)
-        </label>
-        <div className="w-full bg-[#FBF9F4] border border-[#E8E0D2] rounded-2xl px-4 py-3 shadow-[inset_0_1px_3px_rgba(0,0,0,0.03)] focus-within:border-[#1E3A2F]">
+      {/* Center area with Seat No and Name input */}
+      <div className="w-full flex flex-col items-center gap-5 my-auto py-6">
+        <div className="w-full text-center py-3 border border-[#244436]/20 rounded-2xl bg-gradient-to-r from-[#244436] to-[#1e382c] text-[#FFFEFC] shadow-md">
+          <span className="text-base font-black tracking-wider uppercase">Seat No: {seatNumber}</span>
+        </div>
+
+        <div className="w-full flex flex-col gap-1.5 bg-[#FFFEFC] border border-[rgba(220,226,222,0.7)] p-4 rounded-2xl shadow-[0_4px_20px_-4px_rgba(36,68,54,0.05)]">
+          <label htmlFor="customerName" className="text-xs font-bold uppercase tracking-wider text-[#5A6860]">
+            Name (Optional)
+          </label>
           <input
             id="customerName"
             type="text"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Enter Name"
-            className="w-full text-sm outline-none bg-transparent text-[#1A2621] placeholder:text-[#A89F91] font-semibold"
+            placeholder="Enter your name"
+            className="w-full border border-[rgba(220,226,222,0.9)] px-3.5 py-2.5 text-sm outline-none bg-[#F9F8F5] text-[#1A2621] rounded-xl placeholder:text-zinc-400 font-semibold focus:border-[#244436] transition-colors"
           />
         </div>
       </div>
 
-      {/* Bottom Area: Dual Gradient CTA Button with Glowing Shadow */}
-      <div className="w-full pt-4 pb-2">
+      {/* Bottom area with Start Ordering button linking directly to Menu */}
+      <div className="w-full pb-4 sm:pb-8 flex flex-col gap-2">
         <Link
           href={targetMenuUrl}
-          className="w-full py-4 bg-gradient-to-r from-[#1E3A2F] via-[#244436] to-[#C85A32] text-white text-sm font-black uppercase tracking-wider rounded-full flex items-center justify-center gap-2 cursor-pointer active:opacity-90 shadow-[0_8px_25px_rgba(200,90,50,0.35)] hover:shadow-[0_10px_28px_rgba(200,90,50,0.4)] transition-all text-center"
+          className="w-full block text-center bg-gradient-to-r from-[#244436] via-[#2d5242] to-[#DD6B28] text-white py-3.5 text-sm font-black uppercase tracking-wider rounded-2xl cursor-pointer active:opacity-90 shadow-md hover:shadow-lg transition-all"
         >
-          <span>START ORDERING</span>
-          <span className="text-base font-bold">&rarr;</span>
+          Start Ordering
         </Link>
       </div>
     </div>
