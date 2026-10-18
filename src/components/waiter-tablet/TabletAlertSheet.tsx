@@ -44,9 +44,9 @@ import { ServiceAlert } from './types';
  *
  * Configures the right-sliding drawer for restaurant floor communications:
  * - Customer Service Calls: Water refill requests and bill collection prompts
- * - Kitchen Ready Pass: Freshly prepared dishes awaiting immediate table delivery
+ * - Kitchen Ready Pass: Freshly prepared dishes awaiting immediate seat delivery
  * - Strictly separate drawer contexts (no shared pills or confused workflows)
- * - Single-item resolution: Each dish or table alert is resolved independently
+ * - Single-item resolution: Each dish or seat alert is resolved independently
  * - Zero unnecessary subtext or operational fluff
  */
 export interface TabletAlertSheetProps {
@@ -188,7 +188,7 @@ export const TabletAlertSheet: React.FC<TabletAlertSheetProps> = ({
                   </div>
                   <h4 className="text-sm font-bold text-slate-800">All Calls Attended</h4>
                   <p className="text-xs text-slate-500 mt-1 max-w-[240px] mx-auto">
-                    There are no pending customer requests at your tables right now.
+                    There are no pending customer requests at your seats right now.
                   </p>
                 </div>
               ) : (
@@ -271,7 +271,7 @@ export const TabletAlertSheet: React.FC<TabletAlertSheetProps> = ({
                   </div>
                   <h4 className="text-sm font-bold text-slate-800">Kitchen Pass Clear</h4>
                   <p className="text-xs text-slate-500 mt-1 max-w-[240px] mx-auto">
-                    All KOT orders dispatched to dining tables.
+                    All KOT orders dispatched to dining seats.
                   </p>
                 </div>
               ) : (

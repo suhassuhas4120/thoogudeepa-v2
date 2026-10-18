@@ -12,7 +12,7 @@
  *   * RECEIVED: Acknowledged by Kitchen Display System (KDS)
  *   * PREPARING: Master chef actively preparing in donne biryani pots
  *   * READY: Placed on pass counter with urgent emerald badge + [ Served ] button
- *   * SERVED: Food delivered to dining table
+ *   * SERVED: Food delivered to dining seat
  * - Financial summary breakdown: Subtotal, GST (5%), and Grand Total
  * - Single clean icon per action button:
  *   * [ Punch KOT ] (Send icon, Disabled when ticket has 0 items)
@@ -215,7 +215,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                             type="button"
                             onClick={() => onServeItem(item.id)}
                             className="h-6 px-2.5 rounded-lg text-[10px] font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1"
-                            title="Mark as Served to Table"
+                            title="Mark as Served to Seat"
                           >
                             <Check className="w-3 h-3" />
                             <span>Served</span>

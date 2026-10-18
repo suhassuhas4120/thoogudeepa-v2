@@ -51,7 +51,7 @@ export interface TabletHeaderProps {
 export const TabletHeader: React.FC<TabletHeaderProps> = ({
   currentScreen,
   waiterName = 'Ramesh Kumar',
-  assignedZone = 'Zone 1 (Tables 01-10)',
+  assignedZone = 'Zone 1 (Seats 01-10)',
   customerCallsCount,
   kitchenAlertsCount,
   occupiedCount = 4,
@@ -280,7 +280,7 @@ export const TabletHeader: React.FC<TabletHeaderProps> = ({
           onClick={triggerCustomerCalls}
           id="btn-header-calls"
           className="h-10 px-3.5 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-2xs text-slate-800"
-          title="Open Customer Table Service Calls"
+          title="Open Customer Seat Service Calls"
           aria-label={`Customer Calls: ${customerCallsCount} pending`}
         >
           <PhoneCall className="w-3.5 h-3.5 text-rose-600" />

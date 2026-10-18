@@ -41,7 +41,7 @@ export interface TabletBillSettlementProps {
   totalAmount: number;
   /** Callback to return back to live ticket mode */
   onBackToTicket: () => void;
-  /** Callback to complete settlement and vacate table on floor grid */
+  /** Callback to complete settlement and vacate seat on floor grid */
   onConfirmSettlement: () => void;
   /** Callback to print thermal tax invoice receipt */
   onPrintReceipt: () => void;
@@ -74,7 +74,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 
   // UPI QR Code Generator URL
   const qrUrl = useMemo(() => {
-    const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${payableAmount}&cu=INR&tn=Table%20${seatName}`;
+    const upiUri = `upi://pay?pa=thoogudeepa@icici&pn=Thoogudeepa%20Donne%20Biryani&am=${payableAmount}&cu=INR&tn=${encodeURIComponent(seatName)}`;
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUri)}`;
   }, [payableAmount, seatName]);
 
@@ -314,7 +314,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-1 ring-emerald-500/30' 
               : 'bg-slate-50 border-slate-300 text-slate-700 hover:border-slate-400'
           }`}
-          title="Waiter confirms that customer paid before vacating table"
+          title="Waiter confirms that customer paid before vacating seat"
         >
           <div className="flex items-center gap-2">
             <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
@@ -358,7 +358,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
               ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs cursor-pointer'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
           }`}
-          title={isPaymentReceived ? "Vacate seat and close bill" : "Confirm payment received before vacating table"}
+          title={isPaymentReceived ? "Vacate seat and close bill" : "Confirm payment received before vacating seat"}
         >
           <CheckCircle className="w-3.5 h-3.5" />
           <span>{isPaymentReceived ? 'Settle & Vacate' : 'Awaiting Payment from Customer'}</span>

@@ -29,7 +29,7 @@ import {
 import { DishItem, MENU_DISHES, SeatItem } from './types';
 
 export interface TabletMenuCatalogProps {
-  /** Target seat identifier and guest name (e.g., 'Table 02: Walk-In') */
+  /** Target seat identifier and guest name (e.g., 'Seat 02: Walk-In') */
   activeSeatName: string;
   /** Active seats list assigned to waiter */
   seats?: SeatItem[];
@@ -77,7 +77,7 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
     { id: 'drinks', label: 'Beverages' }
   ];
 
-  // Dynamic tables list for complete dropdown selection
+  // Dynamic seats list for complete dropdown selection
   const allSeatsList = useMemo(() => {
     if (seats && seats.length > 0) {
       return seats.map(s => ({
@@ -88,7 +88,7 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
       }));
     }
     return [
-      { id: 'Table 01', label: 'Table 01 (Walk-In Available)' }
+      { id: 'Seat 01', label: 'Seat 01 (Walk-In Available)' }
     ];
   }, [seats]);
 

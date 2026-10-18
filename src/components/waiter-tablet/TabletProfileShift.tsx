@@ -195,7 +195,7 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
               ₹{profile.metrics.totalSales.toLocaleString('en-IN')}
             </div>
             <p className="text-[10px] text-slate-500 font-semibold mt-1">
-              {profile.metrics.billsSettled} Tables Settled
+              {profile.metrics.billsSettled} Seats Settled
             </p>
           </div>
 

@@ -48,8 +48,8 @@ export const TabletCockpitMaster: React.FC = () => {
   const [alerts, setAlerts] = useState<ServiceAlert[]>(INITIAL_ALERTS);
   const [shiftLogs, setShiftLogs] = useState(SHIFT_LOGS);
 
-  // Active Target Table & Cockpit Right Pane Mode ('ticket' or 'bill')
-  const [activeSeatName, setActiveSeatName] = useState<string>('Table 02: Walk-In');
+  // Active Target Seat & Cockpit Right Pane Mode ('ticket' or 'bill')
+  const [activeSeatName, setActiveSeatName] = useState<string>('Seat 02: Walk-In');
   const [activeSeatCustomer, setActiveSeatCustomer] = useState<string>('Walk-In Guest');
   const [activeSeatAmount, setActiveSeatAmount] = useState<number>(1029);
   const [isDining, setIsDining] = useState<boolean>(false);
@@ -88,14 +88,14 @@ export const TabletCockpitMaster: React.FC = () => {
   const kitchenAlertsCount = useMemo(() => alerts.filter(a => a.type === 'kitchen' && !a.isResolved).length, [alerts]);
   const occupiedSeatsCount = useMemo(() => seats.filter(s => s.status === 'occupied').length, [seats]);
 
-  // Handler: Login Success transition with dynamic waiter table allocation
+  // Handler: Login Success transition with dynamic waiter seat allocation
   const handleLoginSuccess = (waiter: WaiterOption) => {
     setProfile(prev => ({
       ...prev,
       id: waiter.id,
       name: waiter.name,
       role: waiter.role,
-      assignedZone: waiter.assignedZone || 'Zone 1 (Tables 01-10)',
+      assignedZone: waiter.assignedZone || 'Zone 1 (Seats 01-10)',
       avatarInitials: waiter.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)
     }));
 
@@ -103,11 +103,11 @@ export const TabletCockpitMaster: React.FC = () => {
     setSeats(newSeats);
 
     if (newSeats.length > 0) {
-      const firstTable = newSeats[0];
-      setActiveSeatName(`${firstTable.seatNumber}: ${firstTable.guestName}`);
-      setActiveSeatCustomer(firstTable.guestName);
-      setActiveSeatAmount(firstTable.totalAmount);
-      setIsDining(firstTable.status === 'occupied');
+      const firstSeat = newSeats[0];
+      setActiveSeatName(`${firstSeat.seatNumber}: ${firstSeat.guestName}`);
+      setActiveSeatCustomer(firstSeat.guestName);
+      setActiveSeatAmount(firstSeat.totalAmount);
+      setIsDining(firstSeat.status === 'occupied');
     }
 
     setCurrentScreen('seats');
@@ -258,7 +258,7 @@ export const TabletCockpitMaster: React.FC = () => {
         )}
 
         {/* ======================================================== */}
-        {/* SCREEN 2: DYNAMIC FLOOR BOARD (TABLES 01-40 BY WAITER)    */}
+        {/* SCREEN 2: DYNAMIC FLOOR BOARD (SEATS 01-40 BY WAITER)     */}
         {/* ======================================================== */}
         {currentScreen === 'seats' && (
           <TabletFloorGrid
