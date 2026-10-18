@@ -842,6 +842,7 @@ export const realtimeBridge = {
     try {
       setLocalOrdersList([]);
       setLocalOccupancyMap({});
+      setLocalAlertsList([]);
       if (typeof window !== 'undefined') {
         const keys = Object.keys(localStorage);
         for (const key of keys) {
@@ -850,7 +851,9 @@ export const realtimeBridge = {
             key.includes('session') ||
             key.includes('cart') ||
             key.includes('order') ||
-            key.includes('stages')
+            key.includes('stages') ||
+            key.includes('alert') ||
+            key.includes('seat')
           ) {
             localStorage.removeItem(key);
           }
@@ -870,6 +873,13 @@ export const realtimeBridge = {
             .in('status', ['pending', 'in_progress', 'ready']);
           await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
           await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          
+          const liveChannel = supabase.channel('kitchen_realtime_feed');
+          liveChannel.send({
+            type: 'broadcast',
+            event: 'CLEAR_ALL_ORDERS',
+            payload: {}
+          });
         } catch (dbErr) {
           console.warn('Database remote delete notice:', dbErr);
         }
