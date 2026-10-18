@@ -292,7 +292,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
             title={hasItems ? "Fire KOT to Kitchen" : "Add dishes before firing KOT"}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>{kotSentSuccess ? 'Fired' : 'Punch KOT'}</span>
+            <span>{kotSentSuccess ? 'Sent to Kitchen' : 'Send to Kitchen'}</span>
           </button>
 
           {/* Button 2: Collect Bill */}

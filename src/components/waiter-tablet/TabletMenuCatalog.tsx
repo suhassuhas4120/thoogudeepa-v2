@@ -26,11 +26,13 @@ import {
   Utensils, 
   X
 } from 'lucide-react';
-import { DishItem, MENU_DISHES } from './types';
+import { DishItem, MENU_DISHES, SeatItem } from './types';
 
 export interface TabletMenuCatalogProps {
-  /** Target seat identifier and guest name (e.g., 'Seat 02: Walk-In') */
+  /** Target seat identifier and guest name (e.g., 'Table 02: Walk-In') */
   activeSeatName: string;
+  /** Active seats list assigned to waiter */
+  seats?: SeatItem[];
   /** Whether the seat is currently dining with an active order */
   isDining: boolean;
   /** Map of dish ID to quantity currently selected in the cart/order */
@@ -51,6 +53,7 @@ export interface TabletMenuCatalogProps {
 
 export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
   activeSeatName,
+  seats,
   isDining,
   dishQuantities,
   cartCount,
@@ -74,19 +77,20 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
     { id: 'drinks', label: 'Beverages' }
   ];
 
-  // All 10 seats for complete dropdown selection
-  const allSeatsList = [
-    { id: 'Seat 01', label: 'Seat 01 (Suhas M - ₹320)' },
-    { id: 'Seat 02', label: 'Seat 02 (Walk-In Available)' },
-    { id: 'Seat 03', label: 'Seat 03 (Rajesh V - ₹480)' },
-    { id: 'Seat 04', label: 'Seat 04 (Kiran R - ₹840 Bill Req)' },
-    { id: 'Seat 05', label: 'Seat 05 (Darshan Gowda - ₹740)' },
-    { id: 'Seat 06', label: 'Seat 06 (Available)' },
-    { id: 'Seat 07', label: 'Seat 07 (Available)' },
-    { id: 'Seat 08', label: 'Seat 08 (Available)' },
-    { id: 'Seat 09', label: 'Seat 09 (Available)' },
-    { id: 'Seat 10', label: 'Seat 10 (Available)' }
-  ];
+  // Dynamic tables list for complete dropdown selection
+  const allSeatsList = useMemo(() => {
+    if (seats && seats.length > 0) {
+      return seats.map(s => ({
+        id: s.seatNumber,
+        label: s.status === 'occupied'
+          ? `${s.seatNumber} (${s.guestName} - ₹${s.totalAmount}${s.hasBillRequest ? ' Bill Req' : ''})`
+          : `${s.seatNumber} (Available)`
+      }));
+    }
+    return [
+      { id: 'Table 01', label: 'Table 01 (Walk-In Available)' }
+    ];
+  }, [seats]);
 
   // Filtered dishes based on category, search text, and veg toggle
   const filteredDishes = useMemo(() => {

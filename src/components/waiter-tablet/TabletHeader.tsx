@@ -51,7 +51,7 @@ export interface TabletHeaderProps {
 export const TabletHeader: React.FC<TabletHeaderProps> = ({
   currentScreen,
   waiterName = 'Ramesh Kumar',
-  assignedZone = 'Seats 01 – 10',
+  assignedZone = 'Zone 1 (Tables 01-10)',
   customerCallsCount,
   kitchenAlertsCount,
   occupiedCount = 4,
@@ -190,7 +190,7 @@ export const TabletHeader: React.FC<TabletHeaderProps> = ({
           title="Return to Floor Board"
         >
           <img
-            src="logo.jpg"
+            src="/logo.jpg"
             alt="Thoogudeepa Official Logo"
             className="w-11 h-11 rounded-full object-cover ring-2 ring-amber-400/50 shadow-xs transition-transform group-hover:scale-105"
             loading="eager"
