@@ -123,7 +123,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
           >
             <PhoneCall className="w-3.5 h-3.5 text-rose-600" />
             <span>Customer Calls</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black bg-rose-50 text-rose-700 border border-rose-200">
               {customerCalls.length}
             </span>
           </button>
@@ -140,7 +140,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
           >
             <ChefHat className="w-3.5 h-3.5 text-emerald-600" />
             <span>Kitchen Ready</span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
               {kitchenReady.length}
             </span>
           </button>
@@ -281,7 +281,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
                         <span className="text-xs font-black text-slate-900 truncate">
                           {order.title}
                         </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
                           {order.seatNumber}
                         </span>
                       </div>
