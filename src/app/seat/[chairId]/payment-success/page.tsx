@@ -145,6 +145,24 @@ function PaymentSuccessContent() {
     }
   }, [chairId]);
 
+  // Automatic transition to Bill page after 3 seconds
+  const [countdown, setCountdown] = useState<number>(3);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          window.location.replace(`/seat/${chairId}/receipt`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [chairId]);
+
   // Details rows for the receipt/transaction card
   const transactionRows = [
     { label: 'Transaction ID', value: transactionId || `TXN-${chairId}-90823411` },
@@ -216,7 +234,7 @@ function PaymentSuccessContent() {
           href={`/seat/${chairId}/receipt`}
           className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
         >
-          View Tax Invoice
+          View Tax Invoice {countdown > 0 ? `(${countdown}s)` : ''}
         </Link>
       </div>
 

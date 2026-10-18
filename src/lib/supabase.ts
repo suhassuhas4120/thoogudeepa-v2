@@ -1025,27 +1025,57 @@ export const realtimeBridge = {
   },
 
   // Broadcast when waiter enters bill collection / settlement mode for a seat
-  async notifyBillModeActive(chairId: string, amount?: number): Promise<boolean> {
+  async notifyBillModeActive(
+    chairId: string,
+    amount?: number,
+    meta?: { mode?: 'qr' | 'cash'; ticketNumber?: string }
+  ): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const map = getLocalOccupancyMap();
     if (map[cleanChair]) {
       map[cleanChair].status = 'billing';
       setLocalOccupancyMap(map);
     }
+    const mode = meta?.mode || 'qr';
+    const ticketNumber = meta?.ticketNumber;
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount });
+      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount, mode, ticketNumber });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_MODE_ACTIVE',
-        payload: { chairId: cleanChair, amount }
+        payload: { chairId: cleanChair, amount, mode, ticketNumber }
       });
     }
     return true;
   },
-  async settleBill(chairId: string, paymentMethod: string, amount: number): Promise<boolean> {
+
+  // Broadcast when customer confirms completed UPI payment
+  async notifyCustomerPaidUpi(data: { chairId: string; rawChairId?: string; amount?: number; ticketNumber?: string }): Promise<boolean> {
+    const cleanChair = data.chairId.replace(/[^0-9]/g, '');
+    const payload = {
+      chairId: cleanChair,
+      rawChairId: data.rawChairId || data.chairId,
+      amount: data.amount || 0,
+      ticketNumber: data.ticketNumber
+    };
+    if (localChannel) {
+      localChannel.postMessage({ type: 'CUSTOMER_PAID_UPI', ...payload });
+    }
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'CUSTOMER_PAID_UPI',
+        payload
+      });
+    }
+    return true;
+  },
+
+  async settleBill(chairId: string, paymentMethod: string, amount: number, meta?: { ticketNumber?: string }): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const padded = cleanChair.padStart(2, '0');
     const unpadded = cleanChair.replace(/^0+/, '');
@@ -1082,8 +1112,9 @@ export const realtimeBridge = {
       } catch {}
     }
 
+    const settledTicket = meta?.ticketNumber;
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, paymentMethod, amount });
+      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, paymentMethod, amount, ticketNumber: settledTicket });
       localChannel.postMessage({ type: 'SEAT_RELEASED', chairId: cleanChair });
     }
     if (supabase) {
@@ -1091,7 +1122,7 @@ export const realtimeBridge = {
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_SETTLED',
-        payload: { chairId: cleanChair, rawChairId: chairId, paymentMethod, amount }
+        payload: { chairId: cleanChair, rawChairId: chairId, paymentMethod, amount, ticketNumber: settledTicket }
       });
       liveChannel.send({
         type: 'broadcast',
@@ -1257,8 +1288,9 @@ export const realtimeBridge = {
     onNewAlert?: (alert: ServiceAlertRecord) => void;
     onResolveAlert?: (alertId: string) => void;
     onBillRequested?: (data: { chairId: string; amount?: number; verification?: BillVerificationPayload }) => void;
-    onBillModeActive?: (data: { chairId: string; amount?: number }) => void;
-    onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
+    onBillModeActive?: (data: { chairId: string; amount?: number; mode?: 'qr' | 'cash'; ticketNumber?: string }) => void;
+    onCustomerPaidUpi?: (data: { chairId: string; rawChairId?: string; amount?: number; ticketNumber?: string }) => void;
+    onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string; ticketNumber?: string }) => void;
     onClearAll?: () => void;
   }) {
     // Track recently processed order IDs to prevent duplicate event dispatching across broadcast and database triggers
@@ -1322,6 +1354,11 @@ export const realtimeBridge = {
         .on('broadcast', { event: 'BILL_MODE_ACTIVE' }, (msg) => {
           if (callbacks.onBillModeActive && msg.payload) {
             callbacks.onBillModeActive(msg.payload);
+          }
+        })
+        .on('broadcast', { event: 'CUSTOMER_PAID_UPI' }, (msg) => {
+          if (callbacks.onCustomerPaidUpi && msg.payload) {
+            callbacks.onCustomerPaidUpi(msg.payload);
           }
         })
         .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
@@ -1424,9 +1461,11 @@ export const realtimeBridge = {
           verification: data.payload,
         });
       } else if (data.type === 'BILL_MODE_ACTIVE' && callbacks.onBillModeActive) {
-        callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount });
+        callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount, mode: data.mode, ticketNumber: data.ticketNumber });
+      } else if (data.type === 'CUSTOMER_PAID_UPI' && callbacks.onCustomerPaidUpi) {
+        callbacks.onCustomerPaidUpi({ chairId: data.chairId, rawChairId: data.rawChairId, amount: data.amount, ticketNumber: data.ticketNumber });
       } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {
-        callbacks.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod });
+        callbacks.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod, ticketNumber: data.ticketNumber });
       } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {
         callbacks.onAvailabilityChange({ dishId: data.dishId, isAvailable: data.isAvailable });
       } else if (data.type === 'CLEAR_ALL_ORDERS' && callbacks.onClearAll) {

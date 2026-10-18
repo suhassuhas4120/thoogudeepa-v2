@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight, QrCode, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { realtimeBridge } from '../../../../lib/supabase';
@@ -22,7 +22,31 @@ export default function OrderSummaryBillPage() {
   const [selectedTip, setSelectedTip] = useState<string>('None');
   const [showWaiterModal, setShowWaiterModal] = useState<boolean>(false);
   const [waiterCalled, setWaiterCalled] = useState<boolean>(false);
+  const [waiterSelectedMode, setWaiterSelectedMode] = useState<'none' | 'qr' | 'cash'>('none');
+  const [isReportingPaid, setIsReportingPaid] = useState<boolean>(false);
   const [selectedPaymentSubMode, setSelectedPaymentSubMode] = useState<'scan' | 'cash'>('cash');
+
+  const tipOptions = ['None', '₹ 30', '₹ 50', '₹ 100'];
+
+  const handleSelectTip = (opt: string) => {
+    setSelectedTip(opt);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`thoogudeepa_selected_tip_${chairId}`, opt);
+    }
+  };
+
+  const itemsList = session?.items && session.items.length > 0 ? session.items : [];
+  const itemsSubtotal = itemsList.length > 0
+    ? itemsList.reduce((acc, it) => acc + it.price * it.quantity, 0)
+    : (session?.totalAmount ? Math.round(session.totalAmount / 1.05) : 0);
+
+  const cgst = Math.round(itemsSubtotal * 0.025);
+  const sgst = Math.round(itemsSubtotal * 0.025);
+  const gstAmount = cgst + sgst;
+  const billTotal = itemsSubtotal + gstAmount;
+
+  const tipAmount = selectedTip === '₹ 30' ? 30 : selectedTip === '₹ 50' ? 50 : selectedTip === '₹ 100' ? 100 : 0;
+  const grandPayable = billTotal + tipAmount;
 
   useEffect(() => {
     // Restore any previously chosen tip for this seat
@@ -90,6 +114,9 @@ export default function OrderSummaryBillPage() {
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
         if (cleanTarget === cleanCurrent || data.chairId === chairId) {
           setWaiterCalled(true);
+          if (data.mode === 'qr' || data.mode === 'cash') {
+            setWaiterSelectedMode(data.mode);
+          }
         }
       },
       onBillRequested: (data) => {
@@ -103,42 +130,63 @@ export default function OrderSummaryBillPage() {
         const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
         if (cleanTarget === cleanCurrent || data.chairId === chairId) {
-          window.location.replace(`/seat/${chairId}/receipt`);
+          const modeVal = data.paymentMethod || 'Cash';
+          const amtVal = data.amount || grandPayable;
+          try {
+            localStorage.setItem(
+              `thoogudeepa_settled_receipt_${chairId}`,
+              JSON.stringify({
+                ticketNumber: session?.ticketNumber || data.ticketNumber,
+                seatId: chairId,
+                items: session?.items || [],
+                subtotal: itemsSubtotal,
+                tip: tipAmount,
+                totalAmount: amtVal,
+                mode: modeVal,
+                settledAt: Date.now(),
+              })
+            );
+          } catch {}
+          window.location.replace(`/seat/${chairId}/payment-success?mode=${encodeURIComponent(modeVal)}&amount=${amtVal}&tip=${tipAmount}`);
         }
       },
       onSeatOccupancyChange: (data) => {
         const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
         if ((cleanTarget === cleanCurrent || data.chairId === chairId) && !data.isOccupied) {
-          window.location.replace(`/seat/${chairId}/receipt`);
+          window.location.replace(`/seat/${chairId}/payment-success?mode=Cash&amount=${grandPayable}&tip=${tipAmount}`);
         }
       }
     });
 
     return () => unsub();
-  }, [chairId]);
+  }, [chairId, grandPayable, itemsSubtotal, session, tipAmount]);
 
-  const tipOptions = ['None', '₹ 30', '₹ 50', '₹ 100'];
-
-  const handleSelectTip = (opt: string) => {
-    setSelectedTip(opt);
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(`thoogudeepa_selected_tip_${chairId}`, opt);
-    }
+  const handleCustomerConfirmQrPayment = async () => {
+    setIsReportingPaid(true);
+    await realtimeBridge.notifyCustomerPaidUpi({
+      chairId,
+      rawChairId: chairId,
+      amount: grandPayable,
+      ticketNumber: session?.ticketNumber,
+    });
+    try {
+      localStorage.setItem(
+        `thoogudeepa_settled_receipt_${chairId}`,
+        JSON.stringify({
+          ticketNumber: session?.ticketNumber,
+          seatId: chairId,
+          items: session?.items || [],
+          subtotal: itemsSubtotal,
+          tip: tipAmount,
+          totalAmount: grandPayable,
+          mode: 'UPI QR',
+          settledAt: Date.now(),
+        })
+      );
+    } catch {}
+    window.location.replace(`/seat/${chairId}/payment-success?mode=UPI%20QR&amount=${grandPayable}&tip=${tipAmount}`);
   };
-
-  const itemsList = session?.items && session.items.length > 0 ? session.items : [];
-  const itemsSubtotal = itemsList.length > 0
-    ? itemsList.reduce((acc, it) => acc + it.price * it.quantity, 0)
-    : (session?.totalAmount ? Math.round(session.totalAmount / 1.05) : 0);
-
-  const cgst = Math.round(itemsSubtotal * 0.025);
-  const sgst = Math.round(itemsSubtotal * 0.025);
-  const gstAmount = cgst + sgst;
-  const billTotal = itemsSubtotal + gstAmount;
-
-  const tipAmount = selectedTip === '₹ 30' ? 30 : selectedTip === '₹ 50' ? 50 : selectedTip === '₹ 100' ? 100 : 0;
-  const grandPayable = billTotal + tipAmount;
 
   return (
     <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
@@ -414,89 +462,96 @@ export default function OrderSummaryBillPage() {
             )}
           </div>
 
-          {/* Sub Payment Options (Only visible when waiter called) */}
+          {/* Synchronized Pay via Waiter Settlement View */}
           {waiterCalled && (
-            <div className="w-full relative pt-2">
-              <div className="absolute left-0 right-0 top-[3px] h-[2px] bg-black pointer-events-none" />
-
-              <div className="relative w-full grid grid-cols-2 gap-4 items-center">
-                {/* Left: Scan Icon with curved notch */}
-                <Link
-                  href={`/seat/${chairId}/scan`}
-                  onClick={() => setSelectedPaymentSubMode('scan')}
-                  className="relative flex items-center justify-center py-2 cursor-pointer transition-all"
-                  aria-label="Open Scanner"
-                >
-                  {selectedPaymentSubMode === 'scan' && (
-                    <svg
-                      width="110"
-                      height="54"
-                      viewBox="0 0 110 54"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="absolute -top-[9px] left-1/2 -translate-x-1/2 pointer-events-none"
-                    >
-                      <path
-                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10 L 110,0 L 0,0 Z"
-                        fill="white"
-                      />
-                      <path
-                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10"
-                        stroke="black"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  )}
-                  <div
-                    className={`relative z-10 w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center transition-all bg-white shadow-xs ${
-                      selectedPaymentSubMode === 'scan'
-                        ? 'translate-y-2 bg-black text-white border-black'
-                        : 'bg-white text-black hover:bg-zinc-50'
-                    }`}
-                  >
-                    <Scan className="w-6 h-6 stroke-[2.2]" />
+            <div className="w-full flex flex-col gap-3 pt-2">
+              {/* Scenario 1: Floor Captain selected UPI QR */}
+              {waiterSelectedMode === 'qr' && (
+                <div className="w-full border-2 border-emerald-600 bg-emerald-50/90 rounded-2xl p-4 flex flex-col items-center text-center gap-3 shadow-md animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 text-emerald-950 font-black text-xs uppercase tracking-wider">
+                    <QrCode className="w-4 h-4 text-emerald-700" />
+                    <span>Floor Captain Selected UPI QR Code</span>
                   </div>
-                </Link>
 
-                {/* Right: Cash Button with curved notch */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedPaymentSubMode('cash')}
-                  className="relative flex items-center justify-center py-2 cursor-pointer transition-all"
-                >
-                  {selectedPaymentSubMode === 'cash' && (
-                    <svg
-                      width="110"
-                      height="54"
-                      viewBox="0 0 110 54"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="absolute -top-[9px] left-1/2 -translate-x-1/2 pointer-events-none"
-                    >
-                      <path
-                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10 L 110,0 L 0,0 Z"
-                        fill="white"
-                      />
-                      <path
-                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10"
-                        stroke="black"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  )}
-                  <div
-                    className={`relative z-10 px-5 py-2.5 rounded-2xl border-2 border-black flex items-center justify-center transition-all bg-white shadow-xs ${
-                      selectedPaymentSubMode === 'cash'
-                        ? 'translate-y-2 bg-black text-white border-black font-black'
-                        : 'bg-white text-black hover:bg-zinc-50 font-bold'
-                    }`}
-                  >
-                    <span className="text-xs uppercase tracking-wider">CASH</span>
+                  <div className="p-3 bg-white border-2 border-black rounded-2xl shadow-sm">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`upi://pay?pa=thoogudeepa@okicici&pn=Thoogudeepa&am=${grandPayable}&tn=Seat-${seatNumber}`)}`}
+                      alt="UPI QR Code"
+                      className="w-40 h-40 object-contain rounded-xl"
+                    />
                   </div>
-                </button>
-              </div>
+
+                  <div className="flex flex-col items-center text-center">
+                    <span className="text-sm font-black text-zinc-950 font-mono">
+                      Pay ₹ {grandPayable}
+                    </span>
+                    <span className="text-[10px] text-zinc-600 font-bold mt-0.5">
+                      UPI ID: thoogudeepa@okicici
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 bg-white border border-zinc-200 rounded-md text-[9px] font-black text-zinc-800 shadow-2xs">GPay</span>
+                    <span className="px-2 py-0.5 bg-white border border-zinc-200 rounded-md text-[9px] font-black text-indigo-700 shadow-2xs">PhonePe</span>
+                    <span className="px-2 py-0.5 bg-white border border-zinc-200 rounded-md text-[9px] font-black text-sky-700 shadow-2xs">Paytm</span>
+                    <span className="px-2 py-0.5 bg-white border border-zinc-200 rounded-md text-[9px] font-black text-emerald-700 shadow-2xs">BHIM</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isReportingPaid}
+                    onClick={handleCustomerConfirmQrPayment}
+                    className="w-full mt-1 border-2 border-black bg-black hover:bg-zinc-800 text-white py-3.5 px-4 text-xs font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 cursor-pointer active:scale-95 transition-all shadow-md"
+                  >
+                    {isReportingPaid ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                        <span>Notifying Floor Captain...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>I Have Paid ₹{grandPayable}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Scenario 2: Floor Captain selected Cash */}
+              {waiterSelectedMode === 'cash' && (
+                <div className="w-full border-2 border-amber-500 bg-amber-50 rounded-2xl p-4 flex flex-col items-center text-center gap-2 shadow-sm animate-in fade-in duration-200">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 mb-0.5">
+                    <Banknote className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                    Captain Selected Cash Payment
+                  </span>
+                  <p className="text-xs text-amber-900 font-bold">
+                    Please hand over <span className="font-black text-sm text-black">₹{grandPayable}</span> to your Floor Captain.
+                  </p>
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-200/60 rounded-full text-[10px] font-extrabold text-amber-900 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
+                    <span>Captain is collecting cash and finalizing your bill...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Scenario 3: Waiter Called, awaiting QR or Cash selection */}
+              {waiterSelectedMode === 'none' && (
+                <div className="w-full border-2 border-zinc-300 bg-zinc-50 rounded-2xl p-3.5 flex flex-col items-center text-center gap-1.5 shadow-2xs">
+                  <span className="text-xs font-black text-zinc-900 uppercase tracking-wider">
+                    Floor Captain Called
+                  </span>
+                  <p className="text-[11px] text-zinc-600 font-medium">
+                    Captain is approaching Seat #{seatNumber} with payment terminal.
+                  </p>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-500 mt-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Awaiting captain to select QR or Cash</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -39,6 +39,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { PaymentMethod, RESTAURANT_CONSTANTS } from './types';
+import { realtimeBridge } from '../../lib/supabase';
 
 export interface MobileBillSettlementProps {
   /** Target seat label (e.g., 'Seat 04') */
@@ -77,7 +78,9 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
+  const [isConfirmVacateOpen, setIsConfirmVacateOpen] = useState<boolean>(false);
   const [isUpiVerified, setIsUpiVerified] = useState<boolean>(true);
+  const [customerPaidUpi, setCustomerPaidUpi] = useState<boolean>(false);
 
   // Dynamic bill lines using real cart items if available, or empty
   const billLines = useMemo(() => {
@@ -133,18 +136,44 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
     return receivedCashAmount - finalGrandTotal;
   }, [receivedCashAmount, finalGrandTotal]);
 
-  // Payment settle handler
-  const handleExecuteSettle = useCallback(() => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsReceiptModalOpen(true);
-      onShowToast?.(`Bill for ${seatNumber} settled via ${selectedMethod.toUpperCase()}!`);
-    }, 500);
-  }, [seatNumber, selectedMethod, onShowToast]);
+  // Method selection with immediate customer broadcast
+  const handleSelectMethod = useCallback((m: PaymentMethod) => {
+    setSelectedMethod(m);
+    const cleanChair = seatNumber.replace(/[^0-9]/g, '');
+    realtimeBridge.notifyBillModeActive(cleanChair, finalGrandTotal, {
+      mode: m === 'upi' ? 'qr' : 'cash',
+      ticketNumber: cartItems?.[0]?.ticketNumber,
+    });
+  }, [seatNumber, finalGrandTotal, cartItems]);
 
-  // Close settlement and route back to seats
+  useEffect(() => {
+    const cleanChair = seatNumber.replace(/[^0-9]/g, '');
+    realtimeBridge.notifyBillModeActive(cleanChair, finalGrandTotal, {
+      mode: selectedMethod === 'upi' ? 'qr' : 'cash',
+      ticketNumber: cartItems?.[0]?.ticketNumber,
+    });
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onCustomerPaidUpi: (data) => {
+        const cleanTarget = (data.chairId || '').replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanChair || data.chairId === seatNumber) {
+          setCustomerPaidUpi(true);
+          onShowToast?.(`Customer paid ₹${data.amount || finalGrandTotal} via QR!`);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [seatNumber, finalGrandTotal, selectedMethod, cartItems, onShowToast]);
+
+  // Payment settle handler - opens confirmation dialog
+  const handleExecuteSettle = useCallback(() => {
+    setIsConfirmVacateOpen(true);
+  }, []);
+
+  // Finalize settlement and vacate seat on floor
   const handleFinalizeAndExit = useCallback(() => {
+    setIsConfirmVacateOpen(false);
     setIsReceiptModalOpen(false);
     onSettleSuccess(seatNumber, selectedMethod, finalGrandTotal);
   }, [seatNumber, selectedMethod, finalGrandTotal, onSettleSuccess]);
@@ -271,7 +300,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
             {/* Option 1: Cash Button */}
             <button
               type="button"
-              onClick={() => setSelectedMethod('cash')}
+              onClick={() => handleSelectMethod('cash')}
               className={`h-12 rounded-xl border flex flex-col items-center justify-center shadow-2xs btn-press transition-all cursor-pointer ${
                 selectedMethod === 'cash'
                   ? 'border-2 border-amber-600 bg-amber-50 text-amber-900 font-bold'
@@ -285,7 +314,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
             {/* Option 2: UPI QR Button */}
             <button
               type="button"
-              onClick={() => setSelectedMethod('upi')}
+              onClick={() => handleSelectMethod('upi')}
               className={`h-12 rounded-xl border flex flex-col items-center justify-center shadow-2xs btn-press transition-all cursor-pointer ${
                 selectedMethod === 'upi'
                   ? 'border-2 border-slate-900 bg-slate-900 text-white font-bold'
@@ -301,6 +330,12 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
           {/* UPI MODE (Matching Tablet) */}
           {selectedMethod === 'upi' && (
             <div className="mt-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center text-center animate-in fade-in duration-200 space-y-3">
+              {customerPaidUpi && (
+                <div className="w-full p-2.5 bg-emerald-100 border border-emerald-400 rounded-xl flex items-center gap-2 text-emerald-950 font-black text-xs animate-in zoom-in-95">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Customer Paid ₹{finalGrandTotal} via QR Code!</span>
+                </div>
+              )}
               {/* QR Frame with Crisp Emerald Ring & White Tile */}
               <div className="relative p-2.5 bg-white border-2 border-emerald-500 rounded-2xl shadow-sm ring-4 ring-emerald-500/10">
                 <div className="w-44 h-44 bg-white rounded-xl p-1 flex items-center justify-center overflow-hidden">
@@ -421,44 +456,65 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
         <button
           type="button"
           onClick={handleExecuteSettle}
-          disabled={isProcessing || !isVerifiedByCustomer}
+          disabled={!isVerifiedByCustomer}
           className={`w-full h-12 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center justify-center gap-2 btn-press transition-all ${
-            isVerifiedByCustomer && !isProcessing
-              ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 cursor-pointer'
+            isVerifiedByCustomer
+              ? (selectedMethod === 'upi' && customerPaidUpi
+                  ? 'bg-emerald-600 hover:bg-emerald-500 ring-2 ring-emerald-400 active:scale-95 cursor-pointer'
+                  : 'bg-slate-900 hover:bg-slate-800 active:scale-95 cursor-pointer')
               : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
           }`}
-          title={isVerifiedByCustomer ? 'Settle Bill & Print Receipt' : 'Awaiting customer to click Pay via Waiter'}
+          title={isVerifiedByCustomer ? 'Settle bill and vacate seat' : 'Awaiting customer to click Pay via Waiter'}
         >
-          <Printer className="w-4 h-4" />
-          <span>
-            {isProcessing
-              ? 'PRINTING RECEIPT...'
-              : !isVerifiedByCustomer
-              ? 'AWAITING CUSTOMER CONFIRMATION'
-              : `PRINT RECEIPT & SETTLE (₹${finalGrandTotal})`}
-          </span>
+          {selectedMethod === 'upi' ? (
+            customerPaidUpi ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                <span>CONFIRM &amp; VACATE SEAT (₹{finalGrandTotal})</span>
+              </>
+            ) : (
+              <>
+                <QrCode className="w-4 h-4 text-emerald-400" />
+                <span>SETTLE VIA QR (₹{finalGrandTotal})</span>
+              </>
+            )
+          ) : (
+            <>
+              <Printer className="w-4 h-4 text-amber-400" />
+              <span>PRINT RECEIPT &amp; SETTLE (₹{finalGrandTotal})</span>
+            </>
+          )}
         </button>
 
       </div>
 
-      {/* Confirmation Modal */}
-      {isReceiptModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
+      {/* Confirmation and Vacate Modal */}
+      {isConfirmVacateOpen && (
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-5 max-w-xs w-full shadow-2xl border border-slate-200 text-center animate-in zoom-in-95 duration-200">
             <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 className="w-6 h-6" />
             </div>
-            <h3 className="text-sm font-black text-slate-900">Settlement Complete</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              {seatNumber} settled for ₹{finalGrandTotal} via {selectedMethod.toUpperCase()}.
+            <h3 className="text-sm font-black text-slate-900">Confirm &amp; Vacate Seat</h3>
+            <p className="text-xs text-slate-600 mt-1.5 font-medium leading-relaxed">
+              Confirm settlement of <span className="font-black text-slate-900">₹{finalGrandTotal}</span> via {selectedMethod === 'upi' ? 'UPI QR' : 'Cash'} and mark <span className="font-black text-slate-900">{seatNumber}</span> as vacant?
             </p>
-            <button
-              type="button"
-              onClick={handleFinalizeAndExit}
-              className="w-full h-10 mt-4 rounded-xl bg-slate-900 text-white text-xs font-bold btn-press shadow-xs cursor-pointer"
-            >
-              Back to Floor Grid
-            </button>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setIsConfirmVacateOpen(false)}
+                className="h-10 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold btn-press hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleFinalizeAndExit}
+                className="h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black btn-press shadow-xs cursor-pointer"
+              >
+                Confirm &amp; Vacate
+              </button>
+            </div>
           </div>
         </div>
       )}

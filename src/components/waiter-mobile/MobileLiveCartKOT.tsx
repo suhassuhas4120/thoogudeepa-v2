@@ -395,7 +395,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <Receipt className={`w-4 h-4 ${isBillRequested ? 'text-emerald-400' : 'text-slate-400'}`} />
             <span>
               {isBillRequested
-                ? `PROCEED TO BILL SETTLEMENT (₹${grandTotal})`
+                ? `SETTLE BILL (₹${grandTotal})`
                 : 'AWAITING CUSTOMER BILL REQUEST'}
             </span>
           </button>

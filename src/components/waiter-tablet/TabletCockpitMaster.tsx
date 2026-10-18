@@ -613,16 +613,16 @@ export const TabletCockpitMaster: React.FC = () => {
   };
 
   // Handler: Confirm Settlement and Vacate
-  const handleConfirmSettlement = () => {
+  const handleConfirmSettlement = (mode: 'cash' | 'upi' = 'cash') => {
     const activeSeatNum = activeSeatName.split(':')[0].trim();
     const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
-    realtimeBridge.settleBill(cleanChair, 'cash', grandTotal).then(() => {
+    realtimeBridge.settleBill(cleanChair, mode, grandTotal, { ticketNumber: activeTicketNumber || undefined }).then(() => {
       refreshSeats();
     });
     setSeats(prev => prev.map(s => s.seatNumber === activeSeatNum ? { ...s, status: 'vacant', guestName: 'Available', totalAmount: 0, orderCount: 0, hasBillRequest: false } : s));
     setRightPaneMode('ticket');
     setCurrentScreen('seats');
-    showToast(`Payment settled & ${activeSeatNum} vacated`);
+    showToast(`Payment settled via ${mode.toUpperCase()} & ${activeSeatNum} vacated`);
   };
 
   // Alerts Slide-Over Sheet Handlers

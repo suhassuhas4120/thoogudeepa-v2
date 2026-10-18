@@ -311,7 +311,7 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
             }
           >
             <CreditCard className="w-3.5 h-3.5" />
-            <span>{isBillRequested ? 'Collect Bill' : 'Awaiting Request'}</span>
+            <span>{isBillRequested ? 'Settle Bill' : 'Awaiting Request'}</span>
           </button>
         </div>
       </div>

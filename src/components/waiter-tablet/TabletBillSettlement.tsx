@@ -31,6 +31,7 @@ import {
   QrCode 
 } from 'lucide-react';
 import { PaymentMode, TicketItem } from './types';
+import { realtimeBridge } from '../../lib/supabase';
 
 export interface TabletBillSettlementProps {
   /** Target seat identifier (e.g. 'Seat 04') */
@@ -46,7 +47,7 @@ export interface TabletBillSettlementProps {
   /** Callback to return back to live ticket mode */
   onBackToTicket: () => void;
   /** Callback to complete settlement and vacate seat on floor grid */
-  onConfirmSettlement: () => void;
+  onConfirmSettlement: (mode?: PaymentMode) => void;
   /** Callback to print thermal tax invoice receipt */
   onPrintReceipt: () => void;
   /** Whether the bill has been confirmed and verified by the customer from their device */
@@ -164,6 +165,36 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUri)}`;
   }, [grandPayable, seatName]);
 
+  const handleSelectPaymentMode = (m: PaymentMode) => {
+    setPaymentMode(m);
+    setIsPaymentReceived(false);
+    if (m === 'cash') setCashTendered(grandPayable);
+    const cleanChair = seatName.replace(/[^0-9]/g, '');
+    realtimeBridge.notifyBillModeActive(cleanChair, grandPayable, {
+      mode: m === 'upi' ? 'qr' : 'cash',
+      ticketNumber: ticketItems?.[0]?.ticketNumber,
+    });
+  };
+
+  useEffect(() => {
+    const cleanChair = seatName.replace(/[^0-9]/g, '');
+    realtimeBridge.notifyBillModeActive(cleanChair, grandPayable, {
+      mode: paymentMode === 'upi' ? 'qr' : 'cash',
+      ticketNumber: ticketItems?.[0]?.ticketNumber,
+    });
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onCustomerPaidUpi: (data) => {
+        const cleanTarget = (data.chairId || '').replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanChair || data.chairId === seatName) {
+          setIsPaymentReceived(true);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [seatName, grandPayable, paymentMode, ticketItems]);
+
   const handlePrint = () => {
     setIsReceiptPrinting(true);
     onPrintReceipt();
@@ -174,7 +205,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 
   const handleConfirmVacate = () => {
     if (!isPaymentReceived) return;
-    onConfirmSettlement();
+    onConfirmSettlement(paymentMode);
   };
 
   return (
@@ -274,7 +305,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             {/* Cash Tab */}
             <button
               type="button"
-              onClick={() => { setPaymentMode('cash'); setIsPaymentReceived(false); setCashTendered(grandPayable); }}
+              onClick={() => handleSelectPaymentMode('cash')}
               className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'cash'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
@@ -288,7 +319,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             {/* UPI QR Tab */}
             <button
               type="button"
-              onClick={() => { setPaymentMode('upi'); setIsPaymentReceived(false); }}
+              onClick={() => handleSelectPaymentMode('upi')}
               className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'upi'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
@@ -387,6 +418,12 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             <span className="text-xs font-black text-amber-700 mt-2">
               ₹{grandPayable.toLocaleString('en-IN')}
             </span>
+            {isPaymentReceived && (
+              <div className="w-full p-2.5 bg-emerald-100 border border-emerald-400 rounded-xl flex items-center justify-center gap-2 text-emerald-950 font-black text-xs mt-2 animate-in zoom-in-95">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[3]" />
+                <span>Customer Paid ₹{grandPayable.toLocaleString('en-IN')} via QR Code!</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -464,7 +501,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             {!isVerifiedByCustomer
               ? 'Awaiting Customer Confirmation'
               : isPaymentReceived
-              ? 'Settle & Vacate'
+              ? 'Confirm & Vacate Seat'
               : 'Awaiting Payment from Customer'}
           </span>
         </button>

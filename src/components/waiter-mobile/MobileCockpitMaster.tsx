@@ -676,7 +676,7 @@ export const MobileCockpitMaster: React.FC = () => {
   // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
-    realtimeBridge.settleBill(cleanChair, method, amount).then(() => {
+    realtimeBridge.settleBill(cleanChair, method, amount, { ticketNumber: activeTicketNumber || undefined }).then(() => {
       refreshSeats();
     });
     setSeats(prev => prev.map(s => s.seatNumber === seatNum ? {
