@@ -18,7 +18,7 @@ export default function SeatLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-[#F9F8F5] via-[#F7F5F0] to-[#F3F1EC] text-[#1A2621]">
+    <div className="min-h-screen w-full bg-gradient-to-b from-[#FAF7F0] via-[#F7F2EA] to-[#F3ECE1] text-[#1A2621]">
       {children}
     </div>
   );

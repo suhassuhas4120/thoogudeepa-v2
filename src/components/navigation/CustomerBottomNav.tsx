@@ -111,10 +111,15 @@ export default function CustomerBottomNav({
                   isDisabled ? 'opacity-25 grayscale pointer-events-none' : ''
                 } ${
                   isSelected
-                    ? 'bottom-[6px] p-1.5 text-[#244436]'
-                    : 'bottom-[4px] p-1.5 text-[#5A6860] hover:text-[#244436] active:scale-95'
+                    ? 'bottom-[6px] p-2 text-[#1E3A2F]'
+                    : 'bottom-[4px] p-1.5 text-[#8C7A6B] hover:text-[#1E3A2F] active:scale-95'
                 }`}
               >
+                {/* Soft warm peach-coral glow halo behind active icon */}
+                {isSelected && (
+                  <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle,_rgba(200,90,50,0.22)_0%,_transparent_72%)] pointer-events-none scale-150 animate-in fade-in duration-200" />
+                )}
+
                 <Icon
                   className={`transition-all ${
                     isSelected ? 'w-5 h-5 stroke-[2.5]' : 'w-5 h-5 stroke-[1.8]'
@@ -123,7 +128,7 @@ export default function CustomerBottomNav({
 
                 {/* Live Indicator Dot for Cart / Likes with warm orange accent */}
                 {item.badge && !isSelected && !isDisabled && (
-                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#DD6B28] border border-[#FFFEFC]" />
+                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#C85A32] border border-[#FFFEFC]" />
                 )}
               </div>
             </div>

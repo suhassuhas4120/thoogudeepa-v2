@@ -91,24 +91,24 @@ export default function CustomerMenuPage() {
         </header>
 
         {/* Sticky Search & Category Bar Section pinned on scroll */}
-        <div className="sticky top-0 z-20 bg-[#F9F8F5]/90 backdrop-blur-md pt-2 pb-3 flex flex-col gap-3 -mx-4 px-4 border-b border-[rgba(220,226,222,0.7)] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.04)]">
+        <div className="sticky top-0 z-20 bg-[#FAF7F0]/90 backdrop-blur-md pt-2 pb-3 flex flex-col gap-3 -mx-4 px-4 border-b border-[#EAE3D5] shadow-[0_4px_16px_-4px_rgba(200,90,50,0.04)]">
           {/* Row 1: Search Bar with Bell & Cart Beside It */}
           <div className="w-full flex items-center gap-2">
             {/* Search Input Container */}
-            <div className="flex-1 border border-[rgba(220,226,222,0.9)] rounded-2xl flex items-center px-3.5 py-2.5 gap-2 bg-[#FFFEFC] shadow-2xs min-w-0 focus-within:border-[#244436]">
-              <Search className="w-4 h-4 text-[#5A6860] shrink-0" />
+            <div className="flex-1 border border-[#EAE3D5] rounded-2xl flex items-center px-3.5 py-2.5 gap-2 bg-[#FBF9F4] shadow-2xs min-w-0 focus-within:border-[#1E3A2F]">
+              <Search className="w-4 h-4 text-[#8C7A6B] shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Donne Biryani, Kebabs..."
-                className="w-full text-sm outline-none bg-transparent text-[#1A2621] min-w-0 placeholder:text-zinc-400"
+                className="w-full text-sm outline-none bg-transparent text-[#1A2621] min-w-0 placeholder:text-[#A89F91]"
               />
               {searchQuery.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="w-5 h-5 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center cursor-pointer active:opacity-70 shrink-0 text-[#5A6860]"
+                  className="w-5 h-5 rounded-full border border-[#EAE3D5] flex items-center justify-center cursor-pointer active:opacity-70 shrink-0 text-[#8C7A6B]"
                   aria-label="Clear Search"
                 >
                   <X className="w-3 h-3" />
@@ -119,21 +119,21 @@ export default function CustomerMenuPage() {
             {/* Bell Icon Button beside Search */}
             <Link
               href={`/seat/${chairId}/assistant?from=${encodeURIComponent(`/seat/${chairId}/menu`)}`}
-              className="w-11 h-11 border border-[rgba(220,226,222,0.8)] rounded-2xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shrink-0 shadow-2xs hover:border-[#244436]"
+              className="w-11 h-11 border border-[#EAE3D5] rounded-2xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FBF9F4] text-[#1A2621] shrink-0 shadow-2xs hover:border-[#1E3A2F]"
               aria-label="Assistant & Call Waiter"
             >
-              <Bell className="w-5 h-5 text-[#244436]" />
+              <Bell className="w-5 h-5 text-[#8C7A6B]" />
             </Link>
 
             {/* Cart Icon Button beside Search with badge */}
             <Link
               href={`/seat/${chairId}/cart`}
-              className="relative w-11 h-11 border border-[rgba(220,226,222,0.8)] rounded-2xl flex items-center justify-center cursor-pointer active:opacity-80 bg-[#FFFEFC] text-[#1A2621] shrink-0 shadow-2xs hover:border-[#244436]"
+              className="relative w-11 h-11 border border-[#EAE3D5] rounded-2xl flex items-center justify-center cursor-pointer active:opacity-80 bg-[#FBF9F4] text-[#1A2621] shrink-0 shadow-2xs hover:border-[#1E3A2F]"
               aria-label="Open Cart"
             >
-              <ShoppingCart className="w-5 h-5 text-[#244436]" />
+              <ShoppingCart className="w-5 h-5 text-[#8C7A6B]" />
               {totalItemCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 bg-[#DD6B28] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border border-white shadow-xs">
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 bg-[#1E3A2F] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 border border-white shadow-xs">
                   {totalItemCount}
                 </span>
               )}
@@ -149,10 +149,10 @@ export default function CustomerMenuPage() {
                   key={category.id}
                   type="button"
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`px-4 py-2 rounded-xl text-xs whitespace-nowrap cursor-pointer transition-all ${
+                  className={`px-4 py-2 rounded-full text-xs whitespace-nowrap cursor-pointer transition-all ${
                     isActive
-                      ? 'bg-gradient-to-r from-[#244436] to-[#1e382c] text-[#FFFEFC] font-bold shadow-xs'
-                      : 'border border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] text-[#5A6860] font-semibold hover:text-[#1A2621] hover:border-[#244436]/40'
+                      ? 'bg-[#1E3A2F] text-white font-bold shadow-[0_4px_12px_rgba(30,58,47,0.35)]'
+                      : 'border border-[#EAE3D5] bg-[#FBF9F4] text-[#5A6860] font-semibold hover:text-[#1A2621] hover:border-[#1E3A2F]/40'
                   }`}
                 >
                   {category.title}
@@ -164,7 +164,7 @@ export default function CustomerMenuPage() {
 
         {/* Empty Search Results */}
         {filteredDishes.length === 0 ? (
-          <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-[#FFFEFC] shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)] mt-12">
+          <div className="w-full border border-[#EAE3D5] rounded-3xl p-8 flex flex-col items-center justify-center text-center gap-3 bg-[#FBF9F4] shadow-[0_4px_20px_-4px_rgba(200,90,50,0.06)] mt-12">
             <span className="text-sm font-black uppercase tracking-wider text-[#1A2621]">No Dishes Found</span>
             <p className="text-xs text-[#5A6860]">
               Try searching for something else or reset category filters.
@@ -175,7 +175,7 @@ export default function CustomerMenuPage() {
                 setSearchQuery('');
                 setSelectedCategory('all');
               }}
-              className="mt-2 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-md hover:opacity-95 cursor-pointer"
+              className="mt-2 bg-[#C85A32] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider shadow-[0_4px_14px_rgba(200,90,50,0.3)] hover:opacity-95 cursor-pointer"
             >
               Show All Menu
             </button>
@@ -190,7 +190,7 @@ export default function CustomerMenuPage() {
               return (
                 <div
                   key={item.id}
-                  className="relative border border-[rgba(220,226,222,0.8)] rounded-2xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-[#FFFEFC] shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)] transition-all hover:shadow-[0_8px_24px_-4px_rgba(36,68,54,0.1)]"
+                  className="relative border border-[#EAE3D5] rounded-2xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-[#FBF9F4] shadow-[0_4px_20px_-4px_rgba(200,90,50,0.06)] transition-all hover:shadow-[0_8px_24px_-4px_rgba(200,90,50,0.12)]"
                 >
                   {/* Clickable Card Body opening Item Details */}
                   <Link
@@ -198,7 +198,7 @@ export default function CustomerMenuPage() {
                     className="w-full flex flex-col items-center cursor-pointer active:opacity-75"
                   >
                     {/* Circular Image Container */}
-                    <div className="absolute -top-16 sm:-top-18 w-32 h-32 sm:w-36 sm:h-36 rounded-full border border-[rgba(220,226,222,0.9)] bg-[#fbf9f5] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.08)] flex items-center justify-center p-0.5">
+                    <div className="absolute -top-16 sm:-top-18 w-32 h-32 sm:w-36 sm:h-36 rounded-full border-2 border-white bg-white overflow-hidden shadow-[0_6px_20px_rgba(0,0,0,0.12)] flex items-center justify-center p-0.5">
                       <img
                         src={item.imageUrl}
                         alt={item.title}
@@ -207,20 +207,15 @@ export default function CustomerMenuPage() {
                       />
                     </div>
 
-                    {/* Veg / Non-Veg Indicator */}
-                    <div className="w-full flex items-center justify-center gap-1.5 mt-1">
-                      <span
-                        className={`inline-block w-2.5 h-2.5 rounded-full border ${
-                          item.isVegetarian
-                            ? 'bg-emerald-600 border-emerald-700'
-                            : 'bg-red-600 border-red-700'
-                        }`}
-                        title={item.isVegetarian ? 'Vegetarian' : 'Non-Vegetarian'}
-                      />
+                    {/* Special indicator tag with terracotta dot */}
+                    <div className="w-full flex items-center justify-center gap-1 mt-1">
                       {item.isSignature && (
-                        <span className="text-[9px] font-black uppercase tracking-wider text-[#DD6B28] bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">
-                          Special
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#C85A32]" />
+                          <span className="text-[10px] font-black uppercase tracking-wider text-[#C85A32]">
+                            SPECIAL
+                          </span>
+                        </div>
                       )}
                     </div>
 
@@ -235,12 +230,12 @@ export default function CustomerMenuPage() {
                     </div>
 
                     {/* Price Section */}
-                    <div className="w-full text-sm font-black mt-2 text-[#244436]">
+                    <div className="w-full text-sm font-black mt-2 text-[#1E3A2F]">
                       ₹ {item.price}
                     </div>
                   </Link>
 
-                  {/* Bottom Row: Stepper/Add Button + Small Heart Like Button */}
+                  {/* Bottom Row: Terracotta Stepper/Add Button + Heart Like Button */}
                   <div className="w-full mt-2.5 flex items-center gap-1.5">
                     {currentQty === 0 ? (
                       <button
@@ -250,7 +245,7 @@ export default function CustomerMenuPage() {
                           e.stopPropagation();
                           updateQuantity(item.id, 1);
                         }}
-                        className="flex-1 py-1.5 border border-[#244436]/30 rounded-xl text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-[#244436] to-[#1e382c] text-white cursor-pointer active:opacity-85 shadow-2xs hover:shadow-xs transition-all"
+                        className="flex-1 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#C85A32] text-white cursor-pointer active:opacity-85 shadow-[0_4px_14px_rgba(200,90,50,0.3)] hover:opacity-95 transition-all"
                       >
                         Add
                       </button>
@@ -260,7 +255,7 @@ export default function CustomerMenuPage() {
                           e.preventDefault();
                           e.stopPropagation();
                         }}
-                        className="flex-1 flex items-center justify-between border border-[#244436] rounded-xl bg-[#244436] text-white px-2 py-1 shadow-2xs"
+                        className="flex-1 flex items-center justify-between rounded-xl bg-[#C85A32] text-white px-2 py-1 shadow-[0_4px_14px_rgba(200,90,50,0.3)]"
                       >
                         <button
                           type="button"
@@ -300,8 +295,8 @@ export default function CustomerMenuPage() {
                       }}
                       className={`w-7 h-7 shrink-0 border rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 ${
                         isLiked
-                          ? 'border-[#DD6B28] bg-[#DD6B28] text-white shadow-xs'
-                          : 'border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] text-[#5A6860] hover:text-[#DD6B28]'
+                          ? 'border-[#C85A32] bg-[#C85A32]/10 text-[#C85A32]'
+                          : 'border-[#EAE3D5] bg-[#FBF9F4] text-[#8C7A6B] hover:text-[#C85A32]'
                       }`}
                       aria-label="Like item"
                     >
