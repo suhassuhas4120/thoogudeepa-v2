@@ -285,7 +285,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                     // Regular Occupied Dining -> View Order (Dark Button with Eye Icon)
                     <button
                       type="button"
-                      onClick={() => onOpenOrder(seat.seatNumber, seat.guestName, seat.totalAmount, true)}
+                      onClick={() => onOpenOrder(seat.id, seat.seatNumber, seat.guestName, seat.totalAmount, true)}
                       className="w-full h-8 mt-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                       title="View Active Table Order"
                     >
@@ -297,7 +297,7 @@ export const TabletFloorGrid: React.FC<TabletFloorGridProps> = ({
                   // Vacant Seat -> Take Order (Emerald Button with Plus Icon)
                   <button
                     type="button"
-                    onClick={() => onOpenOrder(seat.seatNumber, 'Walk-In Guest', 0, false)}
+                    onClick={() => onOpenOrder(seat.id, seat.seatNumber, 'Walk-In Guest', 0, false)}
                     className="w-full h-8 mt-3 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                     title="Take Order for Walk-In Guest"
                   >

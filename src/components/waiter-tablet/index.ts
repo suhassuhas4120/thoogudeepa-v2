@@ -309,4 +309,5 @@ export const POPULAR_DONNE_COMBOS = [
   }
 ] as const;
 
+import { TabletCockpitMaster } from './TabletCockpitMaster';
 export default TabletCockpitMaster;

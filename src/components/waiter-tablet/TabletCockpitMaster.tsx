@@ -142,7 +142,7 @@ export const TabletCockpitMaster: React.FC = () => {
       setTicketItems(prev => {
         const existing = prev.find(item => item.id === dishId);
         if (existing) return prev.map(item => item.id === dishId ? { ...item, quantity: item.quantity + 1 } : item);
-        return [...prev, { id: dishId, name: dishInfo.name, quantity: 1, price: price, status: 'PLACED' }];
+        return [...prev, { id: dishId, name: dishInfo.name, quantity: 1, price: price, imageUrl: dishInfo.imageUrl, status: 'PLACED' }];
       });
     }
     showToast(`Added to ticket`);

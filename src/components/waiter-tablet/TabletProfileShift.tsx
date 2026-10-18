@@ -134,7 +134,7 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
         <div className="border border-slate-200 rounded-2xl p-4 bg-white shadow-xs mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-14 h-14 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl shadow-xs">
-              {profile.avatarInitials}
+              {profile.avatarInitials || profile.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -163,7 +163,7 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
                 <span>Shift Clock-In</span>
               </div>
               <div className="text-xs font-black text-slate-900 mt-0.5">
-                {profile.shiftStartTime} <span className="text-emerald-600 font-bold ml-1">(4h 15m active)</span>
+                {profile.shiftStartTime || profile.clockInTime} <span className="text-emerald-600 font-bold ml-1">(4h 15m active)</span>
               </div>
             </div>
 
@@ -284,10 +284,10 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
                 {shiftLogs.map(log => (
                   <div key={log.id} className="flex items-center justify-between py-1.5 border-b border-slate-100 last:border-none">
                     <span className="text-slate-700 font-medium truncate max-w-[70%]">
-                      {log.action}
+                      {log.action || log.title}
                     </span>
                     <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
-                      {log.time}
+                      {log.time || log.timestamp}
                     </span>
                   </div>
                 ))}

@@ -71,7 +71,7 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
 }) => {
   const [selectedWaiter, setSelectedWaiter] = useState<WaiterOption>(() => {
     if (initialWaiterId) {
-      const found = waitersList.find(w => w.id === initialWaiterId);
+      const found = waitersList.find((w: WaiterOption) => w.id === initialWaiterId);
       if (found) return found;
     }
     return waitersList[0];
@@ -260,9 +260,9 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
 
           {/* Interactive Waiter Selection Grid (2x2 Grid) */}
           <div className="grid grid-cols-2 gap-2 mb-3">
-            {waitersList.slice(0, 4).map(waiter => {
+            {waitersList.slice(0, 4).map((waiter: WaiterOption) => {
               const isSelected = selectedWaiter.id === waiter.id;
-              const initials = waiter.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+              const initials = waiter.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2);
               return (
                 <button
                   key={waiter.id}

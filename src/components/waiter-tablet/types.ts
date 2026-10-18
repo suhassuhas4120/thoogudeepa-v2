@@ -15,6 +15,8 @@ export interface WaiterProfile {
   assignedZone: string;
   clockInTime: string;
   shiftDuration: string;
+  avatarInitials?: string;
+  shiftStartTime?: string;
   metrics: {
     totalSales: number;
     billsSettled: number;
@@ -68,12 +70,29 @@ export interface ServiceAlert {
   isResolved: boolean;
 }
 
+export interface WaiterOption {
+  id: string;
+  name: string;
+  role: string;
+  pinCode: string;
+  assignedZone?: string;
+}
+
+export const DEFAULT_WAITERS: WaiterOption[] = [
+  { id: 'w1', name: 'Ramesh Kumar', role: 'Zone 1 Lead', pinCode: '1234', assignedZone: 'Zone 1 (Seats 01-10)' },
+  { id: 'w2', name: 'Suresh Gowda', role: 'Zone 2 Floor', pinCode: '1234', assignedZone: 'Zone 2 (Seats 11-20)' },
+  { id: 'w3', name: 'Manjunath K', role: 'Express Runner', pinCode: '1234', assignedZone: 'Zone 3 (Seats 21-30)' },
+  { id: 'w4', name: 'Praveen S', role: 'Beverage Bar', pinCode: '1234', assignedZone: 'Bar Counter' }
+];
+
 export interface ShiftActivity {
   id: string;
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
+  action?: string;
   amount?: string;
-  timestamp: string;
+  time?: string;
+  timestamp?: string;
 }
 
 // Initial Mock Data Store
@@ -85,6 +104,8 @@ export const INITIAL_WAITER_PROFILE: WaiterProfile = {
   assignedZone: 'Seats 01 – 10 (Zone 1)',
   clockInTime: '11:00 AM',
   shiftDuration: '3h 45m',
+  avatarInitials: 'RK',
+  shiftStartTime: '11:00 AM',
   metrics: {
     totalSales: 14850,
     billsSettled: 18,
