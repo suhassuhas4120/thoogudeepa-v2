@@ -230,12 +230,6 @@ export const realtimeBridge = {
 
         const orderId = orderData.id;
 
-        // Synchronize local orders entry with confirmed database ID
-        const currentLocals = getLocalOrdersList();
-        const updatedWithDbId = currentLocals.map((x) =>
-          x.order.id === generatedId ? { ...x, order: { ...x.order, id: orderId } } : x
-        );
-        setLocalOrdersList(updatedWithDbId);
         const itemsToInsert = items.map((it) => {
           const isPlaced = it.stage === 'PLACED' || !it.stage;
           const addonsList = Array.isArray(it.addons) ? [...it.addons] : [];
@@ -256,15 +250,37 @@ export const realtimeBridge = {
           };
         });
 
-        const { error: itemsErr } = await supabase.from('order_items').insert(itemsToInsert);
+        const { data: insertedItemsData, error: itemsErr } = await supabase
+          .from('order_items')
+          .insert(itemsToInsert)
+          .select('*');
         if (itemsErr) throw itemsErr;
+
+        const broadcastItems =
+          insertedItemsData && insertedItemsData.length > 0
+            ? insertedItemsData.map((it, idx) => ({
+                ...it,
+                stage: 'PLACED' as const,
+                notes: newEntry.items[idx]?.notes || it.notes,
+                addons: newEntry.items[idx]?.addons || it.addons,
+              }))
+            : newEntry.items;
+
+        // Synchronize local orders entry with confirmed database ID and items
+        const currentLocals = getLocalOrdersList();
+        const updatedWithDbId = currentLocals.map((x) =>
+          x.order.id === generatedId || x.order.id === orderId
+            ? { ...x, order: { ...x.order, id: orderId }, items: broadcastItems }
+            : x
+        );
+        setLocalOrdersList(updatedWithDbId);
 
         // Broadcast cross-device via Supabase Realtime channel
         const liveChannel = supabase.channel('kitchen_realtime_feed');
         liveChannel.send({
           type: 'broadcast',
           event: 'NEW_ORDER',
-          payload: { order: { ...order, id: orderId }, items: newEntry.items },
+          payload: { order: { ...order, id: orderId }, items: broadcastItems },
         });
 
         return { success: true, orderId };
@@ -1234,6 +1250,9 @@ export const realtimeBridge = {
     onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
     onClearAll?: () => void;
   }) {
+    // Track recently processed order IDs to prevent duplicate event dispatching across broadcast and database triggers
+    const processedOrderIds = new Set<string>();
+
     // 1. Supabase Realtime Channel
     let supabaseSub: ReturnType<SupabaseClient['channel']> | null = null;
     if (supabase) {
@@ -1241,6 +1260,9 @@ export const realtimeBridge = {
         .channel('kitchen_realtime_feed')
         // Cross-device broadcast listeners (instant sub-50ms latency)
         .on('broadcast', { event: 'NEW_ORDER' }, (msg) => {
+          if (msg.payload?.order?.id) {
+            processedOrderIds.add(msg.payload.order.id);
+          }
           if (callbacks.onNewOrder && msg.payload) {
             callbacks.onNewOrder(msg.payload);
           }
@@ -1312,6 +1334,13 @@ export const realtimeBridge = {
         // Postgres change listeners (database synchronization)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
           const newOrder = payload.new as OrderRecord;
+          if (newOrder?.id && processedOrderIds.has(newOrder.id)) {
+            // Already received and dispatched via realtime broadcast
+            return;
+          }
+          if (newOrder?.id) {
+            processedOrderIds.add(newOrder.id);
+          }
           if (supabase && newOrder.id) {
             supabase
               .from('order_items')
@@ -1352,6 +1381,9 @@ export const realtimeBridge = {
       if (!data) return;
 
       if (data.type === 'NEW_ORDER' && callbacks.onNewOrder) {
+        if (data.order?.id) {
+          processedOrderIds.add(data.order.id);
+        }
         callbacks.onNewOrder({ order: data.order, items: data.items });
       } else if (data.type === 'STAGE_CHANGE' && callbacks.onStageChange) {
         callbacks.onStageChange({
