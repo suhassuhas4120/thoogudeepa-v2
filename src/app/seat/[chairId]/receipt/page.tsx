@@ -127,8 +127,15 @@ export default function CustomerReceiptPage() {
             {/* Card 1: Restaurant Identity & Order Details Card */}
             <div className="w-full border-2 border-black rounded-3xl p-4 flex flex-col gap-3 bg-white shadow-xs">
               <div className="w-full flex items-center gap-3 pb-3 border-b border-zinc-200">
-                <div className="w-12 h-12 rounded-full border-2 border-black flex items-center justify-center bg-zinc-950 text-white shrink-0">
-                  <ChefHat className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-full border-2 border-black flex items-center justify-center bg-white overflow-hidden shrink-0">
+                  <img
+                    src="/logo.jpg"
+                    alt="Thoogudeepa"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
                 </div>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   <span className="text-xs font-black uppercase tracking-wide">THOOGUDEEPA</span>
