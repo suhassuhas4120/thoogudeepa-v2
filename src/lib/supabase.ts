@@ -842,6 +842,7 @@ export const realtimeBridge = {
     try {
       setLocalOrdersList([]);
       setLocalOccupancyMap({});
+      setLocalAlertsList([]);
       if (typeof window !== 'undefined') {
         const keys = Object.keys(localStorage);
         for (const key of keys) {
@@ -850,7 +851,9 @@ export const realtimeBridge = {
             key.includes('session') ||
             key.includes('cart') ||
             key.includes('order') ||
-            key.includes('stages')
+            key.includes('stages') ||
+            key.includes('alert') ||
+            key.includes('seat')
           ) {
             localStorage.removeItem(key);
           }
@@ -870,6 +873,13 @@ export const realtimeBridge = {
             .in('status', ['pending', 'in_progress', 'ready']);
           await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
           await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          
+          const liveChannel = supabase.channel('kitchen_realtime_feed');
+          liveChannel.send({
+            type: 'broadcast',
+            event: 'CLEAR_ALL_ORDERS',
+            payload: {}
+          });
         } catch (dbErr) {
           console.warn('Database remote delete notice:', dbErr);
         }
@@ -972,7 +982,27 @@ export const realtimeBridge = {
     return true;
   },
 
-  // Settle bill and vacate seat
+  // Broadcast when waiter enters bill collection / settlement mode for a seat
+  async notifyBillModeActive(chairId: string, amount?: number): Promise<boolean> {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const map = getLocalOccupancyMap();
+    if (map[cleanChair]) {
+      map[cleanChair].status = 'billing';
+      setLocalOccupancyMap(map);
+    }
+    if (localChannel) {
+      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount });
+    }
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'BILL_MODE_ACTIVE',
+        payload: { chairId: cleanChair, amount }
+      });
+    }
+    return true;
+  },
   async settleBill(chairId: string, paymentMethod: string, amount: number): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const padded = cleanChair.padStart(2, '0');
@@ -1089,7 +1119,19 @@ export const realtimeBridge = {
       const isBilling = occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
       const isOccupied = Boolean(occ || foundOrder);
 
-      const totalAmount = foundOrder ? foundOrder.order.total_amount : (occ ? 840 : 0);
+      let calculatedTotal = 0;
+      if (foundOrder) {
+        if (foundOrder.items && foundOrder.items.length > 0) {
+          const sub = foundOrder.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
+          calculatedTotal = sub + Math.round(sub * 0.05);
+        } else {
+          calculatedTotal = foundOrder.order.total_amount || 0;
+        }
+      } else if (occ) {
+        calculatedTotal = 840;
+      }
+
+      const totalAmount = calculatedTotal;
       const itemCount = foundOrder
         ? foundOrder.items.reduce((acc, it) => acc + it.quantity, 0)
         : (isOccupied ? 2 : 0);
@@ -1156,6 +1198,7 @@ export const realtimeBridge = {
     onNewAlert?: (alert: ServiceAlertRecord) => void;
     onResolveAlert?: (alertId: string) => void;
     onBillRequested?: (data: { chairId: string; amount?: number }) => void;
+    onBillModeActive?: (data: { chairId: string; amount?: number }) => void;
     onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
     onClearAll?: () => void;
   }) {
@@ -1196,6 +1239,11 @@ export const realtimeBridge = {
         .on('broadcast', { event: 'BILL_REQUESTED' }, (msg) => {
           if (callbacks.onBillRequested && msg.payload) {
             callbacks.onBillRequested(msg.payload);
+          }
+        })
+        .on('broadcast', { event: 'BILL_MODE_ACTIVE' }, (msg) => {
+          if (callbacks.onBillModeActive && msg.payload) {
+            callbacks.onBillModeActive(msg.payload);
           }
         })
         .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
@@ -1281,6 +1329,8 @@ export const realtimeBridge = {
         callbacks.onResolveAlert(data.alertId);
       } else if (data.type === 'BILL_REQUESTED' && callbacks.onBillRequested) {
         callbacks.onBillRequested({ chairId: data.chairId, amount: data.amount });
+      } else if (data.type === 'BILL_MODE_ACTIVE' && callbacks.onBillModeActive) {
+        callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount });
       } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {
         callbacks.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod });
       } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {

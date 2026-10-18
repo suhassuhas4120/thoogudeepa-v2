@@ -464,6 +464,7 @@ export const MobileCockpitMaster: React.FC = () => {
     setSelectedGuestName(guest);
     setSelectedBillAmount(amount);
     setActiveScreen('bill');
+    realtimeBridge.notifyBillModeActive(seatNum, amount);
     showToast(`Loaded checkout receipt for ${seatNum}`);
   }, [showToast]);
 
@@ -721,6 +722,7 @@ export const MobileCockpitMaster: React.FC = () => {
                 seatNumber={selectedSeatNumber}
                 guestName={selectedGuestName}
                 totalAmount={selectedBillAmount}
+                cartItems={cartItems}
                 pendingAlertCount={alerts.length}
                 onBackToSeats={() => setActiveScreen('seats')}
                 onOpenAlerts={() => setActiveScreen('alerts')}

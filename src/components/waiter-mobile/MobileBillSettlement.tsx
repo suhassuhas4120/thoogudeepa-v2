@@ -47,6 +47,7 @@ export interface MobileBillSettlementProps {
   readonly guestName?: string;
   /** Total bill amount */
   readonly totalAmount?: number;
+  readonly cartItems?: readonly import('./types').CartItem[];
   /** Pending alerts count badge */
   readonly pendingAlertCount?: number;
   /** Navigation callback back to seats grid */
@@ -63,6 +64,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   seatNumber = 'Seat 04',
   guestName = 'Kiran R',
   totalAmount = 840,
+  cartItems,
   pendingAlertCount = 2,
   onBackToSeats,
   onOpenAlerts,
@@ -74,12 +76,23 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
   const [isUpiVerified, setIsUpiVerified] = useState<boolean>(true);
 
-  // Pre-configured itemized dishes for active bill
-  const billLines = useMemo(() => [
-    { id: '1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
-    { id: '2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
-    { id: '3', name: 'Mineral Water Bottle', quantity: 1, unitPrice: 40, lineTotal: 40 }
-  ], []);
+  // Dynamic bill lines using real cart items if available, or fallback
+  const billLines = useMemo(() => {
+    if (cartItems && cartItems.length > 0) {
+      return cartItems.map((c, idx) => ({
+        id: String(c.menuItem.id || idx),
+        name: c.menuItem.name,
+        quantity: c.quantity,
+        unitPrice: c.menuItem.price,
+        lineTotal: c.lineTotal,
+      }));
+    }
+    return [
+      { id: '1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
+      { id: '2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
+      { id: '3', name: 'Mineral Water Bottle', quantity: 1, unitPrice: 40, lineTotal: 40 }
+    ];
+  }, [cartItems]);
 
   // Compute breakdown
   const subtotal = useMemo(() => {
