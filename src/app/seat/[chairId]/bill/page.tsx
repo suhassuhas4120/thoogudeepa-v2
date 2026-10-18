@@ -71,7 +71,34 @@ export default function OrderSummaryBillPage() {
       }
     });
 
+    // Supplementary check: if seat is already in billing mode from waiter actions
+    realtimeBridge.getFloorSeats().then((floorSeats) => {
+      const cleanChair = chairId.replace(/[^0-9]/g, '');
+      const currentSeat = floorSeats.find((s) => {
+        const c1 = s.seatNumber.replace(/[^0-9]/g, '');
+        const c2 = s.id.replace(/[^0-9]/g, '');
+        return c1 === cleanChair || c2 === cleanChair || s.id === chairId;
+      });
+      if (currentSeat && currentSeat.status === 'billing') {
+        setWaiterCalled(true);
+      }
+    });
+
     const unsub = realtimeBridge.subscribeKDS({
+      onBillModeActive: (data) => {
+        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
+        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanCurrent || data.chairId === chairId) {
+          setWaiterCalled(true);
+        }
+      },
+      onBillRequested: (data) => {
+        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
+        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanCurrent || data.chairId === chairId) {
+          setWaiterCalled(true);
+        }
+      },
       onBillSettled: (data) => {
         const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
@@ -386,6 +413,92 @@ export default function OrderSummaryBillPage() {
               </Link>
             )}
           </div>
+
+          {/* Sub Payment Options (Only visible when waiter called) */}
+          {waiterCalled && (
+            <div className="w-full relative pt-2">
+              <div className="absolute left-0 right-0 top-[3px] h-[2px] bg-black pointer-events-none" />
+
+              <div className="relative w-full grid grid-cols-2 gap-4 items-center">
+                {/* Left: Scan Icon with curved notch */}
+                <Link
+                  href={`/seat/${chairId}/scan`}
+                  onClick={() => setSelectedPaymentSubMode('scan')}
+                  className="relative flex items-center justify-center py-2 cursor-pointer transition-all"
+                  aria-label="Open Scanner"
+                >
+                  {selectedPaymentSubMode === 'scan' && (
+                    <svg
+                      width="110"
+                      height="54"
+                      viewBox="0 0 110 54"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute -top-[9px] left-1/2 -translate-x-1/2 pointer-events-none"
+                    >
+                      <path
+                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10 L 110,0 L 0,0 Z"
+                        fill="white"
+                      />
+                      <path
+                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10"
+                        stroke="black"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  )}
+                  <div
+                    className={`relative z-10 w-12 h-12 rounded-2xl border-2 border-black flex items-center justify-center transition-all bg-white shadow-xs ${
+                      selectedPaymentSubMode === 'scan'
+                        ? 'translate-y-2 bg-black text-white border-black'
+                        : 'bg-white text-black hover:bg-zinc-50'
+                    }`}
+                  >
+                    <Scan className="w-6 h-6 stroke-[2.2]" />
+                  </div>
+                </Link>
+
+                {/* Right: Cash Button with curved notch */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPaymentSubMode('cash')}
+                  className="relative flex items-center justify-center py-2 cursor-pointer transition-all"
+                >
+                  {selectedPaymentSubMode === 'cash' && (
+                    <svg
+                      width="110"
+                      height="54"
+                      viewBox="0 0 110 54"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="absolute -top-[9px] left-1/2 -translate-x-1/2 pointer-events-none"
+                    >
+                      <path
+                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10 L 110,0 L 0,0 Z"
+                        fill="white"
+                      />
+                      <path
+                        d="M 0,10 C 22,10 32,50 55,50 C 78,50 88,10 110,10"
+                        stroke="black"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  )}
+                  <div
+                    className={`relative z-10 px-5 py-2.5 rounded-2xl border-2 border-black flex items-center justify-center transition-all bg-white shadow-xs ${
+                      selectedPaymentSubMode === 'cash'
+                        ? 'translate-y-2 bg-black text-white border-black font-black'
+                        : 'bg-white text-black hover:bg-zinc-50 font-bold'
+                    }`}
+                  >
+                    <span className="text-xs uppercase tracking-wider">CASH</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

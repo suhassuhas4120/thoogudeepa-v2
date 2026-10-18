@@ -982,7 +982,27 @@ export const realtimeBridge = {
     return true;
   },
 
-  // Settle bill and vacate seat
+  // Broadcast when waiter enters bill collection / settlement mode for a seat
+  async notifyBillModeActive(chairId: string, amount?: number): Promise<boolean> {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const map = getLocalOccupancyMap();
+    if (map[cleanChair]) {
+      map[cleanChair].status = 'billing';
+      setLocalOccupancyMap(map);
+    }
+    if (localChannel) {
+      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount });
+    }
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'BILL_MODE_ACTIVE',
+        payload: { chairId: cleanChair, amount }
+      });
+    }
+    return true;
+  },
   async settleBill(chairId: string, paymentMethod: string, amount: number): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const padded = cleanChair.padStart(2, '0');
@@ -1178,6 +1198,7 @@ export const realtimeBridge = {
     onNewAlert?: (alert: ServiceAlertRecord) => void;
     onResolveAlert?: (alertId: string) => void;
     onBillRequested?: (data: { chairId: string; amount?: number }) => void;
+    onBillModeActive?: (data: { chairId: string; amount?: number }) => void;
     onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
     onClearAll?: () => void;
   }) {
@@ -1218,6 +1239,11 @@ export const realtimeBridge = {
         .on('broadcast', { event: 'BILL_REQUESTED' }, (msg) => {
           if (callbacks.onBillRequested && msg.payload) {
             callbacks.onBillRequested(msg.payload);
+          }
+        })
+        .on('broadcast', { event: 'BILL_MODE_ACTIVE' }, (msg) => {
+          if (callbacks.onBillModeActive && msg.payload) {
+            callbacks.onBillModeActive(msg.payload);
           }
         })
         .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
@@ -1303,6 +1329,8 @@ export const realtimeBridge = {
         callbacks.onResolveAlert(data.alertId);
       } else if (data.type === 'BILL_REQUESTED' && callbacks.onBillRequested) {
         callbacks.onBillRequested({ chairId: data.chairId, amount: data.amount });
+      } else if (data.type === 'BILL_MODE_ACTIVE' && callbacks.onBillModeActive) {
+        callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount });
       } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {
         callbacks.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod });
       } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {
