@@ -11,6 +11,7 @@ import { realtimeBridge, OrderItemRecord } from '../../../../lib/supabase';
 import { 
   setActiveDiningSession, 
   getActiveDiningSession,
+  clearActiveDiningSession,
   getDeviceToken, 
   isDeviceLockedToDifferentSeat 
 } from '../../../../lib/session/diningSession';
@@ -118,7 +119,11 @@ export default function CustomerCartPage() {
         return;
       }
 
-      const existingSession = getActiveDiningSession();
+      if (!occupancy.isOccupied) {
+        clearActiveDiningSession();
+      }
+
+      const existingSession = occupancy.isOccupied ? getActiveDiningSession() : null;
       const isSameSession =
         existingSession &&
         existingSession.seatId === chairId &&

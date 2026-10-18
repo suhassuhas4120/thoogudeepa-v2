@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ChevronLeft, Bell, ArrowLeft, Ticket, Banknote, Scan, Receipt, ArrowRight, QrCode, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
-import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
+import { getActiveDiningSession, setActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { realtimeBridge } from '../../../../lib/supabase';
 
 export default function OrderSummaryBillPage() {
@@ -66,47 +66,71 @@ export default function OrderSummaryBillPage() {
       }
     }
 
-    const s = getActiveDiningSession();
-    if (s && s.paymentStatus === 'unpaid') {
-      if (s.seatId !== chairId) {
-        window.location.replace(`/seat/${s.seatId}/bill`);
-        return;
-      }
-      setSession(s);
-    }
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
 
-    // Supplementary check: if session items are empty, check active floor orders
-    realtimeBridge.getActiveOrders().then((activeOrders) => {
-      const cleanChair = chairId.replace(/[^0-9]/g, '');
-      const matched = activeOrders.find((o) => {
-        const c = (o.order.chair_id || '').replace(/[^0-9]/g, '');
-        return c === cleanChair || o.order.chair_id === chairId;
-      });
-      if (matched && matched.items && matched.items.length > 0) {
-        setSession((prev) => {
-          if (prev && prev.items && prev.items.length > 0) return prev;
-          return {
+    // 1. Prioritize active bill request with verified items from Floor Captain
+    const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
+    if (activeReq && activeReq.items && activeReq.items.length > 0) {
+      setWaiterCalled(true);
+      const verifiedSession: ActiveDiningSession = {
+        seatId: chairId,
+        ticketNumber: activeReq.ticketNumber || '',
+        orderId: activeReq.orderId || `ord-${Date.now()}`,
+        orderStatus: 'pending',
+        paymentStatus: 'unpaid',
+        orderedAt: activeReq.requestedAt || Date.now(),
+        totalAmount: activeReq.amount,
+        items: activeReq.items.map((it, idx) => ({
+          id: it.id || `item-${chairId}-${idx}`,
+          title: it.title || it.dish_name || 'Dish',
+          quantity: it.quantity,
+          price: it.price,
+        })),
+      };
+      setSession(verifiedSession);
+      setActiveDiningSession(verifiedSession);
+    } else {
+      // 2. Fetch live order for this specific seat from floor orders
+      realtimeBridge.getOrderForSeat(cleanChair || chairId).then((res) => {
+        if (res.order && res.items && res.items.length > 0) {
+          const liveItems = res.items.map((it, idx) => ({
+            id: it.id || it.dish_id || `item-${cleanChair}-${idx}`,
+            dish_id: it.dish_id,
+            title: it.dish_name || 'Dish',
+            quantity: it.quantity,
+            price: it.price,
+            stage: it.stage,
+            notes: it.notes,
+            addons: it.addons,
+          }));
+          const liveSession: ActiveDiningSession = {
             seatId: chairId,
-            ticketNumber: matched.order.ticket_number,
-            orderId: matched.order.id || `ord-${Date.now()}`,
+            ticketNumber: res.order.ticket_number || '',
+            orderId: res.order.id || `ord-${Date.now()}`,
             orderStatus: 'pending',
             paymentStatus: 'unpaid',
-            orderedAt: Date.now(),
-            totalAmount: matched.order.total_amount,
-            items: matched.items.map((it) => ({
-              id: it.dish_id,
-              title: it.dish_name,
-              quantity: it.quantity,
-              price: it.price,
-            })),
+            orderedAt: res.order.created_at ? new Date(res.order.created_at).getTime() : Date.now(),
+            totalAmount: res.order.total_amount || liveItems.reduce((acc, it) => acc + it.price * it.quantity, 0),
+            items: liveItems,
           };
-        });
-      }
-    });
+          setSession(liveSession);
+          setActiveDiningSession(liveSession);
+        } else {
+          // 3. Fallback to local dining session if order is pending sync
+          const s = getActiveDiningSession();
+          if (s && s.paymentStatus === 'unpaid') {
+            if (s.seatId !== chairId) {
+              window.location.replace(`/seat/${s.seatId}/bill`);
+              return;
+            }
+            setSession(s);
+          }
+        }
+      });
+    }
 
     // Supplementary check: if seat is already in billing mode from waiter actions
     realtimeBridge.getFloorSeats().then((floorSeats) => {
-      const cleanChair = chairId.replace(/[^0-9]/g, '');
       const currentSeat = floorSeats.find((s) => {
         const c1 = s.seatNumber.replace(/[^0-9]/g, '');
         const c2 = s.id.replace(/[^0-9]/g, '');
@@ -133,6 +157,26 @@ export default function OrderSummaryBillPage() {
         const cleanCurrent = chairId.replace(/[^0-9]/g, '');
         if (cleanTarget === cleanCurrent || data.chairId === chairId) {
           setWaiterCalled(true);
+          if (data.verification?.items && data.verification.items.length > 0) {
+            const syncedItems = data.verification.items.map((it, idx) => ({
+              id: it.id || `item-${chairId}-${idx}`,
+              title: it.title || it.dish_name || 'Dish',
+              quantity: it.quantity,
+              price: it.price,
+            }));
+            const updated: ActiveDiningSession = {
+              seatId: chairId,
+              ticketNumber: data.verification.ticketNumber || '',
+              orderId: data.verification.orderId || '',
+              orderStatus: 'pending',
+              paymentStatus: 'unpaid',
+              orderedAt: Date.now(),
+              totalAmount: data.amount || syncedItems.reduce((acc, it) => acc + it.price * it.quantity, 0),
+              items: syncedItems,
+            };
+            setSession(updated);
+            setActiveDiningSession(updated);
+          }
         }
       },
       onBillSettled: (data) => {
