@@ -60,9 +60,9 @@ export default function CustomerBottomNav({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FFFEFC]/95 backdrop-blur-md h-16 select-none border-t border-[rgba(220,226,222,0.7)] shadow-[0_-4px_20px_-4px_rgba(36,68,54,0.06)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FAF7F0]/95 backdrop-blur-md h-16 select-none border-t border-[#EAE3D5] shadow-[0_-4px_24px_rgba(40,55,45,0.06)]">
       {/* Continuous horizontal baseline under all icons */}
-      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#244436]/20 pointer-events-none" />
+      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#1E3A2F]/15 pointer-events-none" />
 
       <div className="relative w-full h-full grid grid-cols-4 items-center">
         {navItems.map((item) => {
@@ -75,8 +75,8 @@ export default function CustomerBottomNav({
               {/* Downward indicator arrow pointing at profile icon as shown in sketch */}
               {item.id === 'profile' && showIndicatorArrowOnProfile && (
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-20 animate-bounce">
-                  <div className="w-[5px] h-5 bg-[#DD6B28]" />
-                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-[#DD6B28] -mt-[1px]" />
+                  <div className="w-[5px] h-5 bg-[#C85A32]" />
+                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-[#C85A32] -mt-[1px]" />
                 </div>
               )}
 
@@ -93,12 +93,12 @@ export default function CustomerBottomNav({
                   {/* Warm fill mask that clears the baseline directly under the dome */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 L 78,46 L 0,46 Z"
-                    fill="#FFFEFC"
+                    fill="#FAF7F0"
                   />
-                  {/* Curved arch line running over the selected icon in forest green */}
+                  {/* Curved arch line running over the selected icon in organic forest green */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42"
-                    stroke="#244436"
+                    stroke="#1E3A2F"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                   />
