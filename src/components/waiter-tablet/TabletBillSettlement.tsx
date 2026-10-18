@@ -74,15 +74,15 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   // Food items list: use actual ticketItems if available, otherwise fallback to default military hotel items
   const billItems = useMemo(() => {
     if (ticketItems && ticketItems.length > 0) {
-      return ticketItems.map(item => ({
-        id: item.id,
+      return ticketItems.map((item, idx) => ({
+        id: item.orderItemId || `${item.id}-${idx}`,
         name: `${item.quantity}x ${item.name}`,
         amount: item.price * item.quantity
       }));
     }
     return [
-      { id: 1, name: '2x Chicken Donne Biryani', amount: 520 },
-      { id: 2, name: '1x Chilli Chicken (Dry)', amount: 220 },
+      { id: 'sample-1', name: '2x Chicken Donne Biryani', amount: 520 },
+      { id: 'sample-2', name: '1x Chilli Chicken (Dry)', amount: 220 },
       { id: 3, name: '1x Fresh Lime Soda', amount: 60 },
       { id: 4, name: '1x Gunpowder Ghee Rice', amount: 180 }
     ];
@@ -224,8 +224,8 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/70 mb-3 text-xs shadow-2xs">
           {/* Itemized Bill Items List */}
           <div className="space-y-1.5 pb-2.5 border-b border-slate-200 text-[11px] max-h-36 overflow-y-auto no-scrollbar">
-            {billItems.map(item => (
-              <div key={item.id} className="flex justify-between font-bold text-slate-800">
+            {billItems.map((item, idx) => (
+              <div key={item.id || `bill-item-${idx}`} className="flex justify-between font-bold text-slate-800">
                 <span>{item.name}</span>
                 <span className="text-amber-800 font-extrabold">₹{item.amount.toLocaleString('en-IN')}</span>
               </div>

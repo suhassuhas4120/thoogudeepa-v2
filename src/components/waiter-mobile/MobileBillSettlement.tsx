@@ -83,7 +83,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   const billLines = useMemo(() => {
     if (cartItems && cartItems.length > 0) {
       return cartItems.map((c, idx) => ({
-        id: String(c.menuItem.id || idx),
+        id: c.orderItemId || `${c.menuItem.id || 'dish'}-${idx}`,
         name: c.menuItem.name,
         quantity: c.quantity,
         unitPrice: c.menuItem.price,
@@ -91,8 +91,8 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
       }));
     }
     return [
-      { id: '1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
-      { id: '2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
+      { id: 'sample-1', name: 'Chicken Donne Biryani', quantity: 2, unitPrice: 260, lineTotal: 520 },
+      { id: 'sample-2', name: 'Chilli Chicken Dry', quantity: 1, unitPrice: 220, lineTotal: 220 },
       { id: '3', name: 'Mineral Water Bottle', quantity: 1, unitPrice: 40, lineTotal: 40 }
     ];
   }, [cartItems]);
@@ -215,9 +215,9 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
 
           {/* Dish Rows */}
           <div className="space-y-2 text-xs">
-            {billLines.map(line => (
+            {billLines.map((line, idx) => (
               <div 
-                key={line.id}
+                key={line.id || `bill-line-${idx}`}
                 className="flex items-center justify-between pb-1.5 border-b border-slate-100"
               >
                 <div className="flex items-center gap-2 min-w-0">
