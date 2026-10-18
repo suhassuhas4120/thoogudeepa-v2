@@ -231,22 +231,22 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
           </div>
         </div>
 
-        {/* 2. MIDDLE: Vertically Centered Passcode Indicators & 3x4 Keypad */}
+        {/* 2. MIDDLE: Vertically Centered Passcode Indicators & Enlarged 3x4 Keypad */}
         <div className="flex-1 flex flex-col justify-center items-center py-2 sm:py-3 my-auto">
           {/* 4-Dot Passcode Indicators */}
-          <div className="flex flex-col items-center mb-3">
-            <span className="text-xs font-bold text-slate-600 mb-2">
+          <div className="flex flex-col items-center mb-3.5">
+            <span className="text-xs sm:text-sm font-extrabold text-slate-700 mb-2">
               Enter 4-Digit Security Passcode
             </span>
-            <div className="flex gap-3">
+            <div className="flex gap-3.5">
               {[1, 2, 3, 4].map(idx => {
                 const isFilled = idx <= enteredPin.length;
                 return (
                   <div
                     key={idx}
-                    className={`w-3.5 h-3.5 rounded-full border transition-all ${
+                    className={`w-4 h-4 rounded-full border-2 transition-all ${
                       pinError
-                        ? 'bg-rose-500 border-rose-500 ring-2 ring-rose-500/30'
+                        ? 'bg-rose-500 border-rose-500 ring-4 ring-rose-500/20'
                         : isFilled
                           ? 'bg-slate-900 border-slate-900 scale-110 shadow-xs'
                           : 'bg-white border-slate-300'
@@ -256,20 +256,20 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
               })}
             </div>
             {errorMessage && (
-              <span className="text-[10px] text-rose-600 font-extrabold mt-1.5 animate-pulse">
+              <span className="text-xs text-rose-600 font-extrabold mt-1.5 animate-pulse">
                 {errorMessage}
               </span>
             )}
           </div>
 
-          {/* 3x4 Numeric Keypad with 12 Balanced Buttons */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-2.5 w-64 max-w-full">
+          {/* 3x4 Numeric Keypad with Enlarged Tactile Buttons */}
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3 w-[300px] sm:w-[330px] max-w-full">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
               <button
                 key={num}
                 type="button"
                 onClick={() => handleDigitPress(num)}
-                className="h-11 sm:h-12 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-amber-100 border border-slate-200 text-base font-black text-slate-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+                className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-amber-100 border border-slate-200 text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
               >
                 {num}
               </button>
@@ -279,17 +279,17 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
             <button
               type="button"
               onClick={handleClearPin}
-              className="h-11 sm:h-12 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-600 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+              className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
               title="Clear Passcode"
             >
-              <RotateCcw className="w-4 h-4 text-slate-500" />
+              <RotateCcw className="w-5 h-5 text-slate-600" />
             </button>
 
             {/* 11th Button: 0 */}
             <button
               type="button"
               onClick={() => handleDigitPress('0')}
-              className="h-11 sm:h-12 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-amber-100 border border-slate-200 text-base font-black text-slate-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+              className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 active:bg-amber-100 border border-slate-200 text-xl sm:text-2xl font-black text-slate-900 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
             >
               0
             </button>
@@ -298,10 +298,10 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
             <button
               type="button"
               onClick={handleDeleteDigit}
-              className="h-11 sm:h-12 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-600 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+              className="h-12 sm:h-14 rounded-2xl bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 text-slate-700 flex items-center justify-center shadow-2xs transition-all cursor-pointer"
               title="Delete Digit"
             >
-              <Delete className="w-4 h-4 text-slate-500" />
+              <Delete className="w-5 h-5 text-slate-600" />
             </button>
           </div>
         </div>
@@ -312,7 +312,7 @@ export const TabletLogin: React.FC<TabletLoginProps> = ({
             type="button"
             onClick={() => verifyPinAndLogin(enteredPin)}
             disabled={enteredPin.length < 4}
-            className={`w-full h-11 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all ${
+            className={`w-full h-11 sm:h-12 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 shadow-xs transition-all ${
               enteredPin.length === 4
                 ? 'bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-amber-500/20 cursor-pointer'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
