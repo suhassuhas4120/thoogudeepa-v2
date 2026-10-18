@@ -148,13 +148,13 @@ export const TabletHeader: React.FC<TabletHeaderProps> = ({
           type="button"
           onClick={triggerCustomerCalls}
           id="btn-header-calls"
-          className="h-10 px-3.5 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-2xs text-slate-800 cursor-pointer"
+          className="h-10 px-3.5 border border-slate-300 hover:border-slate-400 rounded-xl text-sm font-extrabold bg-white hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-2xs text-slate-900 cursor-pointer"
           title="Open Customer Seat Service Calls"
           aria-label={`Customer Calls: ${customerCallsCount} pending`}
         >
-          <PhoneCall className="w-3.5 h-3.5 text-rose-600" />
-          <span className="text-slate-800 font-extrabold">Calls</span>
-          <span className="h-5 px-1.5 min-w-[20px] inline-flex items-center justify-center text-[10px] font-black rounded-full bg-rose-500 text-white shadow-2xs">
+          <PhoneCall className="w-4 h-4 text-rose-600" />
+          <span className="text-slate-900 font-black">Calls</span>
+          <span className="h-5 px-2 min-w-[22px] inline-flex items-center justify-center text-xs font-black rounded-full bg-rose-500 text-white shadow-2xs">
             {customerCallsCount}
           </span>
         </button>
@@ -164,13 +164,13 @@ export const TabletHeader: React.FC<TabletHeaderProps> = ({
           type="button"
           onClick={triggerKitchenAlerts}
           id="btn-header-kitchen"
-          className="h-10 px-3.5 border border-slate-300 hover:border-slate-400 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-2xs text-slate-800 cursor-pointer"
+          className="h-10 px-3.5 border border-slate-300 hover:border-slate-400 rounded-xl text-sm font-extrabold bg-white hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-2xs text-slate-900 cursor-pointer"
           title="Open Kitchen Pass Counter Alerts"
           aria-label={`Kitchen Alerts: ${kitchenAlertsCount} orders ready`}
         >
-          <ChefHat className="w-3.5 h-3.5 text-emerald-600" />
-          <span className="text-slate-800 font-extrabold">Kitchen</span>
-          <span className="h-5 px-1.5 min-w-[20px] inline-flex items-center justify-center text-[10px] font-black rounded-full bg-emerald-600 text-white shadow-2xs">
+          <ChefHat className="w-4 h-4 text-emerald-600" />
+          <span className="text-slate-900 font-black">Kitchen</span>
+          <span className="h-5 px-2 min-w-[22px] inline-flex items-center justify-center text-xs font-black rounded-full bg-emerald-600 text-white shadow-2xs">
             {kitchenAlertsCount}
           </span>
         </button>
