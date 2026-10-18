@@ -49,6 +49,8 @@ export interface TabletBillSettlementProps {
   onConfirmSettlement: () => void;
   /** Callback to print thermal tax invoice receipt */
   onPrintReceipt: () => void;
+  /** Whether the bill has been confirmed and verified by the customer from their device */
+  isVerifiedByCustomer?: boolean;
 }
 
 export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
@@ -59,7 +61,8 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   ticketItems,
   onBackToTicket,
   onConfirmSettlement,
-  onPrintReceipt
+  onPrintReceipt,
+  isVerifiedByCustomer = true
 }) => {
   // Selected payment method: cash or upi
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
@@ -419,6 +422,13 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       {/* 4. SETTLEMENT ACTIONS: PRINT RECEIPT & CONDITIONAL VACATE */}
       {/* ======================================================== */}
       <div className="pt-3 border-t border-slate-200 mt-2 space-y-2">
+        {/* Verification banner if awaiting customer request */}
+        {!isVerifiedByCustomer && (
+          <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-bold text-center">
+            Awaiting customer bill verification from seat
+          </div>
+        )}
+
         {/* Single Icon Button: Print Receipt */}
         <button
           type="button"
@@ -432,17 +442,29 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         {/* Single Icon Button: Settle & Vacate */}
         <button
           type="button"
-          disabled={!isPaymentReceived}
+          disabled={!isPaymentReceived || !isVerifiedByCustomer}
           onClick={handleConfirmVacate}
           className={`w-full h-11 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-            isPaymentReceived
+            isPaymentReceived && isVerifiedByCustomer
               ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs cursor-pointer'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
           }`}
-          title={isPaymentReceived ? "Vacate seat and close bill" : "Confirm payment received before vacating seat"}
+          title={
+            !isVerifiedByCustomer
+              ? "Awaiting customer 'Pay via Waiter' confirmation"
+              : isPaymentReceived
+              ? "Vacate seat and close bill"
+              : "Confirm payment received before vacating seat"
+          }
         >
           <CheckCircle className="w-3.5 h-3.5" />
-          <span>{isPaymentReceived ? 'Settle & Vacate' : 'Awaiting Payment from Customer'}</span>
+          <span>
+            {!isVerifiedByCustomer
+              ? 'Awaiting Customer Confirmation'
+              : isPaymentReceived
+              ? 'Settle & Vacate'
+              : 'Awaiting Payment from Customer'}
+          </span>
         </button>
       </div>
     </div>

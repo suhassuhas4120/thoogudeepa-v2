@@ -56,6 +56,8 @@ export interface MobileBillSettlementProps {
   readonly onOpenAlerts?: () => void;
   /** Callback when bill is successfully paid & settled */
   readonly onSettleSuccess: (seatNumber: string, method: PaymentMethod, amount: number) => void;
+  /** Whether the bill has been confirmed and verified by the customer calling captain */
+  readonly isVerifiedByCustomer?: boolean;
   /** Toast feedback callback */
   readonly onShowToast?: (message: string) => void;
 }
@@ -69,6 +71,7 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
   onBackToSeats,
   onOpenAlerts,
   onSettleSuccess,
+  isVerifiedByCustomer = true,
   onShowToast
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('upi');
@@ -408,16 +411,25 @@ export const MobileBillSettlement: React.FC<MobileBillSettlementProps> = ({
 
         </div>
 
-        {/* Settle Bill Action Button */}
+        {/* Settle Bill Action Button (Enabled only when verified by customer) */}
         <button
           type="button"
           onClick={handleExecuteSettle}
-          disabled={isProcessing}
-          className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center justify-center gap-2 btn-press transition-all disabled:opacity-50 cursor-pointer"
+          disabled={isProcessing || !isVerifiedByCustomer}
+          className={`w-full h-12 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center justify-center gap-2 btn-press transition-all ${
+            isVerifiedByCustomer && !isProcessing
+              ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 cursor-pointer'
+              : 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+          }`}
+          title={isVerifiedByCustomer ? 'Settle Bill & Print Receipt' : 'Awaiting customer to click Pay via Waiter'}
         >
           <Printer className="w-4 h-4" />
           <span>
-            {isProcessing ? 'PRINTING RECEIPT...' : `PRINT RECEIPT & SETTLE (₹${finalGrandTotal})`}
+            {isProcessing
+              ? 'PRINTING RECEIPT...'
+              : !isVerifiedByCustomer
+              ? 'AWAITING CUSTOMER CONFIRMATION'
+              : `PRINT RECEIPT & SETTLE (₹${finalGrandTotal})`}
           </span>
         </button>
 

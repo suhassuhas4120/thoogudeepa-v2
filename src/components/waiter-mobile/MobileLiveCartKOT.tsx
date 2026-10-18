@@ -53,6 +53,8 @@ export interface MobileLiveCartKOTProps {
   readonly onOpenMenu?: () => void;
   /** Callback to proceed to billing settlement */
   readonly onProceedToBill?: (seatNumber: string, guestName: string, amount: number) => void;
+  /** Whether customer has verified and requested bill via waiter */
+  readonly isBillRequested?: boolean;
   /** Callback to open floor alerts */
   readonly onOpenAlerts?: () => void;
   /** Callback to mark an item as served */
@@ -75,6 +77,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   onFireKOT,
   onOpenMenu,
   onProceedToBill,
+  isBillRequested = true,
   onOpenAlerts,
   onServeItem,
   onClearCart,
@@ -371,14 +374,24 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <span>ADD MORE ITEMS (OPEN MENU)</span>
           </button>
 
-          {/* Button 2: Proceed to Bill Checkout */}
+          {/* Button 2: Proceed to Bill Checkout (Enabled only when customer calls captain / requests bill) */}
           <button
             type="button"
+            disabled={!isBillRequested}
             onClick={() => onProceedToBill?.(seatNumber, guestName, grandTotal)}
-            className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press shadow-xs transition-all"
+            className={`w-full h-11 font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press transition-all ${
+              isBillRequested
+                ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs cursor-pointer'
+                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+            }`}
+            title={isBillRequested ? 'Proceed to bill settlement' : 'Awaiting customer to click Pay via Waiter'}
           >
-            <Receipt className="w-4 h-4 text-emerald-400" />
-            <span>PROCEED TO BILL SETTLEMENT (₹{grandTotal})</span>
+            <Receipt className={`w-4 h-4 ${isBillRequested ? 'text-emerald-400' : 'text-slate-400'}`} />
+            <span>
+              {isBillRequested
+                ? `PROCEED TO BILL SETTLEMENT (₹${grandTotal})`
+                : 'AWAITING CUSTOMER BILL REQUEST'}
+            </span>
           </button>
         </div>
       </div>

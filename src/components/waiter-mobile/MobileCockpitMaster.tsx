@@ -105,6 +105,9 @@ export const MobileCockpitMaster: React.FC = () => {
   // Cart & KOT State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
+  // Verified Bill Requests from Customer (seats that requested and confirmed bill)
+  const [verifiedBillSeats, setVerifiedBillSeats] = useState<Record<string, boolean>>({});
+
   // Floor Service Alerts State
   const [alerts, setAlerts] = useState<FloorAlert[]>([]);
 
@@ -250,19 +253,38 @@ export const MobileCockpitMaster: React.FC = () => {
         });
       },
       onResolveAlert: (alertId) => { setAlerts(prev => prev.filter(a => a.id !== alertId)); },
-      onBillRequested: () => { refreshSeats(); refreshAlerts(); },
+      onBillRequested: (data) => {
+        refreshSeats();
+        refreshAlerts();
+        if (data?.chairId) {
+          const clean = data.chairId.replace(/[^0-9]/g, '');
+          setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
+        }
+      },
       onBillSettled: (data) => {
         refreshSeats();
         refreshAlerts();
         const curSeat = selectedSeatRef.current || '';
         const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
         const targetChair = (data?.chairId || '').replace(/[^0-9]/g, '');
+        if (targetChair) {
+          setVerifiedBillSeats(prev => {
+            const next = { ...prev };
+            delete next[targetChair];
+            delete next[targetChair.replace(/^0+/, '')];
+            return next;
+          });
+        }
         if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
           setCartItems([]);
           setActiveTicketNumber('');
         }
       },
-      onClearAll: () => { refreshSeats(); refreshAlerts(); }
+      onClearAll: () => {
+        setVerifiedBillSeats({});
+        refreshSeats();
+        refreshAlerts();
+      }
     });
 
     return () => unsub();
@@ -318,6 +340,12 @@ export const MobileCockpitMaster: React.FC = () => {
         }));
       } else {
         setCartItems([]);
+      }
+
+      // Check if bill request is already active for this seat
+      const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
+      if (activeReq) {
+        setVerifiedBillSeats(prev => ({ ...prev, [cleanChair]: true, [selectedSeatNumber]: true }));
       }
     });
 
@@ -680,6 +708,13 @@ export const MobileCockpitMaster: React.FC = () => {
                 guestName={selectedGuestName}
                 cartItems={cartItems}
                 pendingAlertCount={alerts.length}
+                isBillRequested={
+                  Boolean(
+                    verifiedBillSeats[selectedSeatNumber.replace(/[^0-9]/g, '')] ||
+                    verifiedBillSeats[selectedSeatNumber] ||
+                    realtimeBridge.getActiveBillRequest(selectedSeatNumber.replace(/[^0-9]/g, ''))
+                  )
+                }
                 onClose={() => setActiveScreen('seats')}
                 onOpenMenu={() => setActiveScreen('order')}
                 onProceedToBill={(seatNum, guest, amount) => {
@@ -702,6 +737,13 @@ export const MobileCockpitMaster: React.FC = () => {
                 totalAmount={selectedBillAmount}
                 cartItems={cartItems}
                 pendingAlertCount={alerts.length}
+                isVerifiedByCustomer={
+                  Boolean(
+                    verifiedBillSeats[selectedSeatNumber.replace(/[^0-9]/g, '')] ||
+                    verifiedBillSeats[selectedSeatNumber] ||
+                    realtimeBridge.getActiveBillRequest(selectedSeatNumber.replace(/[^0-9]/g, ''))
+                  )
+                }
                 onBackToSeats={() => setActiveScreen('seats')}
                 onOpenAlerts={() => setActiveScreen('alerts')}
                 onSettleSuccess={handleSettleSuccess}

@@ -57,6 +57,37 @@ export interface ServiceAlertRecord {
   createdAt: number;
 }
 
+export interface BillVerificationPayload {
+  chairId: string;
+  seatNumber: string;
+  orderId: string;
+  ticketNumber?: string;
+  amount: number;
+  items: Array<{ id?: string; title?: string; dish_name?: string; quantity: number; price: number }>;
+  requestedAt: number;
+}
+
+const STORAGE_BILL_REQUESTS_KEY = 'thoogudeepa_v2_active_bill_requests';
+
+function getLocalBillRequests(): Record<string, BillVerificationPayload> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_BILL_REQUESTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setLocalBillRequests(map: Record<string, BillVerificationPayload>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_BILL_REQUESTS_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -961,25 +992,66 @@ export const realtimeBridge = {
     return true;
   },
 
-  // Customer or Waiter requests bill settlement
-  async requestBill(chairId: string, amount?: number): Promise<boolean> {
+  // Customer or Waiter requests bill settlement with combined verification details
+  async requestBill(
+    chairId: string,
+    amount?: number,
+    verification?: Partial<BillVerificationPayload>
+  ): Promise<boolean> {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const padded = cleanChair.padStart(2, '0');
     const map = getLocalOccupancyMap();
     if (map[chairId]) {
       map[chairId].status = 'billing';
       setLocalOccupancyMap(map);
+    } else if (map[cleanChair]) {
+      map[cleanChair].status = 'billing';
+      setLocalOccupancyMap(map);
     }
+
+    const payload: BillVerificationPayload = {
+      chairId: cleanChair || chairId,
+      seatNumber: verification?.seatNumber || `Seat ${padded}`,
+      orderId: verification?.orderId || map[cleanChair]?.orderId || '',
+      ticketNumber: verification?.ticketNumber || map[cleanChair]?.ticketNumber || '',
+      amount: amount || verification?.amount || 0,
+      items: verification?.items || [],
+      requestedAt: Date.now(),
+    };
+
+    const requests = getLocalBillRequests();
+    requests[cleanChair] = payload;
+    requests[chairId] = payload;
+    setLocalBillRequests(requests);
+
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId, amount });
+      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId: cleanChair, amount, payload });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_REQUESTED',
-        payload: { chairId, amount }
+        payload
       });
     }
     return true;
+  },
+
+  // Check if a specific seat has an active, customer-confirmed bill request
+  getActiveBillRequest(chairId: string): BillVerificationPayload | null {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const requests = getLocalBillRequests();
+    return requests[cleanChair] || requests[chairId] || null;
+  },
+
+  // Clear bill request for a seat
+  clearActiveBillRequest(chairId: string): void {
+    const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const requests = getLocalBillRequests();
+    delete requests[cleanChair];
+    delete requests[chairId];
+    setLocalBillRequests(requests);
   },
 
   // Broadcast when waiter enters bill collection / settlement mode for a seat
@@ -1009,8 +1081,9 @@ export const realtimeBridge = {
     const unpadded = cleanChair.replace(/^0+/, '');
     const possibleChairs = [chairId, cleanChair, padded, unpadded, `Seat ${cleanChair}`, `Seat ${padded}`];
 
-    // 1. Release seat in local registry
+    // 1. Release seat in local registry and clear bill requests
     await this.releaseSeat(chairId);
+    this.clearActiveBillRequest(chairId);
 
     // 2. Mark order completed in Supabase
     if (supabase) {
@@ -1116,7 +1189,8 @@ export const realtimeBridge = {
         return aSeatClean === chairId || aSeatClean === unpadded || Number(aSeatClean) === i || a.seatNumber === seatNumber;
       });
 
-      const isBilling = occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
+      const activeBillReq = getLocalBillRequests()[chairId] || getLocalBillRequests()[unpadded];
+      const isBilling = Boolean(activeBillReq) || occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
       const isOccupied = Boolean(occ || foundOrder);
 
       let calculatedTotal = 0;
@@ -1131,7 +1205,7 @@ export const realtimeBridge = {
         calculatedTotal = 840;
       }
 
-      const totalAmount = calculatedTotal;
+      const totalAmount = activeBillReq?.amount || calculatedTotal;
       const itemCount = foundOrder
         ? foundOrder.items.reduce((acc, it) => acc + it.quantity, 0)
         : (isOccupied ? 2 : 0);
@@ -1197,7 +1271,7 @@ export const realtimeBridge = {
     onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
     onNewAlert?: (alert: ServiceAlertRecord) => void;
     onResolveAlert?: (alertId: string) => void;
-    onBillRequested?: (data: { chairId: string; amount?: number }) => void;
+    onBillRequested?: (data: { chairId: string; amount?: number; verification?: BillVerificationPayload }) => void;
     onBillModeActive?: (data: { chairId: string; amount?: number }) => void;
     onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
     onClearAll?: () => void;
@@ -1238,7 +1312,20 @@ export const realtimeBridge = {
         })
         .on('broadcast', { event: 'BILL_REQUESTED' }, (msg) => {
           if (callbacks.onBillRequested && msg.payload) {
-            callbacks.onBillRequested(msg.payload);
+            const verification: BillVerificationPayload = {
+              chairId: msg.payload.chairId,
+              seatNumber: msg.payload.seatNumber || `Seat ${msg.payload.chairId}`,
+              orderId: msg.payload.orderId || '',
+              ticketNumber: msg.payload.ticketNumber,
+              amount: msg.payload.amount || 0,
+              items: msg.payload.items || [],
+              requestedAt: msg.payload.requestedAt || Date.now(),
+            };
+            callbacks.onBillRequested({
+              chairId: msg.payload.chairId,
+              amount: msg.payload.amount,
+              verification,
+            });
           }
         })
         .on('broadcast', { event: 'BILL_MODE_ACTIVE' }, (msg) => {
@@ -1328,7 +1415,11 @@ export const realtimeBridge = {
       } else if (data.type === 'RESOLVE_ALERT' && callbacks.onResolveAlert) {
         callbacks.onResolveAlert(data.alertId);
       } else if (data.type === 'BILL_REQUESTED' && callbacks.onBillRequested) {
-        callbacks.onBillRequested({ chairId: data.chairId, amount: data.amount });
+        callbacks.onBillRequested({
+          chairId: data.chairId,
+          amount: data.amount,
+          verification: data.payload,
+        });
       } else if (data.type === 'BILL_MODE_ACTIVE' && callbacks.onBillModeActive) {
         callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount });
       } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {

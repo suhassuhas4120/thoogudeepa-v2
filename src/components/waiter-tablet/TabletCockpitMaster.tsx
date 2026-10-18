@@ -92,6 +92,9 @@ export const TabletCockpitMaster: React.FC = () => {
   // Menu Dish Steppers State (dishId -> quantity)
   const [dishQuantities, setDishQuantities] = useState<Record<number, number>>({});
 
+  // Verified bill requested seats tracking (seat/chairId -> boolean)
+  const [verifiedBillSeats, setVerifiedBillSeats] = useState<Record<string, boolean>>({});
+
   // Right-Side Alert Slide-Over Sheet State
   const [isAlertSheetOpen, setIsAlertSheetOpen] = useState<boolean>(false);
   const [activeSheetTab, setActiveSheetTab] = useState<'customer' | 'kitchen'>('customer');
@@ -238,7 +241,14 @@ export const TabletCockpitMaster: React.FC = () => {
       onResolveAlert: (alertId) => {
         setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isResolved: true } : a));
       },
-      onBillRequested: () => { refreshSeats(); refreshAlerts(); },
+      onBillRequested: (data) => {
+        refreshSeats();
+        refreshAlerts();
+        if (data?.chairId) {
+          const clean = data.chairId.replace(/[^0-9]/g, '');
+          setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
+        }
+      },
       onBillSettled: (data) => {
         refreshSeats();
         refreshAlerts();
@@ -250,8 +260,20 @@ export const TabletCockpitMaster: React.FC = () => {
           setDishQuantities({});
           setActiveTicketNumber('');
         }
+        if (targetChair) {
+          setVerifiedBillSeats(prev => {
+            const next = { ...prev };
+            delete next[targetChair];
+            delete next[data?.chairId || ''];
+            return next;
+          });
+        }
       },
-      onClearAll: () => { refreshSeats(); refreshAlerts(); }
+      onClearAll: () => {
+        refreshSeats();
+        refreshAlerts();
+        setVerifiedBillSeats({});
+      }
     });
 
     return () => unsub();
@@ -271,6 +293,11 @@ export const TabletCockpitMaster: React.FC = () => {
     const activeSeatNum = activeSeatName.split(':')[0].trim();
     const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
     if (!cleanChair) return;
+
+    const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
+    if (activeReq) {
+      setVerifiedBillSeats(prev => ({ ...prev, [cleanChair]: true, [activeSeatNum]: true }));
+    }
 
     let isMounted = true;
     realtimeBridge.getOrderForSeat(cleanChair).then((details) => {
@@ -640,34 +667,46 @@ export const TabletCockpitMaster: React.FC = () => {
 
             {/* Right 40%: In-Container Live Ticket OR Bill Settlement */}
             <div className="w-[40%] h-full flex flex-col justify-between p-4 bg-[#F1F5F9] border-l border-slate-200 overflow-y-auto no-scrollbar">
-              {rightPaneMode === 'ticket' ? (
-                <TabletLiveTicket
-                  activeSeatName={activeSeatName}
-                  ticketItems={ticketItems}
-                  subtotal={subtotal}
-                  gst={gst}
-                  grandTotal={grandTotal}
-                  onServeItem={handleServeItem}
-                  onPunchKot={handlePunchKot}
-                  onSwitchToBillMode={() => {
-                    setRightPaneMode('bill');
-                    const cleanChair = activeSeatName.split(':')[0].trim();
-                    realtimeBridge.notifyBillModeActive(cleanChair, grandTotal);
-                  }}
-                  onClearTicket={handleClearTicket}
-                />
-              ) : (
-                <TabletBillSettlement
-                  seatName={activeSeatName.split(':')[0].trim()}
-                  guestName={activeSeatCustomer}
-                  totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
-                  subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
-                  ticketItems={ticketItems}
-                  onBackToTicket={() => setRightPaneMode('ticket')}
-                  onConfirmSettlement={handleConfirmSettlement}
-                  onPrintReceipt={() => showToast('Tax invoice sent to thermal printer')}
-                />
-              )}
+              {(() => {
+                const curSeatClean = activeSeatName.split(':')[0].trim().replace(/[^0-9]/g, '');
+                const curSeatRaw = activeSeatName.split(':')[0].trim();
+                const isVerified = Boolean(
+                  (curSeatClean && verifiedBillSeats[curSeatClean]) ||
+                  (curSeatRaw && verifiedBillSeats[curSeatRaw]) ||
+                  (curSeatClean && realtimeBridge.getActiveBillRequest(curSeatClean))
+                );
+
+                return rightPaneMode === 'ticket' ? (
+                  <TabletLiveTicket
+                    activeSeatName={activeSeatName}
+                    ticketItems={ticketItems}
+                    subtotal={subtotal}
+                    gst={gst}
+                    grandTotal={grandTotal}
+                    isBillRequested={isVerified}
+                    onServeItem={handleServeItem}
+                    onPunchKot={handlePunchKot}
+                    onSwitchToBillMode={() => {
+                      setRightPaneMode('bill');
+                      const cleanChair = activeSeatName.split(':')[0].trim();
+                      realtimeBridge.notifyBillModeActive(cleanChair, grandTotal);
+                    }}
+                    onClearTicket={handleClearTicket}
+                  />
+                ) : (
+                  <TabletBillSettlement
+                    seatName={activeSeatName.split(':')[0].trim()}
+                    guestName={activeSeatCustomer}
+                    totalAmount={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                    subtotal={isDining && ticketItems.length > 0 ? subtotal : activeSeatAmount}
+                    ticketItems={ticketItems}
+                    isVerifiedByCustomer={isVerified}
+                    onBackToTicket={() => setRightPaneMode('ticket')}
+                    onConfirmSettlement={handleConfirmSettlement}
+                    onPrintReceipt={() => showToast('Tax invoice sent to thermal printer')}
+                  />
+                );
+              })()}
             </div>
           </section>
         )}

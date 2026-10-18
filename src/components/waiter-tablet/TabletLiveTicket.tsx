@@ -50,6 +50,8 @@ export interface TabletLiveTicketProps {
   onSwitchToBillMode: () => void;
   /** Callback to clear ticket items for a new guest */
   onClearTicket?: () => void;
+  /** Whether the customer on this seat has actively requested the bill */
+  isBillRequested?: boolean;
 }
 
 export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
@@ -61,7 +63,8 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
   onServeItem,
   onPunchKot,
   onSwitchToBillMode,
-  onClearTicket
+  onClearTicket,
+  isBillRequested = true
 }) => {
   const [kotSentSuccess, setKotSentSuccess] = useState<boolean>(false);
   const [kotOrderSerial, setKotOrderSerial] = useState<number>(104);
@@ -292,17 +295,23 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
           {/* Button 2: Collect Bill */}
           <button
             type="button"
-            disabled={!hasItems}
+            disabled={!hasItems || !isBillRequested}
             onClick={onSwitchToBillMode}
             className={`h-11 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-2xs transition-all ${
-              hasItems
+              hasItems && isBillRequested
                 ? 'bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black cursor-pointer shadow-amber-500/20'
                 : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
             }`}
-            title={hasItems ? "Switch Right Pane to Settle Bill" : "Punch order dishes first before bill collection"}
+            title={
+              !hasItems
+                ? "Punch order dishes first before bill collection"
+                : !isBillRequested
+                ? "Awaiting customer 'Pay via Waiter' request"
+                : "Switch Right Pane to Settle Bill"
+            }
           >
             <CreditCard className="w-3.5 h-3.5" />
-            <span>Collect Bill</span>
+            <span>{isBillRequested ? 'Collect Bill' : 'Awaiting Request'}</span>
           </button>
         </div>
       </div>
