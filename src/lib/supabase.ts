@@ -229,6 +229,13 @@ export const realtimeBridge = {
         if (orderErr) throw orderErr;
 
         const orderId = orderData.id;
+
+        // Synchronize local orders entry with confirmed database ID
+        const currentLocals = getLocalOrdersList();
+        const updatedWithDbId = currentLocals.map((x) =>
+          x.order.id === generatedId ? { ...x, order: { ...x.order, id: orderId } } : x
+        );
+        setLocalOrdersList(updatedWithDbId);
         const itemsToInsert = items.map((it) => {
           const isPlaced = it.stage === 'PLACED' || !it.stage;
           const addonsList = Array.isArray(it.addons) ? [...it.addons] : [];

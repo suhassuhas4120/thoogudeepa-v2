@@ -143,10 +143,66 @@ export default function KitchenDisplaySystemPage() {
       onNewOrder: (newOrder) => {
         playKitchenChime();
         setActiveOrders((prev) => {
-          const exists = prev.some(
-            (o) => o.order.id === newOrder.order.id
+          // 1. Match by exact order ID
+          const matchById = prev.findIndex((o) => o.order.id === newOrder.order.id);
+          if (matchById !== -1) {
+            const current = prev[matchById];
+            const currentItemIds = new Set(current.items.map((it) => it.id));
+            const newItems = newOrder.items.filter((it) => !currentItemIds.has(it.id));
+            if (newItems.length === 0) return prev;
+            const updated = [...prev];
+            updated[matchById] = {
+              ...current,
+              order: {
+                ...current.order,
+                total_amount: (current.order.total_amount || 0) + (newOrder.order.total_amount || 0),
+              },
+              items: [...current.items, ...newItems],
+            };
+            return updated;
+          }
+
+          // 2. Match by ticket_number and chair_id
+          const matchByTicket = prev.findIndex(
+            (o) =>
+              o.order.ticket_number &&
+              newOrder.order.ticket_number &&
+              o.order.ticket_number === newOrder.order.ticket_number &&
+              (!o.order.chair_id || !newOrder.order.chair_id || o.order.chair_id.replace(/[^0-9]/g, '') === newOrder.order.chair_id.replace(/[^0-9]/g, ''))
           );
-          if (exists) return prev;
+
+          if (matchByTicket !== -1) {
+            const current = prev[matchByTicket];
+            const currentItemIds = new Set(current.items.map((it) => it.id));
+            const newItems = newOrder.items.filter((it) => !currentItemIds.has(it.id));
+
+            const updated = [...prev];
+            if (newItems.length === 0) {
+              // Exact duplicate broadcast of the same ticket - update id if needed and return
+              updated[matchByTicket] = {
+                ...current,
+                order: {
+                  ...current.order,
+                  id: newOrder.order.id || current.order.id,
+                },
+              };
+              return updated;
+            }
+
+            // Additional items placed for the same ticket: append to the existing ticket
+            updated[matchByTicket] = {
+              ...current,
+              order: {
+                ...current.order,
+                id: newOrder.order.id || current.order.id,
+                total_amount: (current.order.total_amount || 0) + (newOrder.order.total_amount || 0),
+              },
+              items: [...current.items, ...newItems],
+            };
+            return updated;
+          }
+
+          // 3. Brand new ticket
           return [newOrder, ...prev];
         });
       },
@@ -588,7 +644,32 @@ export default function KitchenDisplaySystemPage() {
         );
 
         {/* SCREEN 2: All Seats & Feeds (Dynamic Orders) */}
-        const activeTicketsToDisplay = activeOrders
+        const deduplicatedActiveOrders: typeof activeOrders = [];
+        const seenTicketKeys = new Set<string>();
+
+        for (const active of activeOrders) {
+          const chairClean = (active.order.chair_id || '').replace(/[^0-9]/g, '');
+          const ticketKey = active.order.ticket_number ? `${chairClean}-${active.order.ticket_number}` : active.order.id;
+          if (ticketKey && seenTicketKeys.has(ticketKey)) {
+            const existing = deduplicatedActiveOrders.find((o) => {
+              const oChair = (o.order.chair_id || '').replace(/[^0-9]/g, '');
+              const oKey = o.order.ticket_number ? `${oChair}-${o.order.ticket_number}` : o.order.id;
+              return oKey === ticketKey;
+            });
+            if (existing) {
+              const existingItemIds = new Set(existing.items.map((it) => it.id));
+              const extraItems = active.items.filter((it) => !existingItemIds.has(it.id));
+              if (extraItems.length > 0) {
+                existing.items.push(...extraItems);
+              }
+            }
+            continue;
+          }
+          if (ticketKey) seenTicketKeys.add(ticketKey);
+          deduplicatedActiveOrders.push({ ...active, items: [...active.items] });
+        }
+
+        const activeTicketsToDisplay = deduplicatedActiveOrders
           .map((active) => {
             const order = active.order;
             const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
