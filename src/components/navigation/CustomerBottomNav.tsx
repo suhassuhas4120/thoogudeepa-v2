@@ -61,8 +61,8 @@ export default function CustomerBottomNav({
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FAF7F0]/95 backdrop-blur-md h-16 select-none border-t border-[#EAE3D5] shadow-[0_-4px_24px_rgba(40,55,45,0.06)]">
-      {/* Continuous horizontal baseline under all icons */}
-      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#1E3A2F]/15 pointer-events-none" />
+      {/* Continuous horizontal baseline in forest green matching the arch */}
+      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#1E3A2F] pointer-events-none" />
 
       <div className="relative w-full h-full grid grid-cols-4 items-center">
         {navItems.map((item) => {
@@ -91,20 +91,18 @@ export default function CustomerBottomNav({
                   className="absolute bottom-[13px] left-1/2 -translate-x-1/2 pointer-events-none"
                 >
                   <defs>
-                    <radialGradient id="haloGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#C85A32" stopOpacity="0.45" />
-                      <stop offset="60%" stopColor="#C85A32" stopOpacity="0.15" />
-                      <stop offset="100%" stopColor="#FAF7F0" stopOpacity="0" />
+                    <radialGradient id="archFillGlow" cx="50%" cy="50%" r="55%">
+                      <stop offset="0%" stopColor="#C85A32" stopOpacity="0.4" />
+                      <stop offset="65%" stopColor="#C85A32" stopOpacity="0.18" />
+                      <stop offset="100%" stopColor="#C85A32" stopOpacity="0.04" />
                     </radialGradient>
                   </defs>
-                  {/* Warm fill mask that clears the baseline directly under the dome */}
+                  {/* Smooth fill contained precisely inside the curved arch geometry */}
                   <path
-                    d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 L 78,46 L 0,46 Z"
-                    fill="#FAF7F0"
+                    d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 Z"
+                    fill="url(#archFillGlow)"
                   />
-                  {/* Prominent peach-coral radial glow filling the dome */}
-                  <circle cx="39" cy="22" r="28" fill="url(#haloGlow)" />
-                  {/* Curved arch line running over the selected icon in organic forest green */}
+                  {/* Curved arch line in dark forest green */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42"
                     stroke="#1E3A2F"
@@ -124,11 +122,6 @@ export default function CustomerBottomNav({
                     : 'bottom-[4px] p-1.5 text-[#8C7A6B] hover:text-[#1E3A2F] active:scale-95'
                 }`}
               >
-                {/* Luminous warm glow halo directly surrounding icon */}
-                {isSelected && (
-                  <span className="absolute -inset-2 rounded-full bg-[radial-gradient(circle,_rgba(200,90,50,0.38)_0%,_rgba(200,90,50,0.12)_50%,_transparent_75%)] pointer-events-none" />
-                )}
-
                 <Icon
                   className={`transition-all ${
                     isSelected ? 'w-5 h-5 stroke-[2.5]' : 'w-5 h-5 stroke-[1.8]'
