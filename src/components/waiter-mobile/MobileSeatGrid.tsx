@@ -311,18 +311,6 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
           </div>
         )}
 
-        {/* Clean Floor Section Summary Bar (NO CAPACITY / NO TURNOVER RATE) */}
-        <div className="mt-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between text-[11px] text-slate-600 font-semibold">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-slate-900 font-black">{seatRange}:</span>
-            <span>{counts.occupied} Dining • {counts.vacant} Ready</span>
-          </div>
-          <div className="flex items-center gap-1 text-slate-500 font-bold">
-            <span>10 Seats Total</span>
-          </div>
-        </div>
-
       </div>
 
     </div>

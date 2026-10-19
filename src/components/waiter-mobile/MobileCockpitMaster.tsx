@@ -56,19 +56,38 @@ import MobileAlerts from './MobileAlerts';
 import MobileProfileShift from './MobileProfileShift';
 import MobileBottomNav from './MobileBottomNav';
 
+const getInitialStoredAccount = (): WaiterAuthAccount => {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.id || parsed.seatRange)) {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return DEFAULT_STAFF_ACCOUNTS[0];
+};
+
 export const MobileCockpitMaster: React.FC = () => {
   const [hasMounted, setHasMounted] = useState<boolean>(false);
 
   // Navigation & Screen State
   const [activeScreen, setActiveScreen] = useState<MobileScreenId>('login');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(DEFAULT_STAFF_ACCOUNTS[0]);
+  const [activeWaiterAccount, setActiveWaiterAccount] = useState<WaiterAuthAccount>(getInitialStoredAccount);
   const activeAccountRef = useRef<WaiterAuthAccount>(activeWaiterAccount);
   activeAccountRef.current = activeWaiterAccount;
 
   // Floor Seats State (Generated for active waiter)
-  const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
-  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
+  const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(getInitialStoredAccount()));
+  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>(() => {
+    const acc = getInitialStoredAccount();
+    const st = generateSeatsForStaff(acc);
+    return st[0]?.seatNumber || 'Seat 01';
+  });
   const selectedSeatRef = useRef<string>(selectedSeatNumber);
   selectedSeatRef.current = selectedSeatNumber;
 
@@ -91,8 +110,11 @@ export const MobileCockpitMaster: React.FC = () => {
         const rawAccount = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
         if (rawAccount) {
           const parsed = JSON.parse(rawAccount);
-          setActiveWaiterAccount(parsed);
-          setSeats(generateSeatsForStaff(parsed));
+          if (parsed && (parsed.id || parsed.seatRange)) {
+            setActiveWaiterAccount(parsed);
+            activeAccountRef.current = parsed;
+            setSeats(generateSeatsForStaff(parsed));
+          }
         }
       } catch {}
     }
@@ -123,46 +145,73 @@ export const MobileCockpitMaster: React.FC = () => {
   }, []);
 
   const refreshSeats = useCallback(async (accountOverride?: WaiterAuthAccount) => {
-    const account = accountOverride || activeAccountRef.current;
+    let account = accountOverride || activeAccountRef.current;
+    if (typeof window !== 'undefined' && (!account || account.id === DEFAULT_STAFF_ACCOUNTS[0].id)) {
+      try {
+        const raw = sessionStorage.getItem('thoogudeepa_waiter_mobile_account');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && (parsed.id || parsed.seatRange)) {
+            account = parsed;
+          }
+        }
+      } catch {}
+    }
+    if (!account) {
+      account = DEFAULT_STAFF_ACCOUNTS[0];
+    }
+
     try {
       let baseNumber = 1;
-      if (account.id === '2' || account.name.includes('Suresh')) baseNumber = 11;
-      else if (account.id === '3' || account.name.includes('Anand')) baseNumber = 21;
-      else if (account.id === '4' || account.name.includes('Deepa') || account.name.includes('Dinesh')) baseNumber = 31;
+      if (account.seatRange) {
+        const match = account.seatRange.match(/\d+/);
+        if (match) {
+          baseNumber = parseInt(match[0], 10);
+        }
+      }
+      if (!baseNumber || isNaN(baseNumber)) {
+        if (account.id === '2' || account.name?.includes('Suresh')) baseNumber = 11;
+        else if (account.id === '3' || account.name?.includes('Anand')) baseNumber = 21;
+        else if (account.id === '4' || account.name?.includes('Deepa') || account.name?.includes('Dinesh')) baseNumber = 31;
+        else baseNumber = 1;
+      }
 
       const floorData = await realtimeBridge.getFloorSeats(baseNumber, 10);
-      const defaultStaffSeats = generateSeatsForStaff(account);
-
-      setSeats(floorData.map(f => {
-        if (f.status === 'vacant') {
+      if (floorData && floorData.length > 0) {
+        setSeats(floorData.map(f => {
+          if (f.status === 'vacant') {
+            return {
+              id: f.id,
+              seatNumber: f.seatNumber,
+              numericId: f.numericId,
+              status: 'vacant' as const,
+              guestName: 'Walk-In Guest',
+              diningDuration: '--',
+              itemCount: 0,
+              runningTotal: 0,
+              hasBillRequest: false,
+              zone: account.zone
+            };
+          }
           return {
             id: f.id,
             seatNumber: f.seatNumber,
             numericId: f.numericId,
-            status: 'vacant' as const,
-            guestName: 'Walk-In Guest',
-            diningDuration: '--',
-            itemCount: 0,
-            runningTotal: 0,
-            hasBillRequest: false,
+            status: f.status,
+            guestName: f.guestName,
+            diningDuration: f.diningDuration,
+            itemCount: f.itemCount,
+            runningTotal: f.runningTotal,
+            hasBillRequest: f.hasBillRequest,
             zone: account.zone
           };
-        }
-        return {
-          id: f.id,
-          seatNumber: f.seatNumber,
-          numericId: f.numericId,
-          status: f.status,
-          guestName: f.guestName,
-          diningDuration: f.diningDuration,
-          itemCount: f.itemCount,
-          runningTotal: f.runningTotal,
-          hasBillRequest: f.hasBillRequest,
-          zone: account.zone
-        };
-      }));
+        }));
+      } else {
+        setSeats(generateSeatsForStaff(account));
+      }
     } catch (err) {
       console.error('Error loading seats:', err);
+      setSeats(generateSeatsForStaff(account));
     }
   }, []);
 
@@ -369,13 +418,14 @@ export const MobileCockpitMaster: React.FC = () => {
 
   // Persist navigation and auth state to survive browser refresh
   useEffect(() => {
+    if (!hasMounted) return;
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('thoogudeepa_waiter_mobile_screen', activeScreen);
       sessionStorage.setItem('thoogudeepa_waiter_mobile_auth', String(isAuthenticated));
       sessionStorage.setItem('thoogudeepa_waiter_mobile_seat', selectedSeatNumber);
       sessionStorage.setItem('thoogudeepa_waiter_mobile_account', JSON.stringify(activeWaiterAccount));
     }
-  }, [activeScreen, isAuthenticated, selectedSeatNumber, activeWaiterAccount]);
+  }, [hasMounted, activeScreen, isAuthenticated, selectedSeatNumber, activeWaiterAccount]);
 
   // Synchronize cart items with seat order data on mount or when seat changes
   useEffect(() => {
@@ -404,6 +454,11 @@ export const MobileCockpitMaster: React.FC = () => {
     setActiveWaiterAccount(account);
     activeAccountRef.current = account;
     setIsAuthenticated(true);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_account', JSON.stringify(account));
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_auth', 'true');
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_screen', 'seats');
+    }
     const newSeats = generateSeatsForStaff(account);
     setSeats(newSeats);
     if (newSeats.length > 0) {
@@ -424,6 +479,9 @@ export const MobileCockpitMaster: React.FC = () => {
     ) || activeAccountRef.current;
     setActiveWaiterAccount(staff);
     activeAccountRef.current = staff;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('thoogudeepa_waiter_mobile_account', JSON.stringify(staff));
+    }
     const newSeats = generateSeatsForStaff(staff);
     setSeats(newSeats);
     if (newSeats.length > 0) {
@@ -439,6 +497,12 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleEndShift = useCallback(() => {
     setIsAuthenticated(false);
     setActiveScreen('login');
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('thoogudeepa_waiter_mobile_screen');
+      sessionStorage.removeItem('thoogudeepa_waiter_mobile_auth');
+      sessionStorage.removeItem('thoogudeepa_waiter_mobile_seat');
+      sessionStorage.removeItem('thoogudeepa_waiter_mobile_account');
+    }
     showToast('Shift closed successfully. Thermal summary printed.');
   }, [showToast]);
 
@@ -761,7 +825,7 @@ export const MobileCockpitMaster: React.FC = () => {
                   onOpenSeatOrder={handleOpenTakeOrder}
                   onOpenSeatBill={handleOpenSeatBill}
                   onRefreshSeats={() => {
-                    refreshSeats();
+                    refreshSeats(activeWaiterAccount);
                     showToast('Floor seats refreshed from cloud!');
                   }}
                 />
