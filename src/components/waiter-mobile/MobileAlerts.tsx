@@ -307,18 +307,6 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
           </div>
         )}
 
-        {/* Floor Pass Telemetry Status Footer */}
-        <div className="mt-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between text-[10px] text-slate-500 font-semibold">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-800 font-bold">Kitchen Pass Stream:</span>
-            <span>Real-Time WebSocket Active</span>
-          </div>
-          <span className="text-[9px] text-slate-400 font-bold">
-            Sync: 0s ago
-          </span>
-        </div>
-
       </div>
 
     </div>
