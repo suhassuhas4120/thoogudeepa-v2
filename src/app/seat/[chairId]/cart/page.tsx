@@ -149,6 +149,7 @@ export default function CustomerCartPage() {
         title: oi.dish_name,
         quantity: oi.quantity,
         price: oi.price,
+        stage: 'PLACED' as const,
         notes: oi.notes,
         addons: oi.addons,
       }));

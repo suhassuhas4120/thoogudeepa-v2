@@ -548,13 +548,39 @@ export const realtimeBridge = {
 
       // 3. Remote update if Supabase is connected
       if (supabase) {
-        const dbStage = stage;
+        // Map database stage to satisfy DB check constraint ('REC', 'PREP', 'READY')
+        const dbStage: 'REC' | 'PREP' | 'READY' =
+          stage === 'SERVED' ? 'READY' : stage === 'PLACED' ? 'REC' : stage;
+
+        const updateItemInDb = async (itemId: string, existingAddons?: any) => {
+          const list = Array.isArray(existingAddons) ? [...existingAddons] : [];
+          const nextAddons = list.filter((a) => a !== 'PLACED' && a !== 'SERVED');
+          if (stage === 'SERVED') {
+            nextAddons.push('SERVED');
+          } else if (stage === 'PLACED') {
+            nextAddons.push('PLACED');
+          }
+          const { error: updErr } = await supabase
+            .from('order_items')
+            .update({
+              stage: dbStage,
+              addons: nextAddons,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', itemId);
+          return !updErr;
+        };
+
         const isUuid = targetItemId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetItemId);
         let updatedInDb = false;
 
         if (isUuid) {
-          const { error: updErr } = await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItemId);
-          if (!updErr) updatedInDb = true;
+          const { data: cur } = await supabase.from('order_items').select('id, addons').eq('id', targetItemId).maybeSingle();
+          if (cur) {
+            updatedInDb = await updateItemInDb(targetItemId, cur.addons);
+          } else {
+            updatedInDb = await updateItemInDb(targetItemId);
+          }
         }
 
         if (!updatedInDb && meta?.chairId) {
@@ -576,7 +602,7 @@ export const realtimeBridge = {
             if (targetIds.length > 0) {
               const { data: byOrderItems } = await supabase
                 .from('order_items')
-                .select('id, dish_id, dish_name, stage')
+                .select('id, dish_id, dish_name, stage, addons')
                 .in('order_id', targetIds);
 
               if (byOrderItems && byOrderItems.length > 0) {
@@ -585,11 +611,11 @@ export const realtimeBridge = {
                   byOrderItems.find((oi) => oi.id === targetItemId || oi.id === itemIdOrKey) ||
                   byOrderItems.find((oi) => {
                     const oiClean = (oi.dish_id || '').replace(/^dish-/, '');
-                    return (oi.dish_id === meta?.dishId || (targetCleanDish && oiClean === targetCleanDish)) && oi.stage !== dbStage;
+                    return (oi.dish_id === meta?.dishId || (targetCleanDish && oiClean === targetCleanDish));
                   }) ||
-                  byOrderItems.find((oi) => meta?.dishName && oi.dish_name?.toLowerCase().trim() === meta.dishName.toLowerCase().trim() && oi.stage !== dbStage);
+                  byOrderItems.find((oi) => meta?.dishName && oi.dish_name?.toLowerCase().trim() === meta.dishName.toLowerCase().trim());
                 if (targetItem) {
-                  await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItem.id);
+                  await updateItemInDb(targetItem.id, targetItem.addons);
                 }
               }
             }
@@ -804,7 +830,8 @@ export const realtimeBridge = {
           if (cached[k]) candidates.push(cached[k]);
         }
 
-        if (candidates.includes('SERVED')) {
+        const addons = Array.isArray(it.addons) ? it.addons : [];
+        if (addons.includes('SERVED') || candidates.includes('SERVED')) {
           return { ...it, stage: 'SERVED' };
         }
         if (candidates.includes('READY')) {
@@ -813,8 +840,11 @@ export const realtimeBridge = {
         if (candidates.includes('PREP')) {
           return { ...it, stage: 'PREP' };
         }
-        if (candidates.includes('REC')) {
+        if (candidates.includes('REC') && !addons.includes('PLACED')) {
           return { ...it, stage: 'REC' };
+        }
+        if (addons.includes('PLACED') || candidates.includes('PLACED')) {
+          return { ...it, stage: 'PLACED' };
         }
         return it;
       });
@@ -849,10 +879,16 @@ export const realtimeBridge = {
 
           const remoteOrders = orders.map((o) => {
             const rawItems = (items || []).filter((it) => it.order_id === o.id).map((it) => {
-              const dbStage = it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
+              const addons = Array.isArray(it.addons) ? it.addons : [];
+              let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = (it.stage as any) || 'PLACED';
+              if (addons.includes('SERVED')) {
+                effStage = 'SERVED';
+              } else if (addons.includes('PLACED') && (it.stage === 'REC' || it.stage === 'PLACED' || !it.stage)) {
+                effStage = 'PLACED';
+              }
               return {
                 ...it,
-                stage: dbStage || 'PLACED',
+                stage: effStage,
               };
             });
             const hydrated = this.hydrateOrderItemStages(o, rawItems);
@@ -1482,10 +1518,23 @@ export const realtimeBridge = {
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, (payload) => {
           const row = payload.new as any;
-          const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = row.stage || 'PLACED';
+          const addons = Array.isArray(row.addons) ? row.addons : [];
+          let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = (row.stage as any) || 'PLACED';
+          if (addons.includes('SERVED')) {
+            effStage = 'SERVED';
+          } else if (addons.includes('PLACED') && (row.stage === 'REC' || row.stage === 'PLACED' || !row.stage)) {
+            effStage = 'PLACED';
+          }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onStageChange) {
-              cb.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id, itemId: row.id, dishName: row.dish_name });
+              cb.onStageChange({
+                key: row.id || row.dish_id,
+                stage: effStage,
+                dishId: row.dish_id,
+                chairId: row.chair_id,
+                itemId: row.id,
+                dishName: row.dish_name,
+              });
             }
           });
         })
