@@ -58,6 +58,8 @@ function CustomerSelfPaymentContent() {
       holder: `Seat #${chairId} Guest`,
       expiry: 'LIVE',
       logo: 'UPI',
+      bgGradient: 'from-[#1E3A2F] to-[#28483B]',
+      border: 'border-[#2D5042]',
     },
     {
       id: 'card2',
@@ -66,6 +68,8 @@ function CustomerSelfPaymentContent() {
       holder: `Seat #${chairId} Guest`,
       expiry: '12 / 29',
       logo: 'RUPAY',
+      bgGradient: 'from-[#2D3E4E] to-[#1E2B37]',
+      border: 'border-[#3E5266]',
     },
     {
       id: 'card3',
@@ -74,6 +78,8 @@ function CustomerSelfPaymentContent() {
       holder: `Seat #${chairId} Guest`,
       expiry: '08 / 30',
       logo: 'VISA',
+      bgGradient: 'from-[#6E351F] to-[#4F2312]',
+      border: 'border-[#8A462B]',
     },
   ];
 
@@ -140,28 +146,28 @@ function CustomerSelfPaymentContent() {
                       setSelectedMethod(null);
                     }
                   }}
-                  className={`w-[300px] rounded-3xl p-5 flex flex-col justify-between h-44 shrink-0 snap-center cursor-pointer transition-all ${
+                  className={`w-[300px] rounded-3xl p-5 flex flex-col justify-between h-44 shrink-0 snap-center cursor-pointer transition-all bg-gradient-to-br ${card.bgGradient} ${card.border} text-white ${
                     isSelected
-                      ? 'bg-gradient-to-br from-[#1E3A2F] to-[#28483B] text-white shadow-md border border-[#2D5042]'
-                      : 'bg-[#FBF9F4] text-[#1A2621] border border-[#DCE4DC] shadow-xs hover:border-[#1E3A2F]/30'
+                      ? 'shadow-md ring-2 ring-[#D46238] opacity-100'
+                      : 'shadow-xs opacity-85 hover:opacity-100 border'
                   }`}
                 >
                   {/* Top row inside card: Title & Brand / Logo */}
                   <div className="w-full flex items-center justify-between">
-                    <span className={`text-sm font-black tracking-wider uppercase ${isSelected ? 'text-white/95' : 'text-[#1A2621]'}`}>
+                    <span className="text-sm font-black tracking-wider uppercase text-white/95">
                       {card.title}
                     </span>
                     <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs ${
                       isSelected
                         ? 'bg-[#D46238] text-white'
-                        : 'border border-[#DCE4DC] bg-[#FAF7F0] text-[#1E3A2F]'
+                        : 'bg-white/20 text-white backdrop-blur-xs border border-white/20'
                     }`}>
                       {isSelected ? 'SELECTED' : card.logo}
                     </div>
                   </div>
 
                   {/* Middle row: Card Number / Identifier */}
-                  <div className={`text-base font-mono font-bold tracking-widest my-auto truncate ${isSelected ? 'text-white' : 'text-[#1A2621]'}`}>
+                  <div className="text-base font-mono font-bold tracking-widest my-auto truncate text-white">
                     {card.number}
                   </div>
 
@@ -176,18 +182,18 @@ function CustomerSelfPaymentContent() {
 
                     <div className="flex gap-5 text-right">
                       <div className="flex flex-col">
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isSelected ? 'text-white/60' : 'text-[#5A6860]'}`}>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white/60">
                           Detail 1
                         </span>
-                        <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-[#1A2621]'}`}>
+                        <span className="text-xs font-bold text-white">
                           {card.holder}
                         </span>
                       </div>
                       <div className="flex flex-col">
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isSelected ? 'text-white/60' : 'text-[#5A6860]'}`}>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white/60">
                           Expiry 2
                         </span>
-                        <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-[#1A2621]'}`}>
+                        <span className="text-xs font-bold text-white">
                           {card.expiry}
                         </span>
                       </div>
@@ -360,17 +366,17 @@ function CustomerSelfPaymentContent() {
           /* Card Selected -> Goes to Card Details */
           <Link
             href={`/seat/${chairId}/card-details?card=${selectedCardId}&amount=${grandPayable}&tip=${tipAmount}`}
-            className="w-full py-4 bg-gradient-to-r from-[#1E3A2F] via-[#244436] to-[#C85A32] text-white text-sm font-black uppercase tracking-wider rounded-full flex items-center justify-center cursor-pointer active:opacity-90 shadow-[0_8px_25px_rgba(200,90,50,0.35)] hover:shadow-[0_10px_28px_rgba(200,90,50,0.4)] transition-all text-center"
+            className="w-full py-4 bg-gradient-to-r from-[#1E3A2F] via-[#244436] to-[#C85A32] text-white text-sm font-bold uppercase tracking-wider rounded-full flex items-center justify-center cursor-pointer active:opacity-90 shadow-[0_8px_25px_rgba(200,90,50,0.35)] hover:shadow-[0_10px_28px_rgba(200,90,50,0.4)] transition-all text-center"
           >
-            CONTINUE
+            Continue with Card
           </Link>
         ) : selectedMethod !== null ? (
           /* Method Selected -> Goes to Payment Success */
           <Link
             href={`/seat/${chairId}/payment-success?mode=${encodeURIComponent(selectedMethodName)}&amount=${grandPayable}&tip=${tipAmount}`}
-            className="w-full py-4 bg-gradient-to-r from-[#1E3A2F] via-[#244436] to-[#C85A32] text-white text-sm font-black uppercase tracking-wider rounded-full flex items-center justify-center cursor-pointer active:opacity-90 shadow-[0_8px_25px_rgba(200,90,50,0.35)] hover:shadow-[0_10px_28px_rgba(200,90,50,0.4)] transition-all text-center"
+            className="w-full py-4 bg-gradient-to-r from-[#1E3A2F] via-[#244436] to-[#C85A32] text-white text-sm font-bold uppercase tracking-wider rounded-full flex items-center justify-center cursor-pointer active:opacity-90 shadow-[0_8px_25px_rgba(200,90,50,0.35)] hover:shadow-[0_10px_28px_rgba(200,90,50,0.4)] transition-all text-center"
           >
-            CONTINUE
+            Pay ₹ {grandPayable} via {selectedMethodName}
           </Link>
         ) : (
           /* Nothing Selected */
@@ -379,7 +385,7 @@ function CustomerSelfPaymentContent() {
             disabled
             className="w-full py-4 border border-zinc-200 bg-zinc-100 text-zinc-400 text-sm font-bold uppercase tracking-wider rounded-full flex items-center justify-center cursor-not-allowed text-center opacity-70"
           >
-            SELECT PAYMENT METHOD
+            Select Payment Method
           </button>
         )}
       </div>
