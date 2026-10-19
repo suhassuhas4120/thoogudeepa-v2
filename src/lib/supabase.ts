@@ -499,6 +499,19 @@ export const realtimeBridge = {
               existing[targetItemId] = stage;
               existing[`${chair}-${targetItemId}`] = stage;
             }
+            if (meta?.dishId) {
+              existing[meta.dishId] = stage;
+              existing[`${chair}-${meta.dishId}`] = stage;
+              const cleanD = meta.dishId.replace(/^dish-/, '');
+              existing[cleanD] = stage;
+              existing[`${chair}-${cleanD}`] = stage;
+            }
+            if (meta?.dishName) {
+              existing[meta.dishName] = stage;
+              existing[`${chair}-${meta.dishName}`] = stage;
+              existing[meta.dishName.toLowerCase()] = stage;
+              existing[`${chair}-${meta.dishName.toLowerCase()}`] = stage;
+            }
             if (tNum) {
               existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
               existing[`${tNum}-${itemIdOrKey}`] = stage;
@@ -535,10 +548,16 @@ export const realtimeBridge = {
 
       // 3. Remote update if Supabase is connected
       if (supabase) {
-        const dbStage = stage === 'PLACED' ? 'REC' : stage;
-        if (targetItemId && targetItemId.includes('-') && targetItemId.length >= 20) {
-          await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItemId);
-        } else if (meta?.chairId) {
+        const dbStage = stage;
+        const isUuid = targetItemId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetItemId);
+        let updatedInDb = false;
+
+        if (isUuid) {
+          const { error: updErr } = await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItemId);
+          if (!updErr) updatedInDb = true;
+        }
+
+        if (!updatedInDb && meta?.chairId) {
           const cleanChair = meta.chairId.replace(/[^0-9]/g, '');
           const possibleChairs = [meta.chairId, cleanChair, cleanChair.padStart(2, '0')];
 
@@ -561,8 +580,14 @@ export const realtimeBridge = {
                 .in('order_id', targetIds);
 
               if (byOrderItems && byOrderItems.length > 0) {
-                const targetItem = byOrderItems.find((oi) => oi.id === targetItemId || oi.id === itemIdOrKey) ||
-                  byOrderItems.find((oi) => oi.dish_id === meta?.dishId && oi.stage !== dbStage);
+                const targetCleanDish = meta?.dishId ? meta.dishId.replace(/^dish-/, '') : '';
+                const targetItem =
+                  byOrderItems.find((oi) => oi.id === targetItemId || oi.id === itemIdOrKey) ||
+                  byOrderItems.find((oi) => {
+                    const oiClean = (oi.dish_id || '').replace(/^dish-/, '');
+                    return (oi.dish_id === meta?.dishId || (targetCleanDish && oiClean === targetCleanDish)) && oi.stage !== dbStage;
+                  }) ||
+                  byOrderItems.find((oi) => meta?.dishName && oi.dish_name?.toLowerCase().trim() === meta.dishName.toLowerCase().trim() && oi.stage !== dbStage);
                 if (targetItem) {
                   await supabase.from('order_items').update({ stage: dbStage, updated_at: new Date().toISOString() }).eq('id', targetItem.id);
                 }
@@ -576,7 +601,7 @@ export const realtimeBridge = {
           await supabase.from('orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('chair_id', meta.chairId).eq('status', 'pending');
         }
 
-        const liveChannel = supabase.channel('kitchen_realtime_feed');
+        const liveChannel = sharedSupabaseChannel || supabase.channel('kitchen_realtime_feed');
         liveChannel.send({
           type: 'broadcast',
           event: 'STAGE_CHANGE',
@@ -753,11 +778,23 @@ export const realtimeBridge = {
         if (it.stage) candidates.push(it.stage);
 
         const itemSpecificKey = it.id || `${tNum}-${it.dish_id}-${idx}`;
+        const cleanDish = (it.dish_id || '').replace(/^dish-/, '');
         const checkKeys = [
           it.id,
           it.id && `${chair}-${it.id}`,
           it.id && `${chair}-${tNum}-${it.id}`,
           it.id && `${tNum}-${it.id}`,
+          it.dish_id,
+          it.dish_id && `${chair}-${it.dish_id}`,
+          it.dish_id && `${tNum}-${it.dish_id}`,
+          it.dish_id && `${chair}-${tNum}-${it.dish_id}`,
+          cleanDish,
+          cleanDish && `${chair}-${cleanDish}`,
+          cleanDish && `${tNum}-${cleanDish}`,
+          cleanDish && `${chair}-${tNum}-${cleanDish}`,
+          it.dish_name,
+          it.dish_name && `${chair}-${it.dish_name}`,
+          it.dish_name && `${tNum}-${it.dish_name}`,
           itemSpecificKey,
           chair && `${chair}-${itemSpecificKey}`,
           chair && tNum && `${chair}-${tNum}-${itemSpecificKey}`,
@@ -812,10 +849,10 @@ export const realtimeBridge = {
 
           const remoteOrders = orders.map((o) => {
             const rawItems = (items || []).filter((it) => it.order_id === o.id).map((it) => {
-              const hasPlacedAddon = it.addons && Array.isArray(it.addons) && it.addons.includes('PLACED');
+              const dbStage = it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
               return {
                 ...it,
-                stage: hasPlacedAddon ? ('PLACED' as const) : (it.stage as 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'),
+                stage: dbStage || 'PLACED',
               };
             });
             const hydrated = this.hydrateOrderItemStages(o, rawItems);
@@ -1445,11 +1482,10 @@ export const realtimeBridge = {
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, (payload) => {
           const row = payload.new as any;
-          const hasPlacedAddon = row.addons && Array.isArray(row.addons) && row.addons.includes('PLACED');
-          const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = hasPlacedAddon ? 'PLACED' : row.stage;
+          const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = row.stage || 'PLACED';
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onStageChange) {
-              cb.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id });
+              cb.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id, itemId: row.id, dishName: row.dish_name });
             }
           });
         })

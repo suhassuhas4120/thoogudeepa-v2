@@ -48,7 +48,27 @@ export default function LiveOrderTrackingPage() {
         const tNum = res.order?.ticket_number || '';
         // 1. Sync session dishes with latest items from database
         setSession((prev) => {
-          if (!prev) return prev;
+          if (!prev) {
+            return {
+              seatId: cleanChair || chairId,
+              ticketNumber: tNum,
+              orderId: res.order?.id || `ord-${Date.now()}`,
+              orderStatus: (res.order?.status as any) || 'pending',
+              orderedAt: res.order?.created_at ? new Date(res.order.created_at).getTime() : Date.now(),
+              totalAmount: res.order?.total_amount || 0,
+              items: res.items.map((it) => ({
+                id: it.id || `dish-${it.dish_id}`,
+                dish_id: it.dish_id,
+                title: it.dish_name || 'Dish',
+                quantity: it.quantity,
+                price: it.price,
+                stage: it.stage,
+                notes: it.notes,
+                addons: it.addons,
+              })),
+              paymentStatus: 'unpaid',
+            };
+          }
           const updatedItems = res.items.map((it) => {
             const prevItem = prev.items?.find((p) =>
               (p.id && it.id && p.id === it.id) ||
@@ -80,13 +100,17 @@ export default function LiveOrderTrackingPage() {
           res.items.forEach((it) => {
             if (it.stage) {
               if (it.id) updated[it.id] = it.stage;
+              if (it.dish_id) updated[it.dish_id] = it.stage;
+              const clean = it.dish_id ? it.dish_id.replace(/^dish-/, '') : '';
+              if (clean) updated[clean] = it.stage;
+              if (it.dish_name) {
+                updated[it.dish_name] = it.stage;
+                updated[it.dish_name.toLowerCase()] = it.stage;
+              }
               if (tNum) {
                 if (it.id) updated[`${tNum}-${it.id}`] = it.stage;
-                if (it.dish_id) {
-                  updated[`${tNum}-${it.dish_id}`] = it.stage;
-                  const clean = it.dish_id.replace(/^dish-/, '');
-                  updated[`${tNum}-${clean}`] = it.stage;
-                }
+                if (it.dish_id) updated[`${tNum}-${it.dish_id}`] = it.stage;
+                if (clean) updated[`${tNum}-${clean}`] = it.stage;
                 if (it.dish_name) {
                   updated[`${tNum}-${it.dish_name}`] = it.stage;
                   updated[`${tNum}-${it.dish_name.toLowerCase()}`] = it.stage;
@@ -173,20 +197,52 @@ export default function LiveOrderTrackingPage() {
           const nextStages = { ...prev };
           const stage = data.stage;
           if (data.itemId) nextStages[data.itemId] = stage;
-          if (data.key && data.key.includes('-')) nextStages[data.key] = stage;
-          if (data.ticketNumber) {
-            if (data.itemId) nextStages[`${data.ticketNumber}-${data.itemId}`] = stage;
+          if (data.key) nextStages[data.key] = stage;
+          if (data.dishId) {
+            nextStages[data.dishId] = stage;
+            const clean = data.dishId.replace(/^dish-/, '');
+            nextStages[clean] = stage;
+          }
+          if (data.dishName) {
+            nextStages[data.dishName] = stage;
+            nextStages[data.dishName.toLowerCase()] = stage;
+            nextStages[data.dishName.toLowerCase().trim()] = stage;
+          }
+          const tNum = data.ticketNumber || '';
+          if (tNum) {
+            if (data.itemId) nextStages[`${tNum}-${data.itemId}`] = stage;
             if (data.dishId) {
-              nextStages[`${data.ticketNumber}-${data.dishId}`] = stage;
+              nextStages[`${tNum}-${data.dishId}`] = stage;
               const clean = data.dishId.replace(/^dish-/, '');
-              nextStages[`${data.ticketNumber}-${clean}`] = stage;
+              nextStages[`${tNum}-${clean}`] = stage;
             }
             if (data.dishName) {
-              nextStages[`${data.ticketNumber}-${data.dishName}`] = stage;
-              nextStages[`${data.ticketNumber}-${data.dishName.toLowerCase()}`] = stage;
+              nextStages[`${tNum}-${data.dishName}`] = stage;
+              nextStages[`${tNum}-${data.dishName.toLowerCase()}`] = stage;
             }
           }
           return nextStages;
+        });
+
+        // Update active session items stage immediately
+        setSession((prev) => {
+          if (!prev || !prev.items) return prev;
+          const targetCleanDish = data.dishId ? data.dishId.replace(/^dish-/, '') : '';
+          const updatedItems = prev.items.map((it) => {
+            const cleanDishId = (it.dish_id || it.id || '').replace(/^dish-/, '');
+            const matches =
+              Boolean(data.itemId && it.id && it.id === data.itemId) ||
+              Boolean(data.key && it.id && it.id === data.key) ||
+              Boolean(data.dishId && it.dish_id && it.dish_id === data.dishId) ||
+              Boolean(targetCleanDish && cleanDishId && cleanDishId === targetCleanDish) ||
+              Boolean(data.dishName && it.title && it.title.toLowerCase().trim() === data.dishName.toLowerCase().trim());
+
+            if (matches) {
+              return { ...it, stage: data.stage };
+            }
+            return it;
+          });
+          return { ...prev, items: updatedItems };
         });
 
         // Trigger authoritative refresh
@@ -348,11 +404,17 @@ export default function LiveOrderTrackingPage() {
                   isDispatched
                     ? 'SERVED'
                     : (dish.id && itemStages[dish.id]) ||
+                      (dish.dish_id && itemStages[dish.dish_id]) ||
+                      (cleanDishNum && itemStages[cleanDishNum]) ||
+                      (dish.title && itemStages[dish.title]) ||
+                      (dish.title && itemStages[dish.title.toLowerCase()]) ||
+                      (dish.title && itemStages[dish.title.toLowerCase().trim()]) ||
                       (tNum && dish.id && itemStages[`${tNum}-${dish.id}`]) ||
                       (tNum && dish.dish_id && itemStages[`${tNum}-${dish.dish_id}`]) ||
                       (tNum && cleanDishNum && itemStages[`${tNum}-${cleanDishNum}`]) ||
                       (tNum && dish.title && itemStages[`${tNum}-${dish.title}`]) ||
                       (tNum && dish.title && itemStages[`${tNum}-${dish.title.toLowerCase()}`]) ||
+                      (tNum && dish.title && itemStages[`${tNum}-${dish.title.toLowerCase().trim()}`]) ||
                       (dish as any).stage ||
                       'PLACED';
 
