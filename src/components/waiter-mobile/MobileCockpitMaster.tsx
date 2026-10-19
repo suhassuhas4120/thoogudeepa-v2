@@ -251,8 +251,8 @@ export const MobileCockpitMaster: React.FC = () => {
         refreshSeats();
         refreshAlerts();
         const curSeat = selectedSeatRef.current || '';
-        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-        const targetChair = payload?.order?.chair_id ? payload.order.chair_id.replace(/[^0-9]/g, '') : '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const targetChair = payload?.order?.chair_id ? payload.order.chair_id.replace(/[^0-9]/g, '').replace(/^0+/, '') : '';
         if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
           syncCartForSeat(cleanCurSeat);
         }
@@ -260,8 +260,8 @@ export const MobileCockpitMaster: React.FC = () => {
       onStageChange: (data) => {
         refreshAlerts();
         const curSeat = selectedSeatRef.current || '';
-        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '').replace(/^0+/, '') : '';
 
         // Only update cartItems if the event belongs to the currently opened seat
         if (targetChair && cleanCurSeat && targetChair !== cleanCurSeat) {
