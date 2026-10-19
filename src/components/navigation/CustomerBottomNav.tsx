@@ -129,7 +129,7 @@ export default function CustomerBottomNav({
               >
                 <Icon
                   className={`transition-all ${
-                    isSelected ? 'w-5 h-5 stroke-[2] fill-current' : 'w-5 h-5 stroke-[1.8]'
+                    isSelected ? 'w-5 h-5 stroke-[2.4]' : 'w-5 h-5 stroke-[1.8]'
                   }`}
                 />
 
