@@ -3,10 +3,11 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, Bell, Plus, Check } from 'lucide-react';
+import { ChevronLeft, Bell, Plus, Check, QrCode, Banknote, CheckCircle2 } from 'lucide-react';
 import { useHardwareBack } from '../../../../lib/hooks/useHardwareBack';
 import { getActiveDiningSession, ActiveDiningSession } from '../../../../lib/session/diningSession';
 import { getMenuItemById } from '../../../../lib/data/menuData';
+import { realtimeBridge } from '../../../../lib/supabase';
 
 function CustomerSelfPaymentContent() {
   const params = useParams();
@@ -22,6 +23,8 @@ function CustomerSelfPaymentContent() {
   const [session, setSession] = useState<ActiveDiningSession | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<number | null>(1);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+
+  const normalizeSeatId = (id?: string | null) => (id || '').replace(/[^0-9]/g, '').replace(/^0+/, '') || '0';
 
   useEffect(() => {
     const s = getActiveDiningSession();
@@ -49,6 +52,42 @@ function CustomerSelfPaymentContent() {
   const billTotal = itemsSubtotal + gstAmount;
 
   const grandPayable = amountParam ? Number(amountParam) : (billTotal + tipAmount);
+
+  useEffect(() => {
+    const unsub = realtimeBridge.subscribeKDS({
+      onBillModeActive: (data) => {
+        const targetNorm = normalizeSeatId(data.normChairId || data.chairId || data.rawChairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if (targetNorm === currentNorm || data.chairId === chairId || data.rawChairId === chairId) {
+          if (data.mode === 'cash') {
+            setSelectedMethod(4);
+            setSelectedCardId(null);
+          } else {
+            setSelectedMethod(1);
+            setSelectedCardId(null);
+          }
+        }
+      },
+      onBillSettled: (data) => {
+        const targetNorm = normalizeSeatId(data.normChairId || data.chairId || data.rawChairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if (targetNorm === currentNorm || data.chairId === chairId || data.rawChairId === chairId) {
+          const modeVal = data.paymentMethod || 'Cash';
+          const amtVal = data.amount || grandPayable;
+          window.location.replace(`/seat/${chairId}/payment-success?mode=${encodeURIComponent(modeVal)}&amount=${amtVal}&tip=${tipAmount}`);
+        }
+      },
+      onSeatOccupancyChange: (data) => {
+        const targetNorm = normalizeSeatId(data.chairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if ((targetNorm === currentNorm || data.chairId === chairId) && !data.isOccupied) {
+          window.location.replace(`/seat/${chairId}/payment-success?mode=Cash&amount=${grandPayable}&tip=${tipAmount}`);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [chairId, grandPayable, tipAmount]);
 
   const cards = [
     {
@@ -256,6 +295,51 @@ function CustomerSelfPaymentContent() {
             })}
           </div>
         </div>
+
+        {/* Dynamic Synchronized Payment Method Display */}
+        {selectedMethod === 1 && (
+          <div className="w-full border border-emerald-300 bg-emerald-50/90 rounded-3xl p-5 flex flex-col items-center text-center gap-3 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.08)] animate-in fade-in duration-200">
+            <div className="flex items-center gap-2 text-emerald-950 font-black text-xs uppercase tracking-wider">
+              <QrCode className="w-4 h-4 text-emerald-700" />
+              <span>UPI QR Code Payment</span>
+            </div>
+
+            <div className="p-3 bg-[#FFFEFC] border border-[rgba(220,226,222,0.9)] rounded-2xl shadow-sm">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=thoogudeepa@okicici&pn=Thoogudeepa&am=${grandPayable}&tn=Seat-${chairId}`)}`}
+                alt="UPI QR Code"
+                className="w-40 h-40 object-contain rounded-xl"
+              />
+            </div>
+
+            <div className="flex flex-col items-center text-center">
+              <span className="text-sm font-black text-[#1A2621] font-mono">
+                Pay ₹ {grandPayable}
+              </span>
+              <span className="text-[10px] text-[#5A6860] font-bold mt-0.5">
+                Scan with any UPI app (GPay, PhonePe, Paytm, BHIM)
+              </span>
+            </div>
+          </div>
+        )}
+
+        {selectedMethod === 4 && (
+          <div className="w-full border border-amber-300 bg-amber-50/90 rounded-3xl p-5 flex flex-col items-center text-center gap-2 shadow-sm animate-in fade-in duration-200">
+            <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 mb-0.5">
+              <Banknote className="w-5 h-5" />
+            </div>
+            <span className="text-xs font-black text-amber-950 uppercase tracking-wider">
+              Cash Payment Selected
+            </span>
+            <p className="text-xs text-amber-900 font-bold">
+              Please hand over <span className="font-black text-sm text-[#1A2621]">₹{grandPayable}</span> in cash to your Floor Captain.
+            </p>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-200/60 rounded-full text-[10px] font-extrabold text-amber-900 mt-1">
+              <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
+              <span>Captain is collecting cash and finalizing your bill...</span>
+            </div>
+          </div>
+        )}
 
         {/* Items & Price Breakdown Section */}
         <div className="w-full rounded-3xl p-5 flex flex-col gap-4 bg-gradient-to-b from-[#FAF8F5] via-[#F2EFE8] to-[#E5ECE5] border border-[#DCE4DC] shadow-[0_12px_28px_-6px_rgba(50,70,55,0.1)]">

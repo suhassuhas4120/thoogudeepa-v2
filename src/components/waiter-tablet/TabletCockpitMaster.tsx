@@ -487,7 +487,7 @@ export const TabletCockpitMaster: React.FC = () => {
     await handleOpenOrder(seatId, seatName, customer, amount, true);
     setIsDining(true);
     setRightPaneMode('bill');
-    realtimeBridge.notifyBillModeActive(seatName, amount);
+    realtimeBridge.notifyBillModeActive(seatName, amount, { mode: 'qr' });
   };
 
   // Handler: Quick switch target seat from menu subheader
@@ -735,7 +735,7 @@ export const TabletCockpitMaster: React.FC = () => {
                     onSwitchToBillMode={() => {
                       setRightPaneMode('bill');
                       const cleanChair = activeSeatName.split(':')[0].trim();
-                      realtimeBridge.notifyBillModeActive(cleanChair, grandTotal);
+                      realtimeBridge.notifyBillModeActive(cleanChair, grandTotal, { mode: 'qr' });
                     }}
                     onClearTicket={handleClearTicket}
                   />

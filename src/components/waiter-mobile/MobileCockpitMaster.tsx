@@ -576,10 +576,12 @@ export const MobileCockpitMaster: React.FC = () => {
     setSelectedGuestName(guest);
     setSelectedBillAmount(amount);
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    let fetchedTicket: string | undefined = undefined;
     if (cleanChair) {
       try {
         const details = await realtimeBridge.getOrderForSeat(cleanChair);
         if (details.order?.ticket_number) {
+          fetchedTicket = details.order.ticket_number;
           setActiveTicketNumber(details.order.ticket_number);
         }
         if (details.items && details.items.length > 0) {
@@ -615,7 +617,7 @@ export const MobileCockpitMaster: React.FC = () => {
       }
     }
     setActiveScreen('bill');
-    realtimeBridge.notifyBillModeActive(seatNum, amount);
+    realtimeBridge.notifyBillModeActive(seatNum, amount, { mode: 'qr', ticketNumber: fetchedTicket });
     showToast(`Loaded checkout receipt for ${seatNum}`);
   }, [showToast]);
 

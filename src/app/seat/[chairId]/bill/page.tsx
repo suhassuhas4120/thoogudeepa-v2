@@ -57,6 +57,46 @@ export default function OrderSummaryBillPage() {
   const tipAmountRef = React.useRef(tipAmount);
   tipAmountRef.current = tipAmount;
 
+  const normalizeSeatId = (id?: string | null) => (id || '').replace(/[^0-9]/g, '').replace(/^0+/, '') || '0';
+
+  const handleCallCaptain = () => {
+    setWaiterCalled(true);
+    setShowWaiterModal(false);
+    const cleanNum = normalizeSeatId(chairId);
+    const paddedSeat = `Seat ${cleanNum.padStart(2, '0')}`;
+    realtimeBridge.requestBill(chairId, grandPayable, {
+      chairId,
+      seatNumber: paddedSeat,
+      orderId: session?.orderId || '',
+      ticketNumber: session?.ticketNumber,
+      amount: grandPayable,
+      items: (session?.items || []).map((it) => ({
+        id: it.id,
+        title: it.title,
+        quantity: it.quantity,
+        price: it.price,
+      })),
+    });
+    realtimeBridge.sendServiceAlert({
+      seatNumber: paddedSeat,
+      title: `Bill Requested (₹${grandPayable})`,
+      message: `Bill settlement requested for Seat ${cleanNum}: ₹${grandPayable}${tipAmount > 0 ? ` (incl. ₹${tipAmount} tip)` : ''}`,
+      guestName: `Seat ${cleanNum} Guest`,
+      type: 'customer_call',
+      billAmount: grandPayable,
+      isUrgent: true,
+    }).catch(console.error);
+  };
+
+  useEffect(() => {
+    if (waiterSelectedMode === 'qr' || waiterSelectedMode === 'cash') {
+      const el = document.getElementById('waiter-payment-sync-card');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [waiterSelectedMode]);
+
   useEffect(() => {
     // Restore any previously chosen tip for this seat
     if (typeof window !== 'undefined') {
@@ -67,9 +107,14 @@ export default function OrderSummaryBillPage() {
     }
 
     const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const normChair = normalizeSeatId(chairId);
 
     // 1. Prioritize active bill request with verified items from Floor Captain
-    const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
+    const activeReq =
+      realtimeBridge.getActiveBillRequest(chairId) ||
+      realtimeBridge.getActiveBillRequest(cleanChair) ||
+      realtimeBridge.getActiveBillRequest(normChair);
+
     if (activeReq && activeReq.items && activeReq.items.length > 0) {
       setWaiterCalled(true);
       const verifiedSession: ActiveDiningSession = {
@@ -132,30 +177,30 @@ export default function OrderSummaryBillPage() {
     // Supplementary check: if seat is already in billing mode from waiter actions
     realtimeBridge.getFloorSeats().then((floorSeats) => {
       const currentSeat = floorSeats.find((s) => {
-        const c1 = s.seatNumber.replace(/[^0-9]/g, '');
-        const c2 = s.id.replace(/[^0-9]/g, '');
-        return c1 === cleanChair || c2 === cleanChair || s.id === chairId;
+        const c1 = normalizeSeatId(s.seatNumber);
+        const c2 = normalizeSeatId(s.id);
+        return c1 === normChair || c2 === normChair || s.id === chairId;
       });
       if (currentSeat && currentSeat.status === 'billing') {
         setWaiterCalled(true);
+        setWaiterSelectedMode('qr');
       }
     });
 
     const unsub = realtimeBridge.subscribeKDS({
       onBillModeActive: (data) => {
-        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
-        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
-        if (cleanTarget === cleanCurrent || data.chairId === chairId) {
+        const targetNorm = normalizeSeatId(data.normChairId || data.chairId || data.rawChairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if (targetNorm === currentNorm || data.chairId === chairId || data.rawChairId === chairId) {
           setWaiterCalled(true);
-          if (data.mode === 'qr' || data.mode === 'cash') {
-            setWaiterSelectedMode(data.mode);
-          }
+          const activeMode = data.mode === 'cash' ? 'cash' : 'qr';
+          setWaiterSelectedMode(activeMode);
         }
       },
       onBillRequested: (data) => {
-        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
-        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
-        if (cleanTarget === cleanCurrent || data.chairId === chairId) {
+        const targetNorm = normalizeSeatId(data.normChairId || data.chairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if (targetNorm === currentNorm || data.chairId === chairId) {
           setWaiterCalled(true);
           if (data.verification?.items && data.verification.items.length > 0) {
             const syncedItems = data.verification.items.map((it, idx) => ({
@@ -180,9 +225,9 @@ export default function OrderSummaryBillPage() {
         }
       },
       onBillSettled: (data) => {
-        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
-        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
-        if (cleanTarget === cleanCurrent || data.chairId === chairId) {
+        const targetNorm = normalizeSeatId(data.normChairId || data.chairId || data.rawChairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if (targetNorm === currentNorm || data.chairId === chairId || data.rawChairId === chairId) {
           const modeVal = data.paymentMethod || 'Cash';
           const amtVal = data.amount || grandPayableRef.current;
           try {
@@ -204,9 +249,9 @@ export default function OrderSummaryBillPage() {
         }
       },
       onSeatOccupancyChange: (data) => {
-        const cleanTarget = data.chairId.replace(/[^0-9]/g, '');
-        const cleanCurrent = chairId.replace(/[^0-9]/g, '');
-        if ((cleanTarget === cleanCurrent || data.chairId === chairId) && !data.isOccupied) {
+        const targetNorm = normalizeSeatId(data.chairId);
+        const currentNorm = normalizeSeatId(chairId);
+        if ((targetNorm === currentNorm || data.chairId === chairId) && !data.isOccupied) {
           window.location.replace(`/seat/${chairId}/payment-success?mode=Cash&amount=${grandPayableRef.current}&tip=${tipAmountRef.current}`);
         }
       }
@@ -488,14 +533,14 @@ export default function OrderSummaryBillPage() {
             {/* Pay via Waiter */}
             <button
               type="button"
-              onClick={() => setShowWaiterModal(true)}
+              onClick={handleCallCaptain}
               className={`w-full border py-3 px-3 text-xs sm:text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-85 transition-all shadow-2xs text-center ${
                 waiterCalled
                   ? 'border-[#244436] bg-[#244436] text-white'
                   : 'border-[rgba(220,226,222,0.9)] bg-[#FFFEFC] text-[#1A2621] hover:border-[#244436]/40'
               }`}
             >
-              Pay via Waiter
+              {waiterCalled ? 'Floor Captain Called ✓' : 'Pay via Waiter'}
             </button>
 
             {/* Self Pay */}
@@ -519,7 +564,7 @@ export default function OrderSummaryBillPage() {
 
           {/* Synchronized Pay via Waiter Settlement View */}
           {waiterCalled && (
-            <div className="w-full flex flex-col gap-3 pt-2">
+            <div id="waiter-payment-sync-card" className="w-full flex flex-col gap-3 pt-2">
               {/* Scenario 1: Floor Captain selected UPI QR */}
               {waiterSelectedMode === 'qr' && (
                 <div className="w-full border border-emerald-300 bg-emerald-50/90 rounded-2xl p-4 flex flex-col items-center text-center gap-3 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.08)] animate-in fade-in duration-200">

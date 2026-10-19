@@ -171,10 +171,10 @@ export type KDSCallbacks = {
   onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
   onNewAlert?: (alert: ServiceAlertRecord) => void;
   onResolveAlert?: (alertId: string) => void;
-  onBillRequested?: (data: { chairId: string; amount?: number; verification?: BillVerificationPayload }) => void;
-  onBillModeActive?: (data: { chairId: string; amount?: number; mode?: 'qr' | 'cash'; ticketNumber?: string }) => void;
-  onCustomerPaidUpi?: (data: { chairId: string; rawChairId?: string; amount?: number; ticketNumber?: string }) => void;
-  onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string; ticketNumber?: string }) => void;
+  onBillRequested?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; verification?: BillVerificationPayload }) => void;
+  onBillModeActive?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; mode?: 'qr' | 'cash'; ticketNumber?: string }) => void;
+  onCustomerPaidUpi?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; ticketNumber?: string }) => void;
+  onBillSettled?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; paymentMethod?: string; ticketNumber?: string }) => void;
   onClearAll?: () => void;
 };
 
@@ -1107,12 +1107,14 @@ export const realtimeBridge = {
     };
 
     const requests = getLocalBillRequests();
+    const norm = cleanChair.replace(/^0+/, '') || '0';
     requests[cleanChair] = payload;
     requests[chairId] = payload;
+    requests[norm] = payload;
     setLocalBillRequests(requests);
 
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId: cleanChair, amount, payload });
+      localChannel.postMessage({ type: 'BILL_REQUESTED', chairId: cleanChair, rawChairId: chairId, normChairId: norm, amount, payload });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
@@ -1128,15 +1130,18 @@ export const realtimeBridge = {
   // Check if a specific seat has an active, customer-confirmed bill request
   getActiveBillRequest(chairId: string): BillVerificationPayload | null {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const norm = cleanChair.replace(/^0+/, '') || '0';
     const requests = getLocalBillRequests();
-    return requests[cleanChair] || requests[chairId] || null;
+    return requests[cleanChair] || requests[norm] || requests[chairId] || null;
   },
 
   // Clear bill request for a seat
   clearActiveBillRequest(chairId: string): void {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const norm = cleanChair.replace(/^0+/, '') || '0';
     const requests = getLocalBillRequests();
     delete requests[cleanChair];
+    delete requests[norm];
     delete requests[chairId];
     setLocalBillRequests(requests);
   },
@@ -1148,22 +1153,36 @@ export const realtimeBridge = {
     meta?: { mode?: 'qr' | 'cash'; ticketNumber?: string }
   ): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
+    const norm = cleanChair.replace(/^0+/, '') || '0';
+    const padded = norm.padStart(2, '0');
+
     const map = getLocalOccupancyMap();
-    if (map[cleanChair]) {
-      map[cleanChair].status = 'billing';
-      setLocalOccupancyMap(map);
-    }
+    if (map[cleanChair]) map[cleanChair].status = 'billing';
+    if (map[norm]) map[norm].status = 'billing';
+    if (map[padded]) map[padded].status = 'billing';
+    if (map[chairId]) map[chairId].status = 'billing';
+    setLocalOccupancyMap(map);
+
     const mode = meta?.mode || 'qr';
     const ticketNumber = meta?.ticketNumber;
+    const payload = {
+      chairId: cleanChair,
+      rawChairId: chairId,
+      normChairId: norm,
+      amount,
+      mode,
+      ticketNumber
+    };
+
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount, mode, ticketNumber });
+      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', ...payload });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_MODE_ACTIVE',
-        payload: { chairId: cleanChair, amount, mode, ticketNumber }
+        payload
       });
     }
     return true;
@@ -1231,20 +1250,20 @@ export const realtimeBridge = {
 
     const settledTicket = meta?.ticketNumber;
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, paymentMethod, amount, ticketNumber: settledTicket });
-      localChannel.postMessage({ type: 'SEAT_RELEASED', chairId: cleanChair });
+      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, normChairId: unpadded, paymentMethod, amount, ticketNumber: settledTicket });
+      localChannel.postMessage({ type: 'SEAT_RELEASED', chairId: cleanChair, rawChairId: chairId, normChairId: unpadded });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_SETTLED',
-        payload: { chairId: cleanChair, rawChairId: chairId, paymentMethod, amount, ticketNumber: settledTicket }
+        payload: { chairId: cleanChair, rawChairId: chairId, normChairId: unpadded, paymentMethod, amount, ticketNumber: settledTicket }
       });
       liveChannel.send({
         type: 'broadcast',
         event: 'SEAT_RELEASED',
-        payload: { chairId: cleanChair }
+        payload: { chairId: cleanChair, rawChairId: chairId, normChairId: unpadded }
       });
     }
 
@@ -1641,7 +1660,14 @@ export const realtimeBridge = {
         } else if (data.type === 'BILL_MODE_ACTIVE') {
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onBillModeActive) {
-              cb.onBillModeActive({ chairId: data.chairId, amount: data.amount, mode: data.mode, ticketNumber: data.ticketNumber });
+              cb.onBillModeActive({
+                chairId: data.chairId,
+                rawChairId: data.rawChairId,
+                normChairId: data.normChairId,
+                amount: data.amount,
+                mode: data.mode,
+                ticketNumber: data.ticketNumber
+              });
             }
           });
         } else if (data.type === 'CUSTOMER_PAID_UPI') {
@@ -1653,7 +1679,14 @@ export const realtimeBridge = {
         } else if (data.type === 'BILL_SETTLED') {
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onBillSettled) {
-              cb.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod, ticketNumber: data.ticketNumber });
+              cb.onBillSettled({
+                chairId: data.chairId,
+                rawChairId: data.rawChairId,
+                normChairId: data.normChairId,
+                amount: data.amount,
+                paymentMethod: data.paymentMethod,
+                ticketNumber: data.ticketNumber
+              });
             }
           });
         } else if (data.type === 'AVAILABILITY_CHANGE') {
