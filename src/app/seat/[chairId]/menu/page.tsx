@@ -285,7 +285,7 @@ export default function CustomerMenuPage() {
                       </div>
                     )}
 
-                    {/* Small Heart Like Button beside Add */}
+                    {/* Small Heart Like Button beside Add with subtle orange border */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -293,14 +293,14 @@ export default function CustomerMenuPage() {
                         e.stopPropagation();
                         toggleLike(item.id);
                       }}
-                      className="w-7 h-7 shrink-0 border border-[#DCE4DC] rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 bg-transparent hover:border-[#1E3A2F]"
+                      className="w-7 h-7 shrink-0 border border-[#C85A32]/60 rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 bg-transparent hover:border-[#C85A32]"
                       aria-label="Like item"
                     >
                       <Heart
                         className={`w-3.5 h-3.5 transition-all ${
                           isLiked
                             ? 'fill-[#1E3A2F] text-[#1E3A2F]'
-                            : 'text-[#8C7A6B] hover:text-[#1E3A2F]'
+                            : 'text-[#C85A32]/70 hover:text-[#C85A32]'
                         }`}
                       />
                     </button>
