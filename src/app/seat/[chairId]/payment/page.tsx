@@ -132,8 +132,8 @@ function CustomerSelfPaymentContent() {
         {/* Horizontal Slidable Cards Carousel */}
         <div className="w-full overflow-x-auto no-scrollbar py-2 -mx-4 px-4 snap-x snap-mandatory">
           <div className="flex gap-4 w-max">
-            {cards.map((card, idx) => {
-              const isSelected = selectedCardId === card.id || (selectedCardId === null && idx === 0);
+            {cards.map((card) => {
+              const isSelected = selectedCardId === card.id;
 
               return (
                 <div
