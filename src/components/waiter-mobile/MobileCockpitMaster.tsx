@@ -43,8 +43,7 @@ import {
   DEFAULT_STAFF_ACCOUNTS,
   generateSeatsForStaff,
   SAMPLE_MENU_ITEMS,
-  RESTAURANT_CONSTANTS,
-  generateSeatsForStaff
+  RESTAURANT_CONSTANTS
 } from './types';
 import { realtimeBridge } from '../../lib/supabase';
 import MobileLogin from './MobileLogin';
@@ -67,11 +66,6 @@ export const MobileCockpitMaster: React.FC = () => {
   const activeAccountRef = useRef<WaiterAuthAccount>(activeWaiterAccount);
   activeAccountRef.current = activeWaiterAccount;
 
-<<<<<<< HEAD
-  // Floor Seats State (Dynamically populated based on active waiter's seat assignment)
-  const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
-  const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
-=======
   // Floor Seats State (Generated for active waiter)
   const [seats, setSeats] = useState<SeatEntity[]>(() => generateSeatsForStaff(DEFAULT_STAFF_ACCOUNTS[0]));
   const [selectedSeatNumber, setSelectedSeatNumber] = useState<string>('Seat 02');
@@ -105,7 +99,6 @@ export const MobileCockpitMaster: React.FC = () => {
     setHasMounted(true);
   }, []);
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
->>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
   const [selectedBillAmount, setSelectedBillAmount] = useState<number>(0);
 
@@ -409,11 +402,7 @@ export const MobileCockpitMaster: React.FC = () => {
   // Handle successful staff PIN login
   const handleLoginSuccess = useCallback((account: WaiterAuthAccount) => {
     setActiveWaiterAccount(account);
-<<<<<<< HEAD
-    setSeats(generateSeatsForStaff(account));
-=======
     activeAccountRef.current = account;
->>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
     setIsAuthenticated(true);
     const newSeats = generateSeatsForStaff(account);
     setSeats(newSeats);
@@ -445,17 +434,6 @@ export const MobileCockpitMaster: React.FC = () => {
     refreshSeats(staff);
     showToast(`Switched to ${staff.seatRange}`);
   }, [refreshSeats, showToast]);
-
-  // Handle dynamic zone change
-  const handleZoneChange = useCallback((zoneLabel: string) => {
-    const staff = DEFAULT_STAFF_ACCOUNTS.find(s => 
-      zoneLabel.toLowerCase().includes(s.seatRange.toLowerCase()) || 
-      zoneLabel.toLowerCase().includes(s.zone.toLowerCase())
-    ) || activeWaiterAccount;
-    setActiveWaiterAccount(staff);
-    setSeats(generateSeatsForStaff(staff));
-    showToast(`Switched to ${staff.seatRange}`);
-  }, [activeWaiterAccount, showToast]);
 
   // Handle waiter logout / end shift
   const handleEndShift = useCallback(() => {
@@ -736,10 +714,10 @@ export const MobileCockpitMaster: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col justify-center items-center bg-slate-900 p-0 sm:p-4 select-none">
+    <div className="w-full h-screen h-[100dvh] min-h-[100dvh] flex flex-col justify-center items-center bg-slate-900 p-0 sm:p-4 select-none overflow-hidden">
       
       {/* 425px Modern Smartphone Viewport Container */}
-      <main className="w-full max-w-[425px] h-full sm:h-[860px] bg-[#F8FAFC] sm:rounded-[36px] sm:border sm:border-slate-700 shadow-2xl flex flex-col relative overflow-hidden">
+      <main className="w-full max-w-[425px] h-full sm:h-[860px] max-h-[100dvh] bg-[#F8FAFC] sm:rounded-[36px] sm:border sm:border-slate-700 shadow-2xl flex flex-col relative overflow-hidden">
         
         {/* Interactive Toast Banner */}
         {toastMessage && (

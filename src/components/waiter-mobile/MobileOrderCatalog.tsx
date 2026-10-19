@@ -126,7 +126,7 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
   }, []);
 
   return (
-    <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden relative">
+    <div className="w-full flex-1 min-h-0 flex flex-col bg-slate-50 select-none overflow-hidden relative">
       
       {/* Top Order Pad Header: Hotel Name FIRST, Waiter Below, Bell Always on Right */}
       <header className="p-3 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 select-none z-20">

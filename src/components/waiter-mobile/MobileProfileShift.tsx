@@ -108,7 +108,7 @@ export const MobileProfileShift: React.FC<MobileProfileShiftProps> = ({
   }, [onPrintShiftReport, onShowToast]);
 
   return (
-    <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden relative">
+    <div className="w-full flex-1 min-h-0 flex flex-col bg-slate-50 select-none overflow-hidden relative">
       
       {/* Top Profile Header with Hotel Name and Back Arrow */}
       <header className="p-3 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 select-none z-20">

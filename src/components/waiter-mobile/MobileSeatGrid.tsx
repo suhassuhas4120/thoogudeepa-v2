@@ -114,7 +114,7 @@ export const MobileSeatGrid: React.FC<MobileSeatGridProps> = ({
   }, [onOpenTakeOrder, onOpenViewOrder, onOpenSeatOrder, onOpenSeatBill]);
 
   return (
-    <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden">
+    <div className="w-full flex-1 min-h-0 flex flex-col bg-slate-50 select-none overflow-hidden">
       
       {/* Sticky Filter Controls Sub-Bar */}
       <div className="px-3 py-2 bg-white border-b border-slate-200 shrink-0 shadow-2xs">
