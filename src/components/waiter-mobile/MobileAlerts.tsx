@@ -70,7 +70,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
   const totalPending = alerts.length;
 
   return (
-    <div className="w-full flex-1 flex flex-col bg-slate-50 select-none overflow-hidden">
+    <div className="w-full flex-1 min-h-0 flex flex-col bg-slate-50 select-none overflow-hidden">
       
       {/* Top Alerts Header with Hotel Name and Back Arrow */}
       <header className="p-3 bg-white border-b border-slate-200 flex items-center justify-between shadow-2xs shrink-0 select-none z-20">
@@ -306,18 +306,6 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
             )}
           </div>
         )}
-
-        {/* Floor Pass Telemetry Status Footer */}
-        <div className="mt-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between text-[10px] text-slate-500 font-semibold">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-800 font-bold">Kitchen Pass Stream:</span>
-            <span>Real-Time WebSocket Active</span>
-          </div>
-          <span className="text-[9px] text-slate-400 font-bold">
-            Sync: 0s ago
-          </span>
-        </div>
 
       </div>
 

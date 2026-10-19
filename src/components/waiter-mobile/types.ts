@@ -230,9 +230,18 @@ export const DEFAULT_STAFF_ACCOUNTS: WaiterAuthAccount[] = [
  */
 export const generateSeatsForStaff = (account: WaiterAuthAccount): SeatEntity[] => {
   let baseNumber = 1;
-  if (account.id === '2' || account.name.includes('Suresh')) baseNumber = 11;
-  else if (account.id === '3' || account.name.includes('Anand')) baseNumber = 21;
-  else if (account.id === '4' || account.name.includes('Deepa') || account.name.includes('Dinesh')) baseNumber = 31;
+  if (account?.seatRange) {
+    const match = account.seatRange.match(/\d+/);
+    if (match) {
+      baseNumber = parseInt(match[0], 10);
+    }
+  }
+  if (!baseNumber || isNaN(baseNumber)) {
+    if (account?.id === '2' || account?.name?.includes('Suresh')) baseNumber = 11;
+    else if (account?.id === '3' || account?.name?.includes('Anand')) baseNumber = 21;
+    else if (account?.id === '4' || account?.name?.includes('Deepa') || account?.name?.includes('Dinesh')) baseNumber = 31;
+    else baseNumber = 1;
+  }
 
   const mockGuests = [
     { name: 'Karthik R', total: 850, duration: '24m', status: 'occupied' as const },

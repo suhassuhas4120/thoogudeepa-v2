@@ -150,9 +150,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   return (
     <>
-      <div className="w-full select-none shrink-0 relative z-30">
-        {/* Main Bottom Smartphone Navigation Dock */}
-        <nav className="h-16 bg-white border-t border-slate-200 px-3 flex items-center justify-around shadow-xs">
+      <div className="w-full select-none shrink-0 sticky bottom-0 left-0 right-0 z-40 mt-auto bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+        {/* Main Bottom Smartphone Navigation Dock (Sticky Pinned to Viewport Bottom) */}
+        <nav className="h-16 bg-white px-3 flex items-center justify-around">
           {navItems.map(item => {
             const isActive = activeScreen === item.id;
             const IconComponent = item.icon;
