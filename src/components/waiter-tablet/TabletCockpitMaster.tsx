@@ -152,6 +152,10 @@ export const TabletCockpitMaster: React.FC = () => {
         id: a.id,
         type: a.type === 'kitchen_ready' ? ('kitchen' as const) : ('customer' as const),
         seatNumber: a.seatNumber,
+        chairId: a.chairId,
+        dishId: a.dishId,
+        dishName: a.dishName,
+        itemId: a.itemId,
         guestName: a.guestName || 'Guest',
         title: a.title,
         description: a.message || a.title,
@@ -297,6 +301,10 @@ export const TabletCockpitMaster: React.FC = () => {
             id: alert.id,
             type: alert.type === 'kitchen_ready' ? 'kitchen' : 'customer',
             seatNumber: alert.seatNumber,
+            chairId: alert.chairId,
+            dishId: alert.dishId,
+            dishName: alert.dishName,
+            itemId: alert.itemId,
             guestName: alert.guestName || 'Guest',
             title: alert.title,
             description: alert.message || alert.title,
@@ -649,7 +657,7 @@ export const TabletCockpitMaster: React.FC = () => {
     setAlerts(prev => prev.filter(a => a.id !== alertId));
 
     const rawSeat = alert?.seatNumber || '';
-    const cleanChair = alert?.chairId || rawSeat.replace(/[^0-9]/g, '');
+    const cleanChair = (alert?.chairId || rawSeat.replace(/[^0-9]/g, '')).replace(/^0+/, '') || '1';
     const targetKey = alert?.itemId || alert?.dishId || dishName;
 
     // Broadcast item served to KDS, customer tracking, and local registries
@@ -660,6 +668,16 @@ export const TabletCockpitMaster: React.FC = () => {
       dishName: alert?.dishName || dishName,
       itemId: alert?.itemId
     });
+
+    if (alert?.itemId && alert.itemId !== targetKey) {
+      realtimeBridge.updateStage(alert.itemId, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: alert?.dishId,
+        dishName: alert?.dishName || dishName,
+        itemId: alert.itemId
+      });
+    }
 
     if (alert?.dishId) {
       const cleanDish = alert.dishId.replace(/^dish-/, '');
@@ -675,6 +693,16 @@ export const TabletCockpitMaster: React.FC = () => {
         ticketNumber: alert?.kotNumber,
         dishId: cleanDish,
         dishName: alert?.dishName || dishName,
+        itemId: alert?.itemId
+      });
+    }
+
+    if (dishName && dishName !== targetKey) {
+      realtimeBridge.updateStage(dishName, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: alert?.dishId,
+        dishName,
         itemId: alert?.itemId
       });
     }

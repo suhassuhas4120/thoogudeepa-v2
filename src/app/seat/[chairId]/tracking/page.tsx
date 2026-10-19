@@ -187,8 +187,8 @@ export default function LiveOrderTrackingPage() {
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
-        const targetNum = (data.chairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
-        const currentNum = (cleanCurrentChair || '').replace(/^0+/, '');
+        const targetNum = (data.normChairId || data.chairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const currentNum = (cleanCurrentChair || chairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
         // Isolate updates: ignore stage events meant for other dining seats
         if (targetNum && currentNum && targetNum !== currentNum) {
           return;
@@ -222,6 +222,7 @@ export default function LiveOrderTrackingPage() {
             if (data.dishName) {
               nextStages[`${tNum}-${data.dishName}`] = stage;
               nextStages[`${tNum}-${data.dishName.toLowerCase()}`] = stage;
+              nextStages[`${tNum}-${data.dishName.toLowerCase().trim()}`] = stage;
             }
           }
           return nextStages;
@@ -233,15 +234,21 @@ export default function LiveOrderTrackingPage() {
           const targetCleanDish = data.dishId ? data.dishId.replace(/^dish-/, '') : '';
           const updatedItems = prev.items.map((it) => {
             const cleanDishId = (it.dish_id || it.id || '').replace(/^dish-/, '');
+            const itTitleLower = (it.title || '').toLowerCase().trim();
+            const dataTitleLower = (data.dishName || '').toLowerCase().trim();
             const matches =
               Boolean(data.itemId && it.id && it.id === data.itemId) ||
-              Boolean(data.key && it.id && it.id === data.key) ||
+              Boolean(data.key && it.id && (it.id === data.key || it.dish_id === data.key)) ||
               Boolean(data.dishId && it.dish_id && it.dish_id === data.dishId) ||
               Boolean(targetCleanDish && cleanDishId && cleanDishId === targetCleanDish) ||
-              Boolean(data.dishName && it.title && it.title.toLowerCase().trim() === data.dishName.toLowerCase().trim());
+              Boolean(dataTitleLower && itTitleLower && (itTitleLower === dataTitleLower || itTitleLower.includes(dataTitleLower) || dataTitleLower.includes(itTitleLower)));
 
             if (matches) {
-              return { ...it, stage: data.stage };
+              const addons = Array.isArray(it.addons) ? [...it.addons] : [];
+              if (data.stage === 'SERVED' && !addons.includes('SERVED')) {
+                addons.push('SERVED');
+              }
+              return { ...it, stage: data.stage, addons };
             }
             return it;
           });
@@ -406,6 +413,9 @@ export default function LiveOrderTrackingPage() {
                 const candList: string[] = [];
                 if (isDispatched) candList.push('SERVED');
                 if ((dish as any).stage) candList.push((dish as any).stage);
+                if (Array.isArray((dish as any).addons) && (dish as any).addons.includes('SERVED')) {
+                  candList.push('SERVED');
+                }
 
                 const lookupKeys = [
                   dish.id,

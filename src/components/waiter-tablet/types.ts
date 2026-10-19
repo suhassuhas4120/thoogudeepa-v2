@@ -63,6 +63,10 @@ export interface ServiceAlert {
   id: string;
   type: AlertType;
   seatNumber: string;
+  chairId?: string;
+  dishId?: string;
+  dishName?: string;
+  itemId?: string;
   guestName: string;
   title: string;
   description: string;

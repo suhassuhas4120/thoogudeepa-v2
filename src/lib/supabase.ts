@@ -169,7 +169,7 @@ function setLocalOrdersList(list: { order: OrderRecord; items: OrderItemRecord[]
 
 export type KDSCallbacks = {
   onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-  onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }) => void;
+  onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; rawChairId?: string; normChairId?: string; paddedChairId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }) => void;
   onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
   onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
   onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
@@ -484,6 +484,11 @@ export const realtimeBridge = {
 
             if (matches) {
               it.stage = stage;
+              if (stage === 'SERVED') {
+                const addons = Array.isArray(it.addons) ? [...it.addons] : [];
+                if (!addons.includes('SERVED')) addons.push('SERVED');
+                it.addons = addons;
+              }
             }
           });
         }
@@ -497,40 +502,72 @@ export const realtimeBridge = {
           try {
             const key = `thoogudeepa_item_stages_${chair}`;
             const existing = JSON.parse(localStorage.getItem(key) || '{}');
+            const normChair = chair.replace(/^0+/, '') || '1';
+            const padChair = normChair.padStart(2, '0');
+
             existing[itemIdOrKey] = stage;
             existing[`${chair}-${itemIdOrKey}`] = stage;
+            existing[`${normChair}-${itemIdOrKey}`] = stage;
+            existing[`${padChair}-${itemIdOrKey}`] = stage;
+
             if (targetItemId && targetItemId !== itemIdOrKey) {
               existing[targetItemId] = stage;
               existing[`${chair}-${targetItemId}`] = stage;
+              existing[`${normChair}-${targetItemId}`] = stage;
+              existing[`${padChair}-${targetItemId}`] = stage;
             }
             if (meta?.dishId) {
               existing[meta.dishId] = stage;
               existing[`${chair}-${meta.dishId}`] = stage;
+              existing[`${normChair}-${meta.dishId}`] = stage;
+              existing[`${padChair}-${meta.dishId}`] = stage;
               const cleanD = meta.dishId.replace(/^dish-/, '');
               existing[cleanD] = stage;
               existing[`${chair}-${cleanD}`] = stage;
+              existing[`${normChair}-${cleanD}`] = stage;
+              existing[`${padChair}-${cleanD}`] = stage;
+              existing[`dish-${cleanD}`] = stage;
+              existing[`${chair}-dish-${cleanD}`] = stage;
+              existing[`${normChair}-dish-${cleanD}`] = stage;
+              existing[`${padChair}-dish-${cleanD}`] = stage;
             }
             if (meta?.dishName) {
+              const nameLower = meta.dishName.toLowerCase().trim();
               existing[meta.dishName] = stage;
+              existing[nameLower] = stage;
               existing[`${chair}-${meta.dishName}`] = stage;
-              existing[meta.dishName.toLowerCase()] = stage;
-              existing[`${chair}-${meta.dishName.toLowerCase()}`] = stage;
+              existing[`${normChair}-${meta.dishName}`] = stage;
+              existing[`${padChair}-${meta.dishName}`] = stage;
+              existing[`${chair}-${nameLower}`] = stage;
+              existing[`${normChair}-${nameLower}`] = stage;
+              existing[`${padChair}-${nameLower}`] = stage;
             }
             if (tNum) {
               existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
+              existing[`${normChair}-${tNum}-${itemIdOrKey}`] = stage;
+              existing[`${padChair}-${tNum}-${itemIdOrKey}`] = stage;
               existing[`${tNum}-${itemIdOrKey}`] = stage;
               if (meta?.dishId) {
+                const cleanD = meta.dishId.replace(/^dish-/, '');
                 existing[`${tNum}-${meta.dishId}`] = stage;
                 existing[`${chair}-${tNum}-${meta.dishId}`] = stage;
-                const cleanD = meta.dishId.replace(/^dish-/, '');
+                existing[`${normChair}-${tNum}-${meta.dishId}`] = stage;
+                existing[`${padChair}-${tNum}-${meta.dishId}`] = stage;
                 existing[`${tNum}-${cleanD}`] = stage;
                 existing[`${chair}-${tNum}-${cleanD}`] = stage;
+                existing[`${normChair}-${tNum}-${cleanD}`] = stage;
+                existing[`${padChair}-${tNum}-${cleanD}`] = stage;
               }
               if (meta?.dishName) {
+                const nameLower = meta.dishName.toLowerCase().trim();
                 existing[`${tNum}-${meta.dishName}`] = stage;
                 existing[`${chair}-${tNum}-${meta.dishName}`] = stage;
-                existing[`${tNum}-${meta.dishName.toLowerCase()}`] = stage;
-                existing[`${chair}-${tNum}-${meta.dishName.toLowerCase()}`] = stage;
+                existing[`${normChair}-${tNum}-${meta.dishName}`] = stage;
+                existing[`${padChair}-${tNum}-${meta.dishName}`] = stage;
+                existing[`${tNum}-${nameLower}`] = stage;
+                existing[`${chair}-${tNum}-${nameLower}`] = stage;
+                existing[`${normChair}-${tNum}-${nameLower}`] = stage;
+                existing[`${padChair}-${tNum}-${nameLower}`] = stage;
               }
             }
             localStorage.setItem(key, JSON.stringify(existing));
@@ -652,21 +689,43 @@ export const realtimeBridge = {
             .eq('status', 'pending');
         }
 
+        const chairVal = (meta?.chairId || '').replace(/[^0-9]/g, '');
+        const normC = chairVal.replace(/^0+/, '') || '1';
+        const padC = normC.padStart(2, '0');
+        const broadcastPayload = {
+          key: itemIdOrKey,
+          stage,
+          ...meta,
+          chairId: chairVal || meta?.chairId,
+          rawChairId: meta?.chairId,
+          normChairId: normC,
+          paddedChairId: padC,
+          itemId: targetItemId,
+        };
+
         const liveChannel = sharedSupabaseChannel || supabase.channel('kitchen_realtime_feed');
         liveChannel.send({
           type: 'broadcast',
           event: 'STAGE_CHANGE',
-          payload: { key: itemIdOrKey, stage, ...meta },
+          payload: broadcastPayload,
         });
       }
 
       // 4. Broadcast to other tabs
       if (localChannel) {
+        const chairVal = (meta?.chairId || '').replace(/[^0-9]/g, '');
+        const normC = chairVal.replace(/^0+/, '') || '1';
+        const padC = normC.padStart(2, '0');
         localChannel.postMessage({
           type: 'STAGE_CHANGE',
           key: itemIdOrKey,
           stage,
           ...meta,
+          chairId: chairVal || meta?.chairId,
+          rawChairId: meta?.chairId,
+          normChairId: normC,
+          paddedChairId: padC,
+          itemId: targetItemId,
         });
       }
 
@@ -1029,10 +1088,18 @@ export const realtimeBridge = {
 
   // Send Service Alert (Call Waiter, Water Refill, Bill Request, Kitchen Ready Pass)
   async sendServiceAlert(alert: Partial<ServiceAlertRecord> & { seatNumber: string; title: string }): Promise<ServiceAlertRecord> {
+    const rawSeat = alert.seatNumber || '';
+    const cleanChair = alert.chairId || rawSeat.replace(/[^0-9]/g, '');
+    const normChair = cleanChair.replace(/^0+/, '') || '1';
+
     const newAlert: ServiceAlertRecord = {
       id: alert.id || `alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       type: alert.type || 'customer_call',
       seatNumber: alert.seatNumber,
+      chairId: normChair,
+      dishId: alert.dishId,
+      dishName: alert.dishName,
+      itemId: alert.itemId,
       guestName: alert.guestName || 'Guest',
       title: alert.title,
       message: alert.message || alert.title,

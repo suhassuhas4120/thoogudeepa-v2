@@ -222,6 +222,10 @@ export const MobileCockpitMaster: React.FC = () => {
         id: a.id,
         type: a.type,
         seatNumber: a.seatNumber,
+        chairId: a.chairId,
+        dishId: a.dishId,
+        dishName: a.dishName,
+        itemId: a.itemId,
         guestName: a.guestName,
         title: a.title,
         message: a.message,
@@ -362,6 +366,10 @@ export const MobileCockpitMaster: React.FC = () => {
             id: alert.id,
             type: alert.type,
             seatNumber: alert.seatNumber,
+            chairId: alert.chairId,
+            dishId: alert.dishId,
+            dishName: alert.dishName,
+            itemId: alert.itemId,
             guestName: alert.guestName,
             title: alert.title,
             message: alert.message,
@@ -702,7 +710,7 @@ export const MobileCockpitMaster: React.FC = () => {
     setAlerts(prev => prev.filter(a => a.id !== alertId));
 
     const rawSeat = alert?.seatNumber || '';
-    const cleanChair = alert?.chairId || rawSeat.replace(/[^0-9]/g, '');
+    const cleanChair = (alert?.chairId || rawSeat.replace(/[^0-9]/g, '')).replace(/^0+/, '') || '1';
     const targetKey = alert?.itemId || alert?.dishId || dishName;
 
     // Broadcast item served to KDS, customer tracking, and local registries
@@ -713,6 +721,16 @@ export const MobileCockpitMaster: React.FC = () => {
       dishName: alert?.dishName || dishName,
       itemId: alert?.itemId
     });
+
+    if (alert?.itemId && alert.itemId !== targetKey) {
+      realtimeBridge.updateStage(alert.itemId, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: alert?.dishId,
+        dishName: alert?.dishName || dishName,
+        itemId: alert.itemId
+      });
+    }
 
     if (alert?.dishId) {
       const cleanDish = alert.dishId.replace(/^dish-/, '');
@@ -728,6 +746,16 @@ export const MobileCockpitMaster: React.FC = () => {
         ticketNumber: alert?.kotNumber,
         dishId: cleanDish,
         dishName: alert?.dishName || dishName,
+        itemId: alert?.itemId
+      });
+    }
+
+    if (dishName && dishName !== targetKey) {
+      realtimeBridge.updateStage(dishName, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: alert?.dishId,
+        dishName,
         itemId: alert?.itemId
       });
     }
