@@ -60,10 +60,7 @@ export default function CustomerBottomNav({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FAF7F0]/95 backdrop-blur-md h-16 select-none border-t border-[#EAE3D5] shadow-[0_-4px_24px_rgba(40,55,45,0.06)]">
-      {/* Continuous horizontal baseline under all icons */}
-      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#1E3A2F]/15 pointer-events-none" />
-
+    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FAF7F0] h-16 select-none border-t border-[#EAE3D5] shadow-[0_-4px_24px_rgba(40,55,45,0.06)]">
       <div className="relative w-full h-full grid grid-cols-4 items-center">
         {navItems.map((item) => {
           const isSelected = current === item.id;
@@ -88,25 +85,25 @@ export default function CustomerBottomNav({
                   viewBox="0 0 78 44"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  className="absolute bottom-[13px] left-1/2 -translate-x-1/2 pointer-events-none"
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none"
                 >
                   <defs>
                     <radialGradient id="haloGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#C85A32" stopOpacity="0.45" />
-                      <stop offset="60%" stopColor="#C85A32" stopOpacity="0.15" />
+                      <stop offset="0%" stopColor="#C85A32" stopOpacity="0.5" />
+                      <stop offset="55%" stopColor="#C85A32" stopOpacity="0.18" />
                       <stop offset="100%" stopColor="#FAF7F0" stopOpacity="0" />
                     </radialGradient>
                   </defs>
-                  {/* Warm fill mask that clears the baseline directly under the dome */}
+                  {/* Warm fill mask that clears any seam directly under the dome */}
                   <path
-                    d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 L 78,46 L 0,46 Z"
+                    d="M 0,44 C 16,44 24,4 39,4 C 54,4 62,44 78,44 Z"
                     fill="#FAF7F0"
                   />
                   {/* Prominent peach-coral radial glow filling the dome */}
                   <circle cx="39" cy="22" r="28" fill="url(#haloGlow)" />
                   {/* Curved arch line running over the selected icon in organic forest green */}
                   <path
-                    d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42"
+                    d="M 0,44 C 16,44 24,4 39,4 C 54,4 62,44 78,44"
                     stroke="#1E3A2F"
                     strokeWidth="2.5"
                     strokeLinecap="round"
