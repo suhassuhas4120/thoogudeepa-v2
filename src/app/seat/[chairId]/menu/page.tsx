@@ -83,7 +83,7 @@ export default function CustomerMenuPage() {
 
           {/* Center Title Space */}
           <div className="text-center">
-            <span className="text-base font-black tracking-tight uppercase text-[#1A2621]">Menu</span>
+            <span className="text-base font-black tracking-tight uppercase text-[#1E3A2F]">Menu</span>
           </div>
 
           {/* Right Spacer for Header Balance */}
@@ -190,7 +190,7 @@ export default function CustomerMenuPage() {
               return (
                 <div
                   key={item.id}
-                  className="relative rounded-3xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-[#F4EFE6]/70 border border-[#E2D8C6] shadow-[0_12px_28px_-6px_rgba(40,55,45,0.08)] transition-all hover:shadow-[0_16px_32px_-6px_rgba(40,55,45,0.12)] backdrop-blur-xs"
+                  className="relative rounded-3xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-[#EAF0E9] border border-[#D2DDD0] shadow-[0_10px_25px_-5px_rgba(40,65,50,0.1)] transition-all hover:shadow-[0_14px_30px_-5px_rgba(40,65,50,0.15)]"
                 >
                   {/* Clickable Card Body opening Item Details */}
                   <Link
@@ -198,7 +198,7 @@ export default function CustomerMenuPage() {
                     className="w-full flex flex-col items-center cursor-pointer active:opacity-75"
                   >
                     {/* Circular Image Container */}
-                    <div className="absolute -top-16 sm:-top-18 w-32 h-32 sm:w-36 sm:h-36 rounded-full border-2 border-[#FAF7F0] bg-white overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.15)] flex items-center justify-center p-0.5">
+                    <div className="absolute -top-16 sm:-top-18 w-32 h-32 sm:w-36 sm:h-36 rounded-full border-3 border-white bg-white overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.18)] flex items-center justify-center p-0.5">
                       <img
                         src={item.imageUrl}
                         alt={item.title}

@@ -90,11 +90,20 @@ export default function CustomerBottomNav({
                   xmlns="http://www.w3.org/2000/svg"
                   className="absolute bottom-[13px] left-1/2 -translate-x-1/2 pointer-events-none"
                 >
+                  <defs>
+                    <radialGradient id="haloGlow" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#C85A32" stopOpacity="0.45" />
+                      <stop offset="60%" stopColor="#C85A32" stopOpacity="0.15" />
+                      <stop offset="100%" stopColor="#FAF7F0" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
                   {/* Warm fill mask that clears the baseline directly under the dome */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 L 78,46 L 0,46 Z"
                     fill="#FAF7F0"
                   />
+                  {/* Prominent peach-coral radial glow filling the dome */}
+                  <circle cx="39" cy="22" r="28" fill="url(#haloGlow)" />
                   {/* Curved arch line running over the selected icon in organic forest green */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42"
@@ -115,9 +124,9 @@ export default function CustomerBottomNav({
                     : 'bottom-[4px] p-1.5 text-[#8C7A6B] hover:text-[#1E3A2F] active:scale-95'
                 }`}
               >
-                {/* Soft warm peach-coral glow halo behind active icon */}
+                {/* Luminous warm glow halo directly surrounding icon */}
                 {isSelected && (
-                  <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle,_rgba(200,90,50,0.22)_0%,_transparent_72%)] pointer-events-none scale-150 animate-in fade-in duration-200" />
+                  <span className="absolute -inset-2 rounded-full bg-[radial-gradient(circle,_rgba(200,90,50,0.38)_0%,_rgba(200,90,50,0.12)_50%,_transparent_75%)] pointer-events-none" />
                 )}
 
                 <Icon
