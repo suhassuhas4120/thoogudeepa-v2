@@ -41,7 +41,7 @@ export interface SeatItem {
 export interface DishItem {
   id: number;
   name: string;
-  category: 'biryani' | 'starters' | 'gravy' | 'drinks';
+  category: 'biryani' | 'starters' | 'gravy' | 'drinks' | 'special';
   price: number;
   description: string;
   imageUrl: string;
@@ -188,110 +188,233 @@ export const getSeatsForWaiter = (waiterId: string): SeatItem[] => {
 export const INITIAL_SEATS: SeatItem[] = getSeatsForWaiter('w1');
 
 export const MENU_DISHES: DishItem[] = [
+  // ── Donne Biryani & Rice ───────────────────────────────────────────
+  {
+    id: 20,
+    name: 'Chicken Biryani',
+    category: 'biryani',
+    price: 170,
+    description: 'Fragrant Seeraga Samba short-grain rice cooked with tender chicken cuts, fresh mint, coriander, and native green masala, served hot in authentic leaf donne.',
+    imageUrl: '/images/dishes/chicken-biryani.webp',
+    isVeg: false
+  },
+  {
+    id: 22,
+    name: 'Mutton Biryani',
+    category: 'biryani',
+    price: 280,
+    description: 'Tender country mutton slow-cooked with military hotel spices, fragrant jeera samba rice, and rich bone marrow gravy, served in traditional leaf donne.',
+    imageUrl: '/images/dishes/mutton-biryani.webp',
+    isVeg: false
+  },
+  {
+    id: 21,
+    name: 'Biryani Rice',
+    category: 'biryani',
+    price: 90,
+    description: 'Aromatic Seeraga Samba kushka rice cooked in rich meat stock and fragrant whole spices without meat pieces.',
+    imageUrl: '/images/dishes/biryani-rice.webp',
+    isVeg: false
+  },
+
+  // ── Starters & Sides ───────────────────────────────────────────────
+  {
+    id: 18,
+    name: 'Chicken Kabab',
+    category: 'starters',
+    price: 160,
+    description: 'Crispy deep-fried chicken cubes coated with curd, ginger-garlic paste, and vibrant Indian spices.',
+    imageUrl: '/images/dishes/chicken-kabab.webp',
+    isVeg: false
+  },
+  {
+    id: 13,
+    name: 'Chicken Fry',
+    category: 'starters',
+    price: 160,
+    description: 'Boneless and tender chicken chunks marinated in native spice blend, shallow fried to a golden crisp.',
+    imageUrl: '/images/dishes/chicken-fry.webp',
+    isVeg: false
+  },
+  {
+    id: 14,
+    name: 'Chicken Pepper Dry',
+    category: 'starters',
+    price: 160,
+    description: 'Tender chicken pieces tossed with freshly cracked black pepper, caramelized garlic, and shallots.',
+    imageUrl: '/images/dishes/chicken-pepper-dry.webp',
+    isVeg: false
+  },
+  {
+    id: 17,
+    name: 'Chilli Chicken',
+    category: 'starters',
+    price: 160,
+    description: 'Bite-sized chicken chunks tossed with fiery green chillies, curry leaves, and native seasoning.',
+    imageUrl: '/images/dishes/chilli-chicken.webp',
+    isVeg: false
+  },
+  {
+    id: 19,
+    name: 'Chicken Chops',
+    category: 'starters',
+    price: 160,
+    description: 'Tender chicken cuts slow-simmered in an intensely fragrant green herb and mint-coriander gravy.',
+    imageUrl: '/images/dishes/chicken-chops.webp',
+    isVeg: false
+  },
+  {
+    id: 15,
+    name: 'Chicken Leg Piece (2pcs)',
+    category: 'starters',
+    price: 160,
+    description: 'Two succulent whole chicken drumsticks marinated in aromatic spices and roasted to tenderness.',
+    imageUrl: '/images/dishes/chicken-leg-piece-2pcs.webp',
+    isVeg: false
+  },
+  {
+    id: 16,
+    name: 'Chicken Leg Piece (1pc)',
+    category: 'starters',
+    price: 80,
+    description: 'Single tender whole chicken drumstick seasoned and roasted in traditional military masala.',
+    imageUrl: '/images/dishes/chicken-leg-piece-1pc.webp',
+    isVeg: false
+  },
+  {
+    id: 7,
+    name: 'Mutton Fry',
+    category: 'starters',
+    price: 260,
+    description: 'Tender chunks of fresh country mutton pan-tossed with shallots, crushed spices, and curry leaves.',
+    imageUrl: '/images/dishes/mutton-fry.webp',
+    isVeg: false
+  },
+  {
+    id: 8,
+    name: 'Mutton Dry',
+    category: 'starters',
+    price: 260,
+    description: 'Succulent mutton cuts slow-roasted with black pepper, roasted coriander, and caramelized onions.',
+    imageUrl: '/images/dishes/mutton-dry.webp',
+    isVeg: false
+  },
+  {
+    id: 9,
+    name: 'Mutton Chops',
+    category: 'starters',
+    price: 260,
+    description: 'Juicy rib chops marinated in authentic military green masala and braised to tender perfection.',
+    imageUrl: '/images/dishes/mutton-chops.webp',
+    isVeg: false
+  },
+  {
+    id: 10,
+    name: 'Mutton Liver',
+    category: 'starters',
+    price: 240,
+    description: 'Fresh mutton liver pieces pan-roasted with black peppercorns, browned onions, and curry leaves.',
+    imageUrl: '/images/dishes/mutton-liver.webp',
+    isVeg: false
+  },
+  {
+    id: 11,
+    name: 'Botti Gujju',
+    category: 'starters',
+    price: 180,
+    description: 'Classic Bangalore military hotel goat tripe curry prepared in thick aromatic spice reduction.',
+    imageUrl: '/images/dishes/booti-gojju.webp',
+    isVeg: false
+  },
+  {
+    id: 12,
+    name: 'Keema Ball',
+    category: 'starters',
+    price: 180,
+    description: 'Crispy deep-fried seasoned minced mutton meatballs with aromatic herbs and crunch exterior.',
+    imageUrl: '/images/dishes/keema-ball.webp',
+    isVeg: false
+  },
+
+  // ── Sunday Specials & Soups ─────────────────────────────────────────
   {
     id: 1,
-    name: 'Chicken Donne Biryani',
-    category: 'biryani',
-    price: 260,
-    description: 'Traditional seeraga samba rice cooked with military spiced chicken',
-    imageUrl: '/images/dishes/chicken-donne-biryani.jpg',
+    name: 'Kaalu Soup',
+    category: 'special',
+    price: 120,
+    description: 'Traditional military hotel mutton trotter soup slow-simmered with crushed black pepper, bone marrow, and fresh coriander.',
+    imageUrl: '/images/dishes/kaalu-soup.webp',
     isVeg: false
   },
   {
     id: 2,
-    name: 'Mutton Donne Biryani',
-    category: 'biryani',
-    price: 340,
-    description: 'Slow-cooked tender military spiced mutton with flavored samba rice',
-    imageUrl: '/images/dishes/mutton-donne-biryani.jpg',
+    name: 'Plain Soup',
+    category: 'special',
+    price: 25,
+    description: 'Aromatic clear mutton bone broth spiced with peppercorns, garlic, and fresh herbs without trotter cuts.',
+    imageUrl: '/images/dishes/plain-soup.webp',
     isVeg: false
   },
   {
     id: 3,
-    name: 'Chilli Chicken (Dry)',
-    category: 'starters',
-    price: 220,
-    description: 'Crispy chicken pieces tossed with green chillies, curry leaves and spices',
-    imageUrl: '/images/dishes/chilli-chicken.jpg',
-    isVeg: false
+    name: 'Idli (2pcs)',
+    category: 'special',
+    price: 50,
+    description: 'Ultra-soft, steamed rice cakes served hot on banana leaf, ideal pairing with mutton curries and kaalu soup.',
+    imageUrl: '/images/dishes/idli-2pcs.webp',
+    isVeg: true
   },
   {
     id: 4,
-    name: 'Military Chicken Kabab',
-    category: 'starters',
-    price: 210,
-    description: 'Deep-fried spiced crispy bone chicken kabab (4 pieces)',
-    imageUrl: '/images/dishes/chicken-kabab.jpg',
-    isVeg: false
+    name: 'Dosa (2pcs)',
+    category: 'special',
+    price: 50,
+    description: 'Soft, golden spongy set dosas cooked to perfection on an iron tawa, served hot.',
+    imageUrl: '/images/dishes/dosa-2pcs.webp',
+    isVeg: true
   },
   {
     id: 5,
-    name: 'Gunpowder Ghee Rice',
-    category: 'gravy',
+    name: 'Booti Gojju',
+    category: 'special',
     price: 180,
-    description: 'Steamed aromatic rice tossed with pure desi ghee and roasted podi',
-    imageUrl: '/images/dishes/biryani-rice.webp',
-    isVeg: true
+    description: 'Tender diced mutton tripe simmered in a dark, rich, highly spiced military hotel onion-coconut masala gravy.',
+    imageUrl: '/images/dishes/booti-gojju.webp',
+    isVeg: false
   },
   {
     id: 6,
-    name: 'Fresh Lime Soda',
-    category: 'drinks',
-    price: 60,
-    description: 'Chilled sparkling club soda with freshly squeezed lime',
-    imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=200&q=80',
-    isVeg: true
-  },
-  {
-    id: 7,
-    name: 'Donne Biryani Kushka',
-    category: 'biryani',
-    price: 160,
-    description: 'Flavor-infused authentic seeraga samba biryani rice without meat pieces',
-    imageUrl: '/images/dishes/donne-khushka.jpg',
-    isVeg: true
-  },
-  {
-    id: 8,
-    name: 'Mutton Pepper Fry',
-    category: 'starters',
-    price: 320,
-    description: 'Boneless tender mutton roasted with fresh ground black pepper & shallots',
-    imageUrl: '/images/dishes/mutton-fry.jpg',
+    name: 'Keema Gojju',
+    category: 'special',
+    price: 180,
+    description: 'Fine minced mutton simmered into a deeply flavored rustic gravy with ground spices and fresh mint.',
+    imageUrl: '/images/dishes/keema-gojju.webp',
     isVeg: false
   }
 ];
 
 export const INITIAL_TICKET_ITEMS: TicketItem[] = [
   {
-    id: 1,
-    name: 'Chicken Donne Biryani',
+    id: 20,
+    name: 'Chicken Biryani',
     quantity: 2,
-    price: 520,
-    imageUrl: '/images/dishes/chicken-donne-biryani.jpg',
+    price: 340,
+    imageUrl: '/images/dishes/chicken-biryani.webp',
     status: 'READY'
   },
   {
-    id: 3,
-    name: 'Chilli Chicken (Dry)',
+    id: 17,
+    name: 'Chilli Chicken',
     quantity: 1,
-    price: 220,
-    imageUrl: '/images/dishes/chilli-chicken.jpg',
+    price: 160,
+    imageUrl: '/images/dishes/chilli-chicken.webp',
     status: 'PREPARING'
   },
   {
-    id: 6,
-    name: 'Fresh Lime Soda',
+    id: 21,
+    name: 'Biryani Rice',
     quantity: 1,
-    price: 60,
-    imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=120&q=80',
-    status: 'RECEIVED'
-  },
-  {
-    id: 5,
-    name: 'Gunpowder Ghee Rice',
-    quantity: 1,
-    price: 180,
+    price: 90,
     imageUrl: '/images/dishes/biryani-rice.webp',
     status: 'PLACED'
   }

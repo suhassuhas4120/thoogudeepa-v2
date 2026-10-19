@@ -70,10 +70,9 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
   // Category navigation tabs
   const categories = [
     { id: 'all', label: 'All Items' },
-    { id: 'biryani', label: 'Donne Biryani' },
-    { id: 'starters', label: 'Starters' },
-    { id: 'gravy', label: 'Rice & Gravy' },
-    { id: 'drinks', label: 'Beverages' }
+    { id: 'biryani', label: 'Donne Biryani & Rice' },
+    { id: 'starters', label: 'Starters & Sides' },
+    { id: 'special', label: 'Sunday Specials & Soups' }
   ];
 
   // Dynamic seats list formatted concisely to guarantee no overflow
