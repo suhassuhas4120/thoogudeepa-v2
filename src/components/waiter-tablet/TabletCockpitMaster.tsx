@@ -592,7 +592,7 @@ export const TabletCockpitMaster: React.FC = () => {
     const orderItems = ticketItems.map((item) => ({
       chair_id: cleanChair,
       seat_label: activeSeatNum,
-      dish_id: String(item.id),
+      dish_id: String(item.id).startsWith('dish-') ? String(item.id) : `dish-${item.id}`,
       dish_name: item.name,
       quantity: item.quantity,
       price: item.price,

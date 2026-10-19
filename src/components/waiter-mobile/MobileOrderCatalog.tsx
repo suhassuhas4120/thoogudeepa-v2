@@ -77,10 +77,9 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
   // Category definitions with active counts
   const categories: { key: MenuCategoryKey; label: string }[] = useMemo(() => [
     { key: 'all', label: 'All Items' },
-    { key: 'biryani', label: 'Donne Biryani' },
-    { key: 'starters', label: 'Starters' },
-    { key: 'gravy', label: 'Rice & Gravy' },
-    { key: 'drinks', label: 'Beverages' }
+    { key: 'biryani', label: 'Donne Biryani & Rice' },
+    { key: 'starters', label: 'Starters & Sides' },
+    { key: 'special', label: 'Sunday Specials & Soups' }
   ], []);
 
   // Compute total item count in cart
