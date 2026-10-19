@@ -97,6 +97,11 @@ export default function CustomerBottomNav({
                       <stop offset="100%" stopColor="#C85A32" stopOpacity="0.04" />
                     </radialGradient>
                   </defs>
+                  {/* Background-colored mask that clears the baseline strictly under the selected arch */}
+                  <path
+                    d="M 0,40 L 0,44 L 78,44 L 78,40 Z"
+                    fill="#FAF7F0"
+                  />
                   {/* Smooth fill contained precisely inside the curved arch geometry */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 Z"
