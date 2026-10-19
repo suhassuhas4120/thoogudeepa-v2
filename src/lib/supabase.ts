@@ -880,11 +880,19 @@ export const realtimeBridge = {
           const remoteOrders = orders.map((o) => {
             const rawItems = (items || []).filter((it) => it.order_id === o.id).map((it) => {
               const addons = Array.isArray(it.addons) ? it.addons : [];
-              let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = (it.stage as any) || 'PLACED';
+              let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
               if (addons.includes('SERVED')) {
                 effStage = 'SERVED';
-              } else if (addons.includes('PLACED') && (it.stage === 'REC' || it.stage === 'PLACED' || !it.stage)) {
+              } else if (it.stage === 'READY') {
+                effStage = 'READY';
+              } else if (it.stage === 'PREP') {
+                effStage = 'PREP';
+              } else if (it.stage === 'REC' && !addons.includes('PLACED')) {
+                effStage = 'REC';
+              } else if (addons.includes('PLACED') || it.stage === 'PLACED') {
                 effStage = 'PLACED';
+              } else {
+                effStage = (it.stage as any) || 'PLACED';
               }
               return {
                 ...it,
@@ -1519,11 +1527,19 @@ export const realtimeBridge = {
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, (payload) => {
           const row = payload.new as any;
           const addons = Array.isArray(row.addons) ? row.addons : [];
-          let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = (row.stage as any) || 'PLACED';
+          let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
           if (addons.includes('SERVED')) {
             effStage = 'SERVED';
-          } else if (addons.includes('PLACED') && (row.stage === 'REC' || row.stage === 'PLACED' || !row.stage)) {
+          } else if (row.stage === 'READY') {
+            effStage = 'READY';
+          } else if (row.stage === 'PREP') {
+            effStage = 'PREP';
+          } else if (row.stage === 'REC' && !addons.includes('PLACED')) {
+            effStage = 'REC';
+          } else if (addons.includes('PLACED') || row.stage === 'PLACED') {
             effStage = 'PLACED';
+          } else {
+            effStage = (row.stage as any) || 'PLACED';
           }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onStageChange) {
