@@ -269,18 +269,23 @@ export default function CustomerSeatPage() {
   // --- VIEW 4: VACANT TABLE (NEW CUSTOMER ACCESS) ---
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-between px-6 py-12 max-w-md mx-auto text-[#1A2621]">
-      {/* Upper area with enlarged circular logo */}
-      <div className="w-full flex flex-col items-center pt-4 sm:pt-8">
+      {/* Upper area with circular logo and hotel name */}
+      <div className="w-full flex flex-col items-center pt-4 sm:pt-8 gap-2">
         <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border border-[rgba(220,226,222,0.8)] p-1 bg-[#FFFEFC] shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-center justify-center overflow-hidden">
           <img
             src="/logo.jpg"
-            alt="ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ ಮನೆ"
+            alt="Thoogudeepa Donne Biryani Mane"
             className="w-full h-full object-cover rounded-full"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
         </div>
+
+        {/* Hotel Name below logo */}
+        <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#1E3A2F] text-center mt-1">
+          Thoogudeepa Donne Biryani Mane
+        </h1>
       </div>
 
       {/* Center area with Seat No and Name input */}
