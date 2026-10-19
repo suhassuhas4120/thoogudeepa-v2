@@ -142,20 +142,26 @@ function CustomerSelfPaymentContent() {
                   }}
                   className={`w-[300px] rounded-3xl p-5 flex flex-col justify-between h-44 shrink-0 snap-center cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-gradient-to-br from-[#1E3A2F] to-[#28483B] text-white shadow-[0_16px_32px_rgba(20,40,30,0.35)] border border-[#2D5042]'
-                      : 'bg-gradient-to-br from-[#3D4A52] to-[#2E383E] text-white/90 shadow-[0_10px_24px_rgba(0,0,0,0.18)] border border-white/10 opacity-75 hover:opacity-95'
+                      ? 'bg-gradient-to-br from-[#1E3A2F] to-[#28483B] text-white shadow-md border border-[#2D5042]'
+                      : 'bg-[#FBF9F4] text-[#1A2621] border border-[#DCE4DC] shadow-xs hover:border-[#1E3A2F]/30'
                   }`}
                 >
                   {/* Top row inside card: Title & Brand / Logo */}
                   <div className="w-full flex items-center justify-between">
-                    <span className="text-sm font-black tracking-wider uppercase text-white/95">{card.title}</span>
-                    <div className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#D46238] text-white shadow-xs">
+                    <span className={`text-sm font-black tracking-wider uppercase ${isSelected ? 'text-white/95' : 'text-[#1A2621]'}`}>
+                      {card.title}
+                    </span>
+                    <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs ${
+                      isSelected
+                        ? 'bg-[#D46238] text-white'
+                        : 'border border-[#DCE4DC] bg-[#FAF7F0] text-[#1E3A2F]'
+                    }`}>
                       {isSelected ? 'SELECTED' : card.logo}
                     </div>
                   </div>
 
                   {/* Middle row: Card Number / Identifier */}
-                  <div className="text-base font-mono font-bold tracking-widest my-auto truncate text-white">
+                  <div className={`text-base font-mono font-bold tracking-widest my-auto truncate ${isSelected ? 'text-white' : 'text-[#1A2621]'}`}>
                     {card.number}
                   </div>
 
@@ -170,12 +176,20 @@ function CustomerSelfPaymentContent() {
 
                     <div className="flex gap-5 text-right">
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">Detail 1</span>
-                        <span className="text-xs font-bold text-white">{card.holder}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isSelected ? 'text-white/60' : 'text-[#5A6860]'}`}>
+                          Detail 1
+                        </span>
+                        <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-[#1A2621]'}`}>
+                          {card.holder}
+                        </span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-white/60 font-bold uppercase tracking-wider">Expiry 2</span>
-                        <span className="text-xs font-bold text-white">{card.expiry}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isSelected ? 'text-white/60' : 'text-[#5A6860]'}`}>
+                          Expiry 2
+                        </span>
+                        <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-[#1A2621]'}`}>
+                          {card.expiry}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -199,7 +213,7 @@ function CustomerSelfPaymentContent() {
                   <button
                     key="add"
                     type="button"
-                    className="w-13 h-13 rounded-full border border-[#DCE4DC] flex items-center justify-center shrink-0 cursor-pointer active:opacity-70 bg-[#FBF9F4] text-[#1A2621] shadow-2xs hover:border-[#C85A32]"
+                    className="w-10 h-10 rounded-full border border-[#DCE4DC] flex items-center justify-center shrink-0 cursor-pointer active:opacity-70 bg-[#FBF9F4] text-[#1A2621] shadow-2xs hover:border-[#C85A32]"
                     aria-label="Add Method"
                   >
                     <Plus className="w-5 h-5 text-[#C85A32]" />
@@ -221,9 +235,9 @@ function CustomerSelfPaymentContent() {
                       setSelectedCardId(null);
                     }
                   }}
-                  className={`w-13 h-13 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-all ${
+                  className={`px-4 py-2.5 rounded-full border flex items-center justify-center shrink-0 cursor-pointer transition-all ${
                     isSelected
-                      ? 'border-2 border-[#D46238] bg-[#FBF9F4] text-[#D46238] shadow-[0_0_16px_rgba(212,98,56,0.3)] font-black'
+                      ? 'border-2 border-[#D46238] bg-[#FBF9F4] text-[#D46238] shadow-[0_0_12px_rgba(212,98,56,0.25)] font-black'
                       : 'border border-[#DCE4DC] bg-[#EAF0E9] text-[#1A2621] font-bold hover:border-[#1E3A2F]/40'
                   }`}
                   aria-label={method.label}
