@@ -295,12 +295,12 @@ export default function CustomerMenuPage() {
                       }}
                       className={`w-7 h-7 shrink-0 border rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 ${
                         isLiked
-                          ? 'border-[#C85A32] bg-[#C85A32]/10 text-[#C85A32]'
-                          : 'border-[#EAE3D5] bg-[#FBF9F4] text-[#8C7A6B] hover:text-[#C85A32]'
+                          ? 'border-[#1E3A2F] bg-[#1E3A2F] text-white shadow-xs'
+                          : 'border-[#EAE3D5] bg-[#FBF9F4] text-[#8C7A6B] hover:text-[#1E3A2F]'
                       }`}
                       aria-label="Like item"
                     >
-                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
+                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-white stroke-white' : ''}`} />
                     </button>
                   </div>
                 </div>
