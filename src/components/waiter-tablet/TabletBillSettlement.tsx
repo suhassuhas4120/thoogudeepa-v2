@@ -31,6 +31,7 @@ import {
   QrCode 
 } from 'lucide-react';
 import { PaymentMode, TicketItem } from './types';
+import { realtimeBridge } from '../../lib/supabase';
 
 export interface TabletBillSettlementProps {
   /** Target seat identifier (e.g. 'Seat 04') */
@@ -46,7 +47,7 @@ export interface TabletBillSettlementProps {
   /** Callback to return back to live ticket mode */
   onBackToTicket: () => void;
   /** Callback to complete settlement and vacate seat on floor grid */
-  onConfirmSettlement: () => void;
+  onConfirmSettlement: (mode?: PaymentMode) => void;
   /** Callback to print thermal tax invoice receipt */
   onPrintReceipt: () => void;
   /** Whether the bill has been confirmed and verified by the customer from their device */
@@ -71,7 +72,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
   // Conditional Payment Verification State (Must be verified by waiter to enable vacate)
   const [isPaymentReceived, setIsPaymentReceived] = useState<boolean>(false);
 
-  // Food items list: use actual ticketItems if available, otherwise fallback to default military hotel items
+  // Food items list: use actual ticketItems if available, otherwise empty
   const billItems = useMemo(() => {
     if (ticketItems && ticketItems.length > 0) {
       return ticketItems.map((item, idx) => ({
@@ -80,12 +81,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         amount: item.price * item.quantity
       }));
     }
-    return [
-      { id: 'sample-1', name: '2x Chicken Donne Biryani', amount: 520 },
-      { id: 'sample-2', name: '1x Chilli Chicken (Dry)', amount: 220 },
-      { id: 3, name: '1x Fresh Lime Soda', amount: 60 },
-      { id: 4, name: '1x Gunpowder Ghee Rice', amount: 180 }
-    ];
+    return [];
   }, [ticketItems]);
 
   // Financial calculations: Subtotal + Added GST (5%) = Grand Payable
@@ -94,7 +90,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       return ticketItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
     }
     if (subtotal && subtotal > 0) return subtotal;
-    return totalAmount > 0 ? totalAmount : 980;
+    return totalAmount > 0 ? Math.round(totalAmount / 1.05) : 0;
   }, [ticketItems, subtotal, totalAmount]);
 
   // GST 5% (2.5% CGST + 2.5% SGST) ADDED on top of subtotal
@@ -169,6 +165,36 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
     return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(upiUri)}`;
   }, [grandPayable, seatName]);
 
+  const handleSelectPaymentMode = (m: PaymentMode) => {
+    setPaymentMode(m);
+    setIsPaymentReceived(false);
+    if (m === 'cash') setCashTendered(grandPayable);
+    const cleanChair = seatName.replace(/[^0-9]/g, '');
+    realtimeBridge.notifyBillModeActive(cleanChair, grandPayable, {
+      mode: m === 'upi' ? 'qr' : 'cash',
+      ticketNumber: ticketItems?.[0]?.ticketNumber,
+    });
+  };
+
+  useEffect(() => {
+    const cleanChair = seatName.replace(/[^0-9]/g, '');
+    realtimeBridge.notifyBillModeActive(cleanChair, grandPayable, {
+      mode: paymentMode === 'upi' ? 'qr' : 'cash',
+      ticketNumber: ticketItems?.[0]?.ticketNumber,
+    });
+
+    const unsub = realtimeBridge.subscribeKDS({
+      onCustomerPaidUpi: (data) => {
+        const cleanTarget = (data.chairId || '').replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanChair || data.chairId === seatName) {
+          setIsPaymentReceived(true);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [seatName, grandPayable, paymentMode, ticketItems]);
+
   const handlePrint = () => {
     setIsReceiptPrinting(true);
     onPrintReceipt();
@@ -179,7 +205,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
 
   const handleConfirmVacate = () => {
     if (!isPaymentReceived) return;
-    onConfirmSettlement();
+    onConfirmSettlement(paymentMode);
   };
 
   return (
@@ -224,12 +250,19 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/70 mb-3 text-xs shadow-2xs">
           {/* Itemized Bill Items List */}
           <div className="space-y-1.5 pb-2.5 border-b border-slate-200 text-[11px] max-h-36 overflow-y-auto no-scrollbar">
-            {billItems.map((item, idx) => (
-              <div key={item.id || `bill-item-${idx}`} className="flex justify-between font-bold text-slate-800">
-                <span>{item.name}</span>
-                <span className="text-amber-800 font-extrabold">₹{item.amount.toLocaleString('en-IN')}</span>
+            {billItems.length === 0 ? (
+              <div className="py-4 text-center text-slate-400">
+                <p className="text-xs font-semibold">No items in bill</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Orders placed for this seat will appear here</p>
               </div>
-            ))}
+            ) : (
+              billItems.map((item, idx) => (
+                <div key={item.id || `bill-item-${idx}`} className="flex justify-between font-bold text-slate-800">
+                  <span>{item.name}</span>
+                  <span className="text-amber-800 font-extrabold">₹{item.amount.toLocaleString('en-IN')}</span>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Subtotal & GST breakdown with GST clearly ADDED */}
@@ -272,7 +305,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             {/* Cash Tab */}
             <button
               type="button"
-              onClick={() => { setPaymentMode('cash'); setIsPaymentReceived(false); setCashTendered(grandPayable); }}
+              onClick={() => handleSelectPaymentMode('cash')}
               className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'cash'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
@@ -286,7 +319,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             {/* UPI QR Tab */}
             <button
               type="button"
-              onClick={() => { setPaymentMode('upi'); setIsPaymentReceived(false); }}
+              onClick={() => handleSelectPaymentMode('upi')}
               className={`h-10 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer ${
                 paymentMode === 'upi'
                   ? 'bg-amber-50 text-amber-900 border-2 border-amber-500 shadow-xs'
@@ -385,6 +418,12 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
             <span className="text-xs font-black text-amber-700 mt-2">
               ₹{grandPayable.toLocaleString('en-IN')}
             </span>
+            {isPaymentReceived && (
+              <div className="w-full p-2.5 bg-emerald-100 border border-emerald-400 rounded-xl flex items-center justify-center gap-2 text-emerald-950 font-black text-xs mt-2 animate-in zoom-in-95">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[3]" />
+                <span>Customer Paid ₹{grandPayable.toLocaleString('en-IN')} via QR Code!</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -423,7 +462,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
       {/* ======================================================== */}
       <div className="pt-3 border-t border-slate-200 mt-2 space-y-2">
         {/* Verification banner if awaiting customer request */}
-        {!isVerifiedByCustomer && (
+        {!isVerifiedByCustomer && !isPaymentReceived && (
           <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-bold text-center">
             Awaiting customer bill verification from seat
           </div>
@@ -442,27 +481,23 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         {/* Single Icon Button: Settle & Vacate */}
         <button
           type="button"
-          disabled={!isPaymentReceived || !isVerifiedByCustomer}
+          disabled={!isPaymentReceived && !isVerifiedByCustomer}
           onClick={handleConfirmVacate}
           className={`w-full h-11 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
-            isPaymentReceived && isVerifiedByCustomer
+            isPaymentReceived || isVerifiedByCustomer
               ? 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs cursor-pointer'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 opacity-60'
           }`}
           title={
-            !isVerifiedByCustomer
-              ? "Awaiting customer 'Pay via Waiter' confirmation"
-              : isPaymentReceived
+            isPaymentReceived || isVerifiedByCustomer
               ? "Vacate seat and close bill"
               : "Confirm payment received before vacating seat"
           }
         >
           <CheckCircle className="w-3.5 h-3.5" />
           <span>
-            {!isVerifiedByCustomer
-              ? 'Awaiting Customer Confirmation'
-              : isPaymentReceived
-              ? 'Settle & Vacate'
+            {isPaymentReceived || isVerifiedByCustomer
+              ? 'Confirm & Vacate Seat'
               : 'Awaiting Payment from Customer'}
           </span>
         </button>

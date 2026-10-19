@@ -88,20 +88,20 @@ export default function CustomerScanPage() {
         {/* Back Button returning to Order Summary / Bill */}
         <Link
           href={`/seat/${chairId}/bill`}
-          className="w-10 h-10 rounded-full border-2 border-black bg-white flex items-center justify-center cursor-pointer active:opacity-70 shadow-md"
+          className="w-10 h-10 rounded-full border border-[#DCE2DE] bg-[#FFFEFC] flex items-center justify-center cursor-pointer active:opacity-70 shadow-md text-[#1A2621]"
           aria-label="Back to Bill"
         >
-          <ChevronLeft className="w-5 h-5 text-black" />
+          <ChevronLeft className="w-5 h-5" />
         </Link>
 
         {/* Switch Camera Button (Front/Rear) */}
         <button
           type="button"
           onClick={toggleCameraFacing}
-          className="w-10 h-10 rounded-full border-2 border-black bg-white flex items-center justify-center cursor-pointer active:opacity-70 shadow-md"
+          className="w-10 h-10 rounded-full border border-[#DCE2DE] bg-[#FFFEFC] flex items-center justify-center cursor-pointer active:opacity-70 shadow-md text-[#1A2621]"
           aria-label="Flip Camera"
         >
-          <SwitchCamera className="w-5 h-5 text-black" />
+          <SwitchCamera className="w-5 h-5" />
         </button>
       </div>
 
@@ -110,24 +110,24 @@ export default function CustomerScanPage() {
         <div className="relative w-64 h-64 sm:w-72 sm:h-72 flex items-center justify-center">
           {/* 4 Crisp Geometric Corner Brackets */}
           {/* Top-Left */}
-          <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-xl shadow-sm" />
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-[#DD6B28] rounded-tl-xl shadow-sm" />
           {/* Top-Right */}
-          <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-xl shadow-sm" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-[#DD6B28] rounded-tr-xl shadow-sm" />
           {/* Bottom-Left */}
-          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-xl shadow-sm" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-[#DD6B28] rounded-bl-xl shadow-sm" />
           {/* Bottom-Right */}
-          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-xl shadow-sm" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-[#DD6B28] rounded-br-xl shadow-sm" />
 
           {/* Transparent Viewfinder Framing Area */}
           <div className="w-52 h-52 sm:w-56 sm:h-56 rounded-2xl border border-white/40 relative flex items-center justify-center">
             {/* Stationary Central Scanning Focus Line */}
-            <div className="absolute left-3 right-3 h-[2px] bg-white shadow-sm pointer-events-none" />
+            <div className="absolute left-3 right-3 h-[2px] bg-gradient-to-r from-[#244436] via-[#DD6B28] to-[#244436] shadow-sm pointer-events-none" />
           </div>
         </div>
       </div>
 
       {/* Fixed Bottom Bar - Solidly positioned with zero up/down movement */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 w-full max-w-md mx-auto pb-4 px-4 bg-white/95 backdrop-blur-md border-t border-zinc-200">
+      <div className="fixed bottom-0 left-0 right-0 z-30 w-full max-w-md mx-auto pb-4 px-4 bg-[#FFFEFC]/95 backdrop-blur-md border-t border-[#DCE2DE]/60">
         <div className="w-full flex items-center justify-between pt-2">
           {/* Left: QR Code Icon Button */}
           <button
@@ -135,8 +135,8 @@ export default function CustomerScanPage() {
             onClick={() => setActiveBottomTab('qr')}
             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
               activeBottomTab === 'qr'
-                ? 'bg-black text-white border-2 border-black'
-                : 'text-black hover:bg-zinc-100 border border-black'
+                ? 'bg-[#244436] text-white border border-[#244436]'
+                : 'text-[#1A2621] hover:bg-[#F4F1EA] border border-[#DCE2DE]'
             }`}
             aria-label="QR Code Details"
           >
@@ -151,10 +151,10 @@ export default function CustomerScanPage() {
               // Simulate scan completion linking to payment success
               router.push(`/seat/${chairId}/payment-success?mode=UPI%20Scan`);
             }}
-            className="w-14 h-14 rounded-full border-2 border-black bg-white flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-md p-1"
+            className="w-14 h-14 rounded-full border border-[#DCE2DE] bg-white flex items-center justify-center cursor-pointer active:scale-95 transition-all shadow-md p-1"
             aria-label="Trigger Scan"
           >
-            <div className="w-full h-full rounded-full bg-black text-white flex items-center justify-center">
+            <div className="w-full h-full rounded-full bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white flex items-center justify-center shadow-xs">
               <Scan className="w-6 h-6 stroke-[2.2]" />
             </div>
           </button>
@@ -165,8 +165,8 @@ export default function CustomerScanPage() {
             onClick={() => setActiveBottomTab('history')}
             className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
               activeBottomTab === 'history'
-                ? 'bg-black text-white border-2 border-black'
-                : 'text-black hover:bg-zinc-100 border border-black'
+                ? 'bg-[#244436] text-white border border-[#244436]'
+                : 'text-[#1A2621] hover:bg-[#F4F1EA] border border-[#DCE2DE]'
             }`}
             aria-label="Scan History"
           >

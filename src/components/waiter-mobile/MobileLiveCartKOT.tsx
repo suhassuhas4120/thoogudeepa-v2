@@ -82,23 +82,26 @@ export interface MobileLiveCartKOTProps {
   readonly onServeItem?: (itemId: string) => void;
   /** Optional callback to clear entire cart */
   readonly onClearCart?: () => void;
+  /** Active KOT ticket number */
+  readonly activeTicketNumber?: string;
   /** Optional flag: whether to render as full screen (Screen 4) */
   readonly isFullScreen?: boolean;
 }
 
 export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   seatNumber = 'Seat 01',
-  guestName = 'Suhas M',
+  guestName = 'Walk-In Guest',
   cartItems,
+  activeTicketNumber,
   isOpen = true,
-  pendingAlertCount = 2,
+  pendingAlertCount = 0,
   onClose,
   onModifyQuantity,
   onRemoveItem,
   onFireKOT,
   onOpenMenu,
   onProceedToBill,
-  isBillRequested = true,
+  isBillRequested = false,
   onOpenAlerts,
   onServeItem,
   onClearCart,
@@ -109,7 +112,6 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
 
   // Compute subtotal from items
   const subtotal = useMemo(() => {
-    if (cartItems.length === 0) return 1260; // default live ticket total
     return cartItems.reduce((acc, curr) => acc + curr.lineTotal, 0);
   }, [cartItems]);
 
@@ -120,7 +122,6 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
 
   // Total quantity count
   const totalItemCount = useMemo(() => {
-    if (cartItems.length === 0) return 4;
     return cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
   }, [cartItems]);
 
@@ -162,8 +163,9 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
     }, 400);
   }, [cartItems, kitchenNotes, onFireKOT]);
 
-  // Fallback sample dishes if cart items are empty
+  // Display active cart items
   const displayItems = useMemo(() => {
+<<<<<<< HEAD
     if (cartItems.length > 0) return cartItems;
     return [
 <<<<<<< HEAD
@@ -194,6 +196,9 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
       { menuItem: { id: 'd4', name: 'Gunpowder Ghee Rice', price: 180, category: 'gravy' as const, dietary: 'veg' as const, description: '', prepTimeMinutes: 5, isAvailable: true, image: '/images/dishes/biryani-rice.webp' }, quantity: 1, lineTotal: 180 }
 >>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
     ];
+=======
+    return cartItems;
+>>>>>>> 0b6cc5c1f4bb1dc1f5597a786f33b247ef7cf3ed
   }, [cartItems]);
 
   if (!isOpen) return null;
@@ -255,11 +260,14 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
               Ordered Items in Cart ({displayItems.length})
             </span>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
-              KOT #108
-            </span>
+            {activeTicketNumber && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+                KOT #{activeTicketNumber}
+              </span>
+            )}
           </div>
 
+<<<<<<< HEAD
           {displayItems.map((item, idx) => {
 <<<<<<< HEAD
             const status = dishStatuses[item.menuItem.id] || (idx === 0 ? 'PREPARING' : idx === 1 ? 'READY' : idx === 2 ? 'RECEIVED' : 'SERVED');
@@ -274,6 +282,21 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
 >>>>>>> e4017e4652a982e7417148ef8980c7955f63ca66
             const isServed = status === 'SERVED';
             const isNonVeg = item.menuItem.dietary === 'non_veg';
+=======
+          {displayItems.length === 0 ? (
+            <div className="py-12 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+              <ShoppingBag className="w-10 h-10 text-slate-300 mb-2 stroke-[1.5]" />
+              <p className="text-sm font-black text-slate-700">No active dishes in cart</p>
+              <p className="text-xs text-slate-400 mt-0.5">Dishes placed for this seat will appear here</p>
+            </div>
+          ) : (
+            displayItems.map((item, idx) => {
+              const itemStage = item.stage;
+              const itemKey = item.orderItemId || item.menuItem.id;
+              const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || (item.orderItemId ? dishStatuses[item.orderItemId] : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
+              const isServed = status === 'SERVED';
+              const isNonVeg = item.menuItem.dietary === 'non_veg';
+>>>>>>> 0b6cc5c1f4bb1dc1f5597a786f33b247ef7cf3ed
 
             return (
               <div
@@ -427,7 +450,8 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                 </div>
               </div>
             );
-          })}
+          })
+        )}
         </div>
 
         {/* Order Bill Financial Summary Card */}
@@ -490,7 +514,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
             <Receipt className={`w-4 h-4 ${isBillRequested ? 'text-emerald-400' : 'text-slate-400'}`} />
             <span>
               {isBillRequested
-                ? `PROCEED TO BILL SETTLEMENT (₹${grandTotal})`
+                ? `SETTLE BILL (₹${grandTotal})`
                 : 'AWAITING CUSTOMER BILL REQUEST'}
             </span>
           </button>

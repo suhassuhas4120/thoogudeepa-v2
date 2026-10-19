@@ -145,6 +145,24 @@ function PaymentSuccessContent() {
     }
   }, [chairId]);
 
+  // Automatic transition to Bill page after 3 seconds
+  const [countdown, setCountdown] = useState<number>(3);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          window.location.replace(`/seat/${chairId}/receipt`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [chairId]);
+
   // Details rows for the receipt/transaction card
   const transactionRows = [
     { label: 'Transaction ID', value: transactionId || `TXN-${chairId}-90823411` },
@@ -157,52 +175,52 @@ function PaymentSuccessContent() {
   ];
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-36">
+    <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-36 text-[#1A2621]">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col items-center gap-6">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-center py-2 border-b border-zinc-200 pb-3 relative">
-          <h1 className="text-base font-bold tracking-tight">Payment Completed</h1>
+        <header className="w-full flex items-center justify-center py-2 border-b border-[rgba(220,226,222,0.7)] pb-3 relative">
+          <h1 className="text-base font-bold tracking-tight text-[#1A2621]">Payment Completed</h1>
         </header>
 
         {/* Central Success Badge Section */}
         <div className="w-full flex flex-col items-center justify-center pt-4 pb-2">
           {/* Concentric Circular Container with Check Badge */}
-          <div className="w-32 h-32 rounded-full border-2 border-black flex items-center justify-center bg-white shadow-sm p-3 relative">
-            <div className="w-24 h-24 rounded-full border-2 border-black flex items-center justify-center bg-black text-white shadow-md">
+          <div className="w-32 h-32 rounded-full border border-[rgba(220,226,222,0.8)] flex items-center justify-center bg-[#FFFEFC] shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-3 relative">
+            <div className="w-24 h-24 rounded-full border border-emerald-600 flex items-center justify-center bg-gradient-to-r from-[#244436] to-[#1e382c] text-white shadow-md">
               <Check className="w-12 h-12 stroke-[3]" />
             </div>
           </div>
 
           {/* Success Title */}
-          <h2 className="text-lg font-black tracking-tight mt-5 mb-1 text-center">
+          <h2 className="text-lg font-black tracking-tight mt-5 mb-1 text-center text-[#1A2621]">
             Payment Successful!
           </h2>
 
           {/* Success Subtitle Line */}
-          <p className="text-xs text-zinc-600 font-bold tracking-wide text-center">
+          <p className="text-xs text-[#244436] font-bold tracking-wide text-center">
             Successfully Settled ₹ {settledAmount}
           </p>
         </div>
 
         {/* Transaction Summary Card */}
         <div className="w-full flex flex-col gap-2.5">
-          <span className="text-xs font-black uppercase tracking-wider">
+          <span className="text-xs font-black uppercase tracking-wider text-[#1A2621]">
             Settlement Summary
           </span>
 
-          <div className="w-full border-2 border-black rounded-3xl p-5 flex flex-col gap-3.5 bg-white shadow-sm">
+          <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-3xl p-5 flex flex-col gap-3.5 bg-[#FFFEFC] shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)]">
             {transactionRows.map((row, idx) => (
               <div key={idx} className="w-full flex items-center justify-between text-xs">
-                <span className="text-zinc-600 font-semibold">{row.label}</span>
-                <span className="font-bold">{row.value}</span>
+                <span className="text-[#5A6860] font-semibold">{row.label}</span>
+                <span className="font-bold text-[#1A2621]">{row.value}</span>
               </div>
             ))}
 
             {/* Status Row with Pill */}
-            <div className="w-full flex items-center justify-between text-xs pt-1 border-t border-zinc-200">
-              <span className="text-zinc-600 font-semibold">Status</span>
-              <span className="border border-black px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-900 border-emerald-500">
+            <div className="w-full flex items-center justify-between text-xs pt-1 border-t border-[rgba(220,226,222,0.7)]">
+              <span className="text-[#5A6860] font-semibold">Status</span>
+              <span className="border border-emerald-500 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-900 shadow-2xs">
                 Paid &amp; Settled
               </span>
             </div>
@@ -211,12 +229,12 @@ function PaymentSuccessContent() {
       </div>
 
       {/* Bottom Sticky View Bill Button directly above the bottom nav icons */}
-      <div className="sticky bottom-16 z-30 w-full bg-white/95 backdrop-blur-sm pt-2 pb-2">
+      <div className="sticky bottom-16 z-30 w-full bg-[#FFFEFC]/95 backdrop-blur-md pt-2 pb-2">
         <Link
           href={`/seat/${chairId}/receipt`}
-          className="w-full border-2 border-black bg-black text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-80 transition-opacity text-center shadow-md"
+          className="w-full bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white py-3.5 px-4 text-sm font-bold uppercase tracking-wider rounded-xl flex items-center justify-center cursor-pointer active:opacity-90 transition-all text-center shadow-md hover:shadow-lg"
         >
-          View Tax Invoice
+          View Tax Invoice {countdown > 0 ? `(${countdown}s)` : ''}
         </Link>
       </div>
 
@@ -224,7 +242,6 @@ function PaymentSuccessContent() {
       <CustomerBottomNav
         chairId={chairId}
         disabledTabs={['home', 'likes', 'cart']}
-        showIndicatorArrowOnProfile={true}
       />
     </div>
   );
@@ -232,7 +249,7 @@ function PaymentSuccessContent() {
 
 export default function PaymentSuccessPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-b from-[#F9F8F5] to-[#F3F1EC]" />}>
       <PaymentSuccessContent />
     </Suspense>
   );

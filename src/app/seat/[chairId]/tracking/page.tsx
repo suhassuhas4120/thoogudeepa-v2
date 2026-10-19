@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
@@ -36,6 +36,73 @@ export default function LiveOrderTrackingPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
   const [isDispatched, setIsDispatched] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  // Synchronize latest dish stages and order items from server
+  const syncLatestStages = useCallback(async () => {
+    try {
+      setIsSyncing(true);
+      const cleanChair = chairId.replace(/[^0-9]/g, '');
+      const res = await realtimeBridge.getOrderForSeat(cleanChair || chairId);
+      if (res.items && res.items.length > 0) {
+        const tNum = res.order?.ticket_number || '';
+        // 1. Sync session dishes with latest items from database
+        setSession((prev) => {
+          if (!prev) return prev;
+          const updatedItems = res.items.map((it) => {
+            const prevItem = prev.items?.find((p) =>
+              (p.id && it.id && p.id === it.id) ||
+              (p.dish_id && it.dish_id && (p.dish_id === it.dish_id || p.dish_id.replace(/^dish-/, '') === it.dish_id.replace(/^dish-/, ''))) ||
+              (p.title && it.dish_name && p.title.toLowerCase().trim() === it.dish_name.toLowerCase().trim())
+            );
+            return {
+              id: it.id || prevItem?.id || `dish-${it.dish_id}`,
+              dish_id: it.dish_id,
+              title: it.dish_name || prevItem?.title || 'Dish',
+              quantity: it.quantity,
+              price: it.price,
+              stage: it.stage,
+              notes: it.notes || prevItem?.notes,
+              addons: it.addons || prevItem?.addons,
+            };
+          });
+          return {
+            ...prev,
+            ticketNumber: tNum || prev.ticketNumber,
+            totalAmount: res.order?.total_amount || prev.totalAmount,
+            items: updatedItems,
+          };
+        });
+
+        // 2. Hydrate itemStages across ticket-scoped keys
+        setItemStages((prev) => {
+          const updated = { ...prev };
+          res.items.forEach((it) => {
+            if (it.stage) {
+              if (it.id) updated[it.id] = it.stage;
+              if (tNum) {
+                if (it.id) updated[`${tNum}-${it.id}`] = it.stage;
+                if (it.dish_id) {
+                  updated[`${tNum}-${it.dish_id}`] = it.stage;
+                  const clean = it.dish_id.replace(/^dish-/, '');
+                  updated[`${tNum}-${clean}`] = it.stage;
+                }
+                if (it.dish_name) {
+                  updated[`${tNum}-${it.dish_name}`] = it.stage;
+                  updated[`${tNum}-${it.dish_name.toLowerCase()}`] = it.stage;
+                }
+              }
+            }
+          });
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.warn('Error syncing order stages:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [chairId]);
 
   useEffect(() => {
     // Verify occupancy: if occupied by someone else, redirect to seat entrance
@@ -57,13 +124,26 @@ export default function LiveOrderTrackingPage() {
       setSession(s);
     }
 
+    const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
+    const paddedChair = cleanCurrentChair.padStart(2, '0');
+
     // Restore cached stage progress for this seat if available
     try {
-      const cachedStages = localStorage.getItem(`thoogudeepa_item_stages_${chairId}`);
-      if (cachedStages) {
-        setItemStages(JSON.parse(cachedStages));
+      let cached = {};
+      const keysToTry = [
+        chairId ? `thoogudeepa_item_stages_${chairId}` : '',
+        cleanCurrentChair ? `thoogudeepa_item_stages_${cleanCurrentChair}` : '',
+        paddedChair ? `thoogudeepa_item_stages_${paddedChair}` : '',
+      ].filter(Boolean);
+      for (const k of keysToTry) {
+        const raw = localStorage.getItem(k);
+        if (raw) cached = { ...cached, ...JSON.parse(raw) };
       }
-      const dispatchRecord = localStorage.getItem(`thoogudeepa_ticket_dispatched_${chairId}`);
+      if (Object.keys(cached).length > 0) {
+        setItemStages(cached);
+      }
+      const dispatchRecord = localStorage.getItem(`thoogudeepa_ticket_dispatched_${chairId}`) ||
+                             localStorage.getItem(`thoogudeepa_ticket_dispatched_${cleanCurrentChair}`);
       if (dispatchRecord) {
         setIsDispatched(true);
       }
@@ -71,26 +151,15 @@ export default function LiveOrderTrackingPage() {
       // Ignore storage errors
     }
 
-    // Also fetch latest stages from remote active order if available
-    realtimeBridge.getOrderForSeat(chairId).then((res) => {
-      if (res.items && res.items.length > 0) {
-        setItemStages((prev) => {
-          const updated = { ...prev };
-          res.items.forEach((it, idx) => {
-            const itemKey = it.id || `${res.order?.ticket_number || 'T'}-${idx}`;
-            if (it.stage) {
-              updated[itemKey] = it.stage;
-              if (it.id) updated[it.id] = it.stage;
-            }
-          });
-          return updated;
-        });
-      }
-    }).catch(() => {});
-
     setIsLoaded(true);
 
-    const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
+    // Initial background sync
+    syncLatestStages();
+
+    // Regular interval poll to guarantee active order status stays current
+    const pollInterval = setInterval(() => {
+      syncLatestStages();
+    }, 2500);
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
@@ -102,15 +171,29 @@ export default function LiveOrderTrackingPage() {
 
         setItemStages((prev) => {
           const nextStages = { ...prev };
-          if (data.key) nextStages[data.key] = data.stage;
-          if (data.dishId && data.dishId.startsWith('item-')) {
-            nextStages[data.dishId] = data.stage;
+          const stage = data.stage;
+          if (data.itemId) nextStages[data.itemId] = stage;
+          if (data.key && data.key.includes('-')) nextStages[data.key] = stage;
+          if (data.ticketNumber) {
+            if (data.itemId) nextStages[`${data.ticketNumber}-${data.itemId}`] = stage;
+            if (data.dishId) {
+              nextStages[`${data.ticketNumber}-${data.dishId}`] = stage;
+              const clean = data.dishId.replace(/^dish-/, '');
+              nextStages[`${data.ticketNumber}-${clean}`] = stage;
+            }
+            if (data.dishName) {
+              nextStages[`${data.ticketNumber}-${data.dishName}`] = stage;
+              nextStages[`${data.ticketNumber}-${data.dishName.toLowerCase()}`] = stage;
+            }
           }
           return nextStages;
         });
+
+        // Trigger authoritative refresh
+        syncLatestStages();
       },
       onTicketDispatched: (data) => {
-        if (!data.chairId || data.chairId === chairId) {
+        if (!data.chairId || data.chairId === chairId || data.chairId.replace(/[^0-9]/g, '') === cleanCurrentChair) {
           setIsDispatched(true);
         }
       },
@@ -122,9 +205,10 @@ export default function LiveOrderTrackingPage() {
     });
 
     return () => {
+      clearInterval(pollInterval);
       unsubscribe();
     };
-  }, [chairId]);
+  }, [chairId, syncLatestStages]);
 
   // Determine items list to track individually
   const trackingDishes = useMemo(() => {
@@ -152,35 +236,35 @@ export default function LiveOrderTrackingPage() {
   }, [session]);
 
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28">
+    <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28 text-[#1A2621]">
       {/* Scrollable Content Container */}
       <div className="w-full flex flex-col gap-4">
         {/* Top Header */}
-        <header className="w-full flex items-center justify-between py-2 border-b border-zinc-200 pb-3">
+        <header className="w-full flex items-center justify-between py-2 border-b border-[rgba(220,226,222,0.7)] pb-3">
           <Link
             href={`/seat/${chairId}/cart`}
-            className="w-10 h-10 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70"
+            className="w-10 h-10 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#1A2621] shadow-2xs"
             aria-label="Back to Cart"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
           <div className="text-center flex flex-col items-center">
-            <span className="text-sm font-black tracking-wider uppercase">
+            <span className="text-sm font-black tracking-wider uppercase text-[#1A2621]">
               THOOGUDEEPA
             </span>
-            <span className="text-[10px] text-zinc-500 tracking-tight">
+            <span className="text-[10px] text-[#5A6860] tracking-tight">
               Donne Biryani Mane
             </span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <div className="border border-black px-2.5 py-1 rounded-lg text-xs font-bold bg-white">
+            <div className="border border-[#244436]/20 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#FFFEFC] text-[#244436] shadow-2xs">
               Seat {seatNumber}
             </div>
             <Link
               href={`/seat/${chairId}/assistant?from=${encodeURIComponent(`/seat/${chairId}/tracking`)}`}
-              className="w-9 h-9 border border-black rounded-lg flex items-center justify-center cursor-pointer active:opacity-70 bg-white"
+              className="w-9 h-9 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center cursor-pointer active:opacity-70 bg-[#FFFEFC] text-[#244436] shadow-2xs"
               aria-label="Assistant & Call Waiter"
             >
               <Bell className="w-4 h-4" />
@@ -190,21 +274,21 @@ export default function LiveOrderTrackingPage() {
 
         {isLoaded && !session ? (
           /* Empty State - No active order placed yet */
-          <div className="w-full py-16 flex flex-col items-center justify-center text-center gap-4 border-2 border-dashed border-zinc-300 rounded-3xl bg-zinc-50/50 p-6 my-4">
-            <div className="w-16 h-16 rounded-full border-2 border-black bg-white flex items-center justify-center shadow-xs">
-              <Clock className="w-7 h-7 text-black" />
+          <div className="w-full py-16 flex flex-col items-center justify-center text-center gap-4 border border-[rgba(220,226,222,0.8)] rounded-3xl bg-[#FFFEFC] p-6 my-4 shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)]">
+            <div className="w-16 h-16 rounded-full border border-[rgba(220,226,222,0.9)] bg-[#F9F8F5] flex items-center justify-center shadow-xs">
+              <Clock className="w-7 h-7 text-[#244436]" />
             </div>
             <div className="flex flex-col gap-1">
-              <h2 className="text-base font-black uppercase tracking-tight text-zinc-950">
+              <h2 className="text-base font-black uppercase tracking-tight text-[#1A2621]">
                 No Orders in Kitchen Yet
               </h2>
-              <p className="text-xs text-zinc-500 font-medium max-w-xs leading-relaxed">
+              <p className="text-xs text-[#5A6860] font-medium max-w-xs leading-relaxed">
                 Seat {seatNumber} does not currently have any active tickets in preparation. Browse our authentic military menu to place your order!
               </p>
             </div>
             <Link
               href={`/seat/${chairId}/menu`}
-              className="mt-2 px-6 py-2.5 border-2 border-black bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 shadow-xs flex items-center gap-2"
+              className="mt-2 px-6 py-2.5 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer active:opacity-85 shadow-md flex items-center gap-2 hover:opacity-95"
             >
               <span>Explore Menu</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -214,65 +298,85 @@ export default function LiveOrderTrackingPage() {
           /* Active Order Tracking with Individual Item Cards */
           <>
             {/* Top Live Pass Status Banner */}
-            <div className="w-full border-2 border-black rounded-2xl p-4 flex items-center justify-between bg-white shadow-sm">
+            <div className="w-full border border-[rgba(220,226,222,0.8)] rounded-2xl p-4 flex items-center justify-between bg-[#FFFEFC] shadow-[0_4px_20px_-4px_rgba(36,68,54,0.06)]">
               <div className="flex flex-col gap-0.5 min-w-0">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-black shrink-0" />
-                  <h2 className="text-base font-black tracking-tight truncate">
+                  <Clock className="w-5 h-5 text-[#244436] shrink-0" />
+                  <h2 className="text-base font-black tracking-tight truncate text-[#1A2621]">
                     Live Dish Tracking
                   </h2>
                 </div>
-                <p className="text-xs text-zinc-600 truncate">
+                <p className="text-xs text-[#5A6860] truncate">
                   Ticket #{session?.ticketNumber} • {trackingDishes.length} {trackingDishes.length === 1 ? 'Dish' : 'Dishes'} in Kitchen Pass
                 </p>
               </div>
 
-              <div className="border border-black px-2.5 py-1.5 rounded-xl text-center shrink-0 bg-zinc-50">
-                <Sparkles className="w-4 h-4 mx-auto mb-0.5 text-amber-600" />
-                <span className="text-[9px] font-black uppercase tracking-wider block">
-                  Live Sync
+              <button
+                type="button"
+                onClick={() => syncLatestStages()}
+                className="border border-[rgba(220,226,222,0.8)] px-2.5 py-1.5 rounded-xl text-center shrink-0 bg-[#F9F8F5] hover:bg-[#F3F1EC] active:scale-95 transition-all cursor-pointer shadow-2xs"
+                title="Tap to refresh live status"
+              >
+                <Sparkles className={`w-4 h-4 mx-auto mb-0.5 text-[#DD6B28] ${isSyncing ? 'animate-spin' : ''}`} />
+                <span className="text-[9px] font-black uppercase tracking-wider block text-[#244436]">
+                  {isSyncing ? 'Syncing...' : 'Live Sync'}
                 </span>
-              </div>
+              </button>
             </div>
 
             {/* Individual Item Cards */}
             <div className="w-full flex flex-col gap-4">
               {trackingDishes.map((dish, idx) => {
-                const numericDishId = dish.id.replace('dish-', '');
-                const dishDetails = getMenuItemById(numericDishId);
+                const cleanDishNum = (dish.dish_id || dish.id || '').replace(/^dish-/, '');
+                const dishDetails = getMenuItemById(cleanDishNum) || {
+                  id: cleanDishNum,
+                  name: dish.title || 'Dish',
+                  kannadaName: '',
+                  price: dish.price || 150,
+                  category: 'biryani' as const,
+                  dietary: 'non_veg' as const,
+                  description: '',
+                  prepTimeMinutes: 15,
+                  imageUrl: '/images/dishes/chicken-donne-biryani.jpg',
+                  isAvailable: true,
+                  isBestseller: false,
+                };
 
                 // Determine this item's specific stage
-                const itemKey1 = dish.id;
-                const itemKey2 = `${session?.ticketNumber}-${idx}`;
+                const tNum = session?.ticketNumber || '';
                 const stageRaw =
                   isDispatched
                     ? 'SERVED'
-                    : (itemKey1 ? itemStages[itemKey1] : undefined) ||
-                      (itemKey2 ? itemStages[itemKey2] : undefined) ||
+                    : (dish.id && itemStages[dish.id]) ||
+                      (tNum && dish.id && itemStages[`${tNum}-${dish.id}`]) ||
+                      (tNum && dish.dish_id && itemStages[`${tNum}-${dish.dish_id}`]) ||
+                      (tNum && cleanDishNum && itemStages[`${tNum}-${cleanDishNum}`]) ||
+                      (tNum && dish.title && itemStages[`${tNum}-${dish.title}`]) ||
+                      (tNum && dish.title && itemStages[`${tNum}-${dish.title.toLowerCase()}`]) ||
                       (dish as any).stage ||
                       'PLACED';
 
                 // Map stage to numeric step 1..5
                 let currentStepNum = 1; // Default Placed
                 let badgeLabel = 'ORDER PLACED';
-                let badgeClass = 'bg-sky-50 text-sky-900 border-sky-300';
+                let badgeClass = 'bg-emerald-50 text-[#244436] border-emerald-300';
 
                 if (stageRaw === 'SERVED') {
                   currentStepNum = 5;
                   badgeLabel = 'SERVED AT TABLE';
-                  badgeClass = 'bg-zinc-950 text-white border-zinc-950';
+                  badgeClass = 'bg-[#244436] text-white border-[#244436]';
                 } else if (stageRaw === 'READY') {
                   currentStepNum = 4;
                   badgeLabel = 'READY TO SERVE';
-                  badgeClass = 'bg-emerald-50 text-emerald-900 border-emerald-400';
+                  badgeClass = 'bg-amber-100 text-amber-900 border-amber-400 font-black animate-pulse';
                 } else if (stageRaw === 'PREP') {
                   currentStepNum = 3;
                   badgeLabel = 'COOKING IN WOK';
-                  badgeClass = 'bg-orange-50 text-orange-950 border-orange-400';
+                  badgeClass = 'bg-orange-50 text-[#DD6B28] border-orange-300 font-bold';
                 } else if (stageRaw === 'REC') {
                   currentStepNum = 2;
                   badgeLabel = 'RECEIVED IN KITCHEN';
-                  badgeClass = 'bg-amber-50 text-amber-900 border-amber-300';
+                  badgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold';
                 }
 
                 // 5-Step tracking points for this specific dish
@@ -289,13 +393,13 @@ export default function LiveOrderTrackingPage() {
                 return (
                   <div
                     key={dish.id || idx}
-                    className="w-full border-2 border-black rounded-2xl p-4 flex flex-col gap-3 bg-white shadow-sm transition-all"
+                    className="w-full border border-[rgba(220,226,222,0.8)] rounded-2xl p-4 flex flex-col gap-3 bg-[#FFFEFC] shadow-[0_4px_16px_-4px_rgba(36,68,54,0.05)] transition-all"
                   >
                     {/* Dish Header Info */}
                     <div className="w-full flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {/* Circular Dish Image */}
-                        <div className="w-14 h-14 rounded-full border-2 border-black overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
+                        <div className="w-14 h-14 rounded-full border border-[rgba(220,226,222,0.9)] overflow-hidden flex items-center justify-center shrink-0 bg-[#fbf9f5] shadow-2xs p-0.5">
                           <img
                             src={dishDetails.imageUrl}
                             alt={dish.title}
@@ -306,14 +410,14 @@ export default function LiveOrderTrackingPage() {
 
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-md bg-zinc-950 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                            <span className="w-5 h-5 rounded-md bg-[#244436] text-white text-[10px] font-black flex items-center justify-center shrink-0">
                               {dish.quantity}x
                             </span>
-                            <h3 className="text-xs font-black truncate text-zinc-950">
+                            <h3 className="text-xs font-black truncate text-[#1A2621]">
                               {dish.title}
                             </h3>
                           </div>
-                          <span className="text-[11px] font-bold text-zinc-600 mt-0.5">
+                          <span className="text-[11px] font-bold text-[#5A6860] mt-0.5">
                             ₹ {dish.price * dish.quantity}
                           </span>
                         </div>
@@ -326,15 +430,15 @@ export default function LiveOrderTrackingPage() {
                     </div>
 
                     {/* Individual Dish 5-Step Progress Stepper */}
-                    <div className="w-full pt-2 border-t border-zinc-200">
+                    <div className="w-full pt-2 border-t border-[rgba(220,226,222,0.7)]">
                       <div className="flex items-center justify-between relative px-2">
                         {/* Gray background track line between first and last circle centers */}
                         <div className="absolute top-[14px] -translate-y-1/2 left-[28px] right-[28px] h-[3px] bg-zinc-200 z-0 rounded-full pointer-events-none" />
 
-                        {/* Active black track line connecting done status circles */}
+                        {/* Active gradient track line connecting done status circles */}
                         <div className="absolute top-[14px] -translate-y-1/2 left-[28px] right-[28px] h-[3px] z-0 pointer-events-none rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-black transition-all duration-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-[#244436] to-[#DD6B28] transition-all duration-500 rounded-full"
                             style={{ width: `${progressPercent}%` }}
                           />
                         </div>
@@ -349,10 +453,10 @@ export default function LiveOrderTrackingPage() {
                               className="relative z-10 flex flex-col items-center gap-1 min-w-[46px]"
                             >
                               <div
-                                className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all shadow-2xs ${
+                                className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs font-bold transition-all shadow-2xs ${
                                   isDone
-                                    ? 'bg-black text-white border-black'
-                                    : 'bg-white text-zinc-400 border-zinc-300'
+                                    ? 'bg-[#244436] text-white border-[#244436]'
+                                    : 'bg-[#FFFEFC] text-[#5A6860] border-[rgba(220,226,222,0.9)]'
                                 }`}
                               >
                                 {isDone ? (
@@ -364,14 +468,14 @@ export default function LiveOrderTrackingPage() {
 
                               <span
                                 className={`text-[9px] tracking-tight text-center ${
-                                  isDone ? 'font-black text-zinc-950' : 'font-semibold text-zinc-400'
+                                  isDone ? 'font-black text-[#1A2621]' : 'font-semibold text-zinc-400'
                                 }`}
                               >
                                 {st.label}
                               </span>
                               <span
                                 className={`text-[8px] text-center ${
-                                  isDone ? 'font-bold text-zinc-700' : 'text-zinc-400'
+                                  isDone ? 'font-bold text-[#5A6860]' : 'text-zinc-400'
                                 }`}
                               >
                                 {st.sub}
@@ -390,9 +494,9 @@ export default function LiveOrderTrackingPage() {
             <div className="w-full pt-1">
               <Link
                 href={`/seat/${chairId}/menu`}
-                className="w-full py-3 border-2 border-black rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 bg-black text-white cursor-pointer active:opacity-80 transition-opacity shadow-xs"
+                className="w-full py-3.5 border border-[#244436]/20 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 bg-[#FFFEFC] text-[#244436] cursor-pointer active:opacity-80 transition-all shadow-2xs hover:bg-[#F9F8F5]"
               >
-                <PlusCircle className="w-4 h-4" />
+                <PlusCircle className="w-4 h-4 text-[#244436]" />
                 <span>Add More Dishes</span>
               </Link>
             </div>
@@ -402,14 +506,14 @@ export default function LiveOrderTrackingPage() {
 
       {/* Bottom Sticky Summary Bar with Pay Button */}
       {session && (
-        <div className="sticky bottom-[58px] z-30 w-full max-w-md bg-white border-t-2 border-black py-3 px-4 mt-6 flex items-center justify-between shadow-lg">
+        <div className="sticky bottom-[58px] z-30 w-full max-w-md bg-[#FFFEFC]/95 backdrop-blur-md border-t border-[rgba(220,226,222,0.8)] py-3 px-4 mt-6 flex items-center justify-between shadow-[0_-4px_20px_-4px_rgba(36,68,54,0.06)]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 border border-black rounded-lg flex items-center justify-center">
-              <Receipt className="w-4 h-4 text-black" />
+            <div className="w-9 h-9 border border-[rgba(220,226,222,0.8)] rounded-xl flex items-center justify-center bg-[#F9F8F5]">
+              <Receipt className="w-4 h-4 text-[#244436]" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold">Ticket #{session.ticketNumber}</span>
-              <span className="text-[11px] text-zinc-600 font-semibold">
+              <span className="text-xs font-bold text-[#1A2621]">Ticket #{session.ticketNumber}</span>
+              <span className="text-[11px] text-[#5A6860] font-semibold">
                 Total: ₹ {session.totalAmount}
               </span>
             </div>
@@ -417,7 +521,7 @@ export default function LiveOrderTrackingPage() {
 
           <Link
             href={`/seat/${chairId}/bill`}
-            className="px-6 py-2.5 border-2 border-black bg-black text-white text-xs font-bold uppercase tracking-wider rounded-lg active:opacity-80 cursor-pointer text-center"
+            className="px-6 py-2.5 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white text-xs font-bold uppercase tracking-wider rounded-xl active:opacity-90 cursor-pointer text-center shadow-md hover:shadow-lg"
           >
             Pay Bill
           </Link>

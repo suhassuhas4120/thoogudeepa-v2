@@ -268,10 +268,10 @@ export default function CustomerSeatPage() {
 
   // --- VIEW 4: VACANT TABLE (NEW CUSTOMER ACCESS) ---
   return (
-    <div className="min-h-screen w-full bg-white text-black flex flex-col items-center justify-between px-6 py-12 max-w-md mx-auto">
+    <div className="min-h-screen w-full flex flex-col items-center justify-between px-6 py-12 max-w-md mx-auto text-[#1A2621]">
       {/* Upper area with enlarged circular logo */}
       <div className="w-full flex flex-col items-center pt-4 sm:pt-8">
-        <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border-2 border-black p-1 bg-white shadow-md flex items-center justify-center overflow-hidden">
+        <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full border border-[rgba(220,226,222,0.8)] p-1 bg-[#FFFEFC] shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex items-center justify-center overflow-hidden">
           <img
             src="/logo.jpg"
             alt="ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ ಮನೆ"
@@ -285,12 +285,12 @@ export default function CustomerSeatPage() {
 
       {/* Center area with Seat No and Name input */}
       <div className="w-full flex flex-col items-center gap-5 my-auto py-6">
-        <div className="w-full text-center py-2.5 border-2 border-black rounded-xl bg-zinc-950 text-white shadow-2xs">
-          <span className="text-lg font-black tracking-wider uppercase">Seat No: {seatNumber}</span>
+        <div className="w-full text-center py-3 border border-[#244436]/20 rounded-2xl bg-gradient-to-r from-[#244436] to-[#1e382c] text-[#FFFEFC] shadow-md">
+          <span className="text-base font-black tracking-wider uppercase">Seat No: {seatNumber}</span>
         </div>
 
-        <div className="w-full flex flex-col gap-1.5">
-          <label htmlFor="customerName" className="text-xs font-bold uppercase tracking-wider text-zinc-700">
+        <div className="w-full flex flex-col gap-1.5 bg-[#FFFEFC] border border-[rgba(220,226,222,0.7)] p-4 rounded-2xl shadow-[0_4px_20px_-4px_rgba(36,68,54,0.05)]">
+          <label htmlFor="customerName" className="text-xs font-bold uppercase tracking-wider text-[#5A6860]">
             Name (Optional)
           </label>
           <input
@@ -299,7 +299,7 @@ export default function CustomerSeatPage() {
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="Enter your name"
-            className="w-full border-2 border-black px-3.5 py-2.5 text-sm outline-none bg-white text-black rounded-xl placeholder:text-zinc-400 font-semibold"
+            className="w-full border border-[rgba(220,226,222,0.9)] px-3.5 py-2.5 text-sm outline-none bg-[#F9F8F5] text-[#1A2621] rounded-xl placeholder:text-zinc-400 font-semibold focus:border-[#244436] transition-colors"
           />
         </div>
       </div>
@@ -308,7 +308,7 @@ export default function CustomerSeatPage() {
       <div className="w-full pb-4 sm:pb-8 flex flex-col gap-2">
         <Link
           href={targetMenuUrl}
-          className="w-full block text-center border-2 border-black bg-black text-white py-3.5 text-sm font-black uppercase tracking-wider rounded-xl cursor-pointer active:opacity-80 shadow-md"
+          className="w-full block text-center bg-gradient-to-r from-[#244436] via-[#2d5242] to-[#DD6B28] text-white py-3.5 text-sm font-black uppercase tracking-wider rounded-2xl cursor-pointer active:opacity-90 shadow-md hover:shadow-lg transition-all"
         >
           Start Ordering
         </Link>

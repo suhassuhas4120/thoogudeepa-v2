@@ -163,6 +163,26 @@ function setLocalOrdersList(list: { order: OrderRecord; items: OrderItemRecord[]
   }
 }
 
+export type KDSCallbacks = {
+  onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
+  onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }) => void;
+  onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
+  onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
+  onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
+  onNewAlert?: (alert: ServiceAlertRecord) => void;
+  onResolveAlert?: (alertId: string) => void;
+  onBillRequested?: (data: { chairId: string; amount?: number; verification?: BillVerificationPayload }) => void;
+  onBillModeActive?: (data: { chairId: string; amount?: number; mode?: 'qr' | 'cash'; ticketNumber?: string }) => void;
+  onCustomerPaidUpi?: (data: { chairId: string; rawChairId?: string; amount?: number; ticketNumber?: string }) => void;
+  onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string; ticketNumber?: string }) => void;
+  onClearAll?: () => void;
+};
+
+const activeKdsSubscribers = new Set<KDSCallbacks>();
+let sharedSupabaseChannel: ReturnType<SupabaseClient['channel']> | null = null;
+let sharedLocalListenerInitialized = false;
+const processedOrderIds = new Set<string>();
+
 export const realtimeBridge = {
   // Post order to Supabase, update local resilience store, and broadcast locally
   async placeOrder(order: OrderRecord, items: OrderItemRecord[]): Promise<{ success: boolean; orderId?: string }> {
@@ -230,12 +250,6 @@ export const realtimeBridge = {
 
         const orderId = orderData.id;
 
-        // Synchronize local orders entry with confirmed database ID
-        const currentLocals = getLocalOrdersList();
-        const updatedWithDbId = currentLocals.map((x) =>
-          x.order.id === generatedId ? { ...x, order: { ...x.order, id: orderId } } : x
-        );
-        setLocalOrdersList(updatedWithDbId);
         const itemsToInsert = items.map((it) => {
           const isPlaced = it.stage === 'PLACED' || !it.stage;
           const addonsList = Array.isArray(it.addons) ? [...it.addons] : [];
@@ -256,15 +270,37 @@ export const realtimeBridge = {
           };
         });
 
-        const { error: itemsErr } = await supabase.from('order_items').insert(itemsToInsert);
+        const { data: insertedItemsData, error: itemsErr } = await supabase
+          .from('order_items')
+          .insert(itemsToInsert)
+          .select('*');
         if (itemsErr) throw itemsErr;
+
+        const broadcastItems =
+          insertedItemsData && insertedItemsData.length > 0
+            ? insertedItemsData.map((it, idx) => ({
+                ...it,
+                stage: 'PLACED' as const,
+                notes: newEntry.items[idx]?.notes || it.notes,
+                addons: newEntry.items[idx]?.addons || it.addons,
+              }))
+            : newEntry.items;
+
+        // Synchronize local orders entry with confirmed database ID and items
+        const currentLocals = getLocalOrdersList();
+        const updatedWithDbId = currentLocals.map((x) =>
+          x.order.id === generatedId || x.order.id === orderId
+            ? { ...x, order: { ...x.order, id: orderId }, items: broadcastItems }
+            : x
+        );
+        setLocalOrdersList(updatedWithDbId);
 
         // Broadcast cross-device via Supabase Realtime channel
         const liveChannel = supabase.channel('kitchen_realtime_feed');
         liveChannel.send({
           type: 'broadcast',
           event: 'NEW_ORDER',
-          payload: { order: { ...order, id: orderId }, items: newEntry.items },
+          payload: { order: { ...order, id: orderId }, items: broadcastItems },
         });
 
         return { success: true, orderId };
@@ -413,7 +449,7 @@ export const realtimeBridge = {
   async updateStage(
     itemIdOrKey: string,
     stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string }
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }
   ): Promise<boolean> {
     try {
       // 1. Update in local orders list strictly for matching item
@@ -429,9 +465,18 @@ export const realtimeBridge = {
         if (isTargetChair && isTargetTicket) {
           o.items.forEach((it) => {
             const matches =
-              it.id === targetItemId ||
-              it.id === itemIdOrKey ||
-              (!it.id && it.dish_id === meta?.dishId);
+              Boolean(targetItemId && it.id && it.id === targetItemId) ||
+              Boolean(itemIdOrKey && it.id && it.id === itemIdOrKey) ||
+              Boolean(
+                meta?.dishId &&
+                it.dish_id &&
+                (it.dish_id === meta.dishId || it.dish_id.replace(/^dish-/, '') === meta.dishId.replace(/^dish-/, ''))
+              ) ||
+              Boolean(
+                meta?.dishName &&
+                it.dish_name &&
+                it.dish_name.toLowerCase().trim() === meta.dishName.toLowerCase().trim()
+              );
 
             if (matches) {
               it.stage = stage;
@@ -457,6 +502,19 @@ export const realtimeBridge = {
             if (tNum) {
               existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
               existing[`${tNum}-${itemIdOrKey}`] = stage;
+              if (meta?.dishId) {
+                existing[`${tNum}-${meta.dishId}`] = stage;
+                existing[`${chair}-${tNum}-${meta.dishId}`] = stage;
+                const cleanD = meta.dishId.replace(/^dish-/, '');
+                existing[`${tNum}-${cleanD}`] = stage;
+                existing[`${chair}-${tNum}-${cleanD}`] = stage;
+              }
+              if (meta?.dishName) {
+                existing[`${tNum}-${meta.dishName}`] = stage;
+                existing[`${chair}-${tNum}-${meta.dishName}`] = stage;
+                existing[`${tNum}-${meta.dishName.toLowerCase()}`] = stage;
+                existing[`${chair}-${tNum}-${meta.dishName.toLowerCase()}`] = stage;
+              }
             }
             localStorage.setItem(key, JSON.stringify(existing));
 
@@ -679,9 +737,9 @@ export const realtimeBridge = {
       });
 
       return items.map((it, idx) => {
-        // Check matching item in local order
+        // Check matching item in local order only for local-backed orders
         let localStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' | undefined;
-        if (matchingLocalOrder) {
+        if (matchingLocalOrder && (!order.id || order.id.startsWith('local-'))) {
           const localMatch = matchingLocalOrder.items.find((lit) => {
             return (it.id && lit.id === it.id) || (!it.id && lit.dish_id === it.dish_id);
           });
@@ -987,27 +1045,57 @@ export const realtimeBridge = {
   },
 
   // Broadcast when waiter enters bill collection / settlement mode for a seat
-  async notifyBillModeActive(chairId: string, amount?: number): Promise<boolean> {
+  async notifyBillModeActive(
+    chairId: string,
+    amount?: number,
+    meta?: { mode?: 'qr' | 'cash'; ticketNumber?: string }
+  ): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const map = getLocalOccupancyMap();
     if (map[cleanChair]) {
       map[cleanChair].status = 'billing';
       setLocalOccupancyMap(map);
     }
+    const mode = meta?.mode || 'qr';
+    const ticketNumber = meta?.ticketNumber;
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount });
+      localChannel.postMessage({ type: 'BILL_MODE_ACTIVE', chairId: cleanChair, amount, mode, ticketNumber });
     }
     if (supabase) {
       const liveChannel = supabase.channel('kitchen_realtime_feed');
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_MODE_ACTIVE',
-        payload: { chairId: cleanChair, amount }
+        payload: { chairId: cleanChair, amount, mode, ticketNumber }
       });
     }
     return true;
   },
-  async settleBill(chairId: string, paymentMethod: string, amount: number): Promise<boolean> {
+
+  // Broadcast when customer confirms completed UPI payment
+  async notifyCustomerPaidUpi(data: { chairId: string; rawChairId?: string; amount?: number; ticketNumber?: string }): Promise<boolean> {
+    const cleanChair = data.chairId.replace(/[^0-9]/g, '');
+    const payload = {
+      chairId: cleanChair,
+      rawChairId: data.rawChairId || data.chairId,
+      amount: data.amount || 0,
+      ticketNumber: data.ticketNumber
+    };
+    if (localChannel) {
+      localChannel.postMessage({ type: 'CUSTOMER_PAID_UPI', ...payload });
+    }
+    if (supabase) {
+      const liveChannel = supabase.channel('kitchen_realtime_feed');
+      liveChannel.send({
+        type: 'broadcast',
+        event: 'CUSTOMER_PAID_UPI',
+        payload
+      });
+    }
+    return true;
+  },
+
+  async settleBill(chairId: string, paymentMethod: string, amount: number, meta?: { ticketNumber?: string }): Promise<boolean> {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const padded = cleanChair.padStart(2, '0');
     const unpadded = cleanChair.replace(/^0+/, '');
@@ -1044,8 +1132,9 @@ export const realtimeBridge = {
       } catch {}
     }
 
+    const settledTicket = meta?.ticketNumber;
     if (localChannel) {
-      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, paymentMethod, amount });
+      localChannel.postMessage({ type: 'BILL_SETTLED', chairId: cleanChair, rawChairId: chairId, paymentMethod, amount, ticketNumber: settledTicket });
       localChannel.postMessage({ type: 'SEAT_RELEASED', chairId: cleanChair });
     }
     if (supabase) {
@@ -1053,7 +1142,7 @@ export const realtimeBridge = {
       liveChannel.send({
         type: 'broadcast',
         event: 'BILL_SETTLED',
-        payload: { chairId: cleanChair, rawChairId: chairId, paymentMethod, amount }
+        payload: { chairId: cleanChair, rawChairId: chairId, paymentMethod, amount, ticketNumber: settledTicket }
       });
       liveChannel.send({
         type: 'broadcast',
@@ -1210,55 +1299,57 @@ export const realtimeBridge = {
   },
 
   // Subscribe to KDS & Seat Occupancy changes
-  subscribeKDS(callbacks: {
-    onNewOrder?: (data: { order: OrderRecord; items: OrderItemRecord[] }) => void;
-    onStageChange?: (data: { key: string; stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'; dishId?: string; chairId?: string; ticketNumber?: string; dishName?: string; itemId?: string }) => void;
-    onTicketDispatched?: (data: { ticketNumber: string; chairId?: string }) => void;
-    onAvailabilityChange?: (data: { dishId: string; isAvailable: boolean }) => void;
-    onSeatOccupancyChange?: (data: { chairId: string; isOccupied: boolean }) => void;
-    onNewAlert?: (alert: ServiceAlertRecord) => void;
-    onResolveAlert?: (alertId: string) => void;
-    onBillRequested?: (data: { chairId: string; amount?: number; verification?: BillVerificationPayload }) => void;
-    onBillModeActive?: (data: { chairId: string; amount?: number }) => void;
-    onBillSettled?: (data: { chairId: string; amount?: number; paymentMethod?: string }) => void;
-    onClearAll?: () => void;
-  }) {
-    // 1. Supabase Realtime Channel
-    let supabaseSub: ReturnType<SupabaseClient['channel']> | null = null;
-    if (supabase) {
-      supabaseSub = supabase
+  subscribeKDS(callbacks: KDSCallbacks) {
+    activeKdsSubscribers.add(callbacks);
+
+    // 1. Initialize Supabase Realtime Channel once as singleton
+    if (supabase && !sharedSupabaseChannel) {
+      sharedSupabaseChannel = supabase
         .channel('kitchen_realtime_feed')
         // Cross-device broadcast listeners (instant sub-50ms latency)
         .on('broadcast', { event: 'NEW_ORDER' }, (msg) => {
-          if (callbacks.onNewOrder && msg.payload) {
-            callbacks.onNewOrder(msg.payload);
+          if (msg.payload?.order?.id) {
+            processedOrderIds.add(msg.payload.order.id);
           }
-          if (callbacks.onSeatOccupancyChange && msg.payload?.order?.chair_id) {
-            callbacks.onSeatOccupancyChange({ chairId: msg.payload.order.chair_id, isOccupied: true });
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onNewOrder && msg.payload) {
+              cb.onNewOrder(msg.payload);
+            }
+            if (cb.onSeatOccupancyChange && msg.payload?.order?.chair_id) {
+              cb.onSeatOccupancyChange({ chairId: msg.payload.order.chair_id, isOccupied: true });
+            }
+          });
         })
         .on('broadcast', { event: 'STAGE_CHANGE' }, (msg) => {
-          if (callbacks.onStageChange && msg.payload) {
-            callbacks.onStageChange(msg.payload);
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onStageChange && msg.payload) {
+              cb.onStageChange(msg.payload);
+            }
+          });
         })
         .on('broadcast', { event: 'TICKET_DISPATCHED' }, (msg) => {
-          if (callbacks.onTicketDispatched && msg.payload) {
-            callbacks.onTicketDispatched(msg.payload);
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onTicketDispatched && msg.payload) {
+              cb.onTicketDispatched(msg.payload);
+            }
+          });
         })
         .on('broadcast', { event: 'NEW_ALERT' }, (msg) => {
-          if (callbacks.onNewAlert && msg.payload) {
-            callbacks.onNewAlert(msg.payload);
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onNewAlert && msg.payload) {
+              cb.onNewAlert(msg.payload);
+            }
+          });
         })
         .on('broadcast', { event: 'RESOLVE_ALERT' }, (msg) => {
-          if (callbacks.onResolveAlert && msg.payload?.alertId) {
-            callbacks.onResolveAlert(msg.payload.alertId);
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onResolveAlert && msg.payload?.alertId) {
+              cb.onResolveAlert(msg.payload.alertId);
+            }
+          });
         })
         .on('broadcast', { event: 'BILL_REQUESTED' }, (msg) => {
-          if (callbacks.onBillRequested && msg.payload) {
+          if (msg.payload) {
             const verification: BillVerificationPayload = {
               chairId: msg.payload.chairId,
               seatNumber: msg.payload.seatNumber || `Seat ${msg.payload.chairId}`,
@@ -1268,129 +1359,203 @@ export const realtimeBridge = {
               items: msg.payload.items || [],
               requestedAt: msg.payload.requestedAt || Date.now(),
             };
-            callbacks.onBillRequested({
-              chairId: msg.payload.chairId,
-              amount: msg.payload.amount,
-              verification,
+            activeKdsSubscribers.forEach((cb) => {
+              if (cb.onBillRequested) {
+                cb.onBillRequested({
+                  chairId: msg.payload.chairId,
+                  amount: msg.payload.amount,
+                  verification,
+                });
+              }
             });
           }
         })
         .on('broadcast', { event: 'BILL_MODE_ACTIVE' }, (msg) => {
-          if (callbacks.onBillModeActive && msg.payload) {
-            callbacks.onBillModeActive(msg.payload);
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onBillModeActive && msg.payload) {
+              cb.onBillModeActive(msg.payload);
+            }
+          });
+        })
+        .on('broadcast', { event: 'CUSTOMER_PAID_UPI' }, (msg) => {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onCustomerPaidUpi && msg.payload) {
+              cb.onCustomerPaidUpi(msg.payload);
+            }
+          });
         })
         .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
-          if (callbacks.onBillSettled && msg.payload) {
-            callbacks.onBillSettled(msg.payload);
-          }
-          if (callbacks.onSeatOccupancyChange && msg.payload?.chairId) {
-            callbacks.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onBillSettled && msg.payload) {
+              cb.onBillSettled(msg.payload);
+            }
+            if (cb.onSeatOccupancyChange && msg.payload?.chairId) {
+              cb.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
+            }
+          });
         })
         .on('broadcast', { event: 'SEAT_RELEASED' }, (msg) => {
-          if (callbacks.onSeatOccupancyChange && msg.payload?.chairId) {
-            callbacks.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onSeatOccupancyChange && msg.payload?.chairId) {
+              cb.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
+            }
+          });
         })
         .on('broadcast', { event: 'CLEAR_ALL_ORDERS' }, () => {
-          if (callbacks.onClearAll) {
-            callbacks.onClearAll();
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onClearAll) {
+              cb.onClearAll();
+            }
+          });
         })
         // Postgres change listeners (database synchronization)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
           const newOrder = payload.new as OrderRecord;
+          if (newOrder?.id && processedOrderIds.has(newOrder.id)) {
+            // Already received and dispatched via realtime broadcast
+            return;
+          }
+          if (newOrder?.id) {
+            processedOrderIds.add(newOrder.id);
+          }
           if (supabase && newOrder.id) {
             supabase
               .from('order_items')
               .select('*')
               .eq('order_id', newOrder.id)
               .then(({ data: fetchedItems }) => {
-                if (callbacks.onNewOrder) {
-                  callbacks.onNewOrder({ order: newOrder, items: fetchedItems || [] });
-                }
+                activeKdsSubscribers.forEach((cb) => {
+                  if (cb.onNewOrder) {
+                    cb.onNewOrder({ order: newOrder, items: fetchedItems || [] });
+                  }
+                });
               });
-          } else if (callbacks.onNewOrder) {
-            callbacks.onNewOrder({ order: newOrder, items: [] });
+          } else {
+            activeKdsSubscribers.forEach((cb) => {
+              if (cb.onNewOrder) {
+                cb.onNewOrder({ order: newOrder, items: [] });
+              }
+            });
           }
-          if (callbacks.onSeatOccupancyChange && newOrder?.chair_id) {
-            callbacks.onSeatOccupancyChange({ chairId: newOrder.chair_id, isOccupied: true });
-          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onSeatOccupancyChange && newOrder?.chair_id) {
+              cb.onSeatOccupancyChange({ chairId: newOrder.chair_id, isOccupied: true });
+            }
+          });
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'order_items' }, (payload) => {
-          if (callbacks.onStageChange) {
-            const row = payload.new as any;
-            const hasPlacedAddon = row.addons && Array.isArray(row.addons) && row.addons.includes('PLACED');
-            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = hasPlacedAddon ? 'PLACED' : row.stage;
-            callbacks.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id });
-          }
+          const row = payload.new as any;
+          const hasPlacedAddon = row.addons && Array.isArray(row.addons) && row.addons.includes('PLACED');
+          const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = hasPlacedAddon ? 'PLACED' : row.stage;
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onStageChange) {
+              cb.onStageChange({ key: row.id || row.dish_id, stage: effStage, dishId: row.dish_id, chairId: row.chair_id });
+            }
+          });
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'dish_inventory' }, (payload) => {
-          if (callbacks.onAvailabilityChange) {
-            const row = payload.new as DishAvailabilityRecord;
-            callbacks.onAvailabilityChange({ dishId: row.dish_id, isAvailable: row.is_available });
-          }
+          const row = payload.new as DishAvailabilityRecord;
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onAvailabilityChange) {
+              cb.onAvailabilityChange({ dishId: row.dish_id, isAvailable: row.is_available });
+            }
+          });
         })
         .subscribe();
     }
 
-    // 2. Local Broadcast Channel handler
-    const handleLocalMessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data) return;
+    // 2. Initialize Local Broadcast Channel listener once
+    if (localChannel && !sharedLocalListenerInitialized) {
+      sharedLocalListenerInitialized = true;
+      localChannel.addEventListener('message', (event: MessageEvent) => {
+        const data = event.data;
+        if (!data) return;
 
-      if (data.type === 'NEW_ORDER' && callbacks.onNewOrder) {
-        callbacks.onNewOrder({ order: data.order, items: data.items });
-      } else if (data.type === 'STAGE_CHANGE' && callbacks.onStageChange) {
-        callbacks.onStageChange({
-          key: data.key,
-          stage: data.stage,
-          dishId: data.dishId,
-          chairId: data.chairId,
-          ticketNumber: data.ticketNumber,
-          dishName: data.dishName,
-          itemId: data.itemId,
-        });
-      } else if (data.type === 'TICKET_DISPATCHED' && callbacks.onTicketDispatched) {
-        callbacks.onTicketDispatched({ ticketNumber: data.ticketNumber, chairId: data.chairId });
-      } else if (data.type === 'SEAT_OCCUPIED' && callbacks.onSeatOccupancyChange) {
-        callbacks.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: true });
-      } else if (data.type === 'SEAT_RELEASED' && callbacks.onSeatOccupancyChange) {
-        callbacks.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: false });
-      } else if (data.type === 'NEW_ALERT' && callbacks.onNewAlert) {
-        callbacks.onNewAlert(data.alert);
-      } else if (data.type === 'RESOLVE_ALERT' && callbacks.onResolveAlert) {
-        callbacks.onResolveAlert(data.alertId);
-      } else if (data.type === 'BILL_REQUESTED' && callbacks.onBillRequested) {
-        callbacks.onBillRequested({
-          chairId: data.chairId,
-          amount: data.amount,
-          verification: data.payload,
-        });
-      } else if (data.type === 'BILL_MODE_ACTIVE' && callbacks.onBillModeActive) {
-        callbacks.onBillModeActive({ chairId: data.chairId, amount: data.amount });
-      } else if (data.type === 'BILL_SETTLED' && callbacks.onBillSettled) {
-        callbacks.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod });
-      } else if (data.type === 'AVAILABILITY_CHANGE' && callbacks.onAvailabilityChange) {
-        callbacks.onAvailabilityChange({ dishId: data.dishId, isAvailable: data.isAvailable });
-      } else if (data.type === 'CLEAR_ALL_ORDERS' && callbacks.onClearAll) {
-        callbacks.onClearAll();
-      }
-    };
-
-    if (localChannel) {
-      localChannel.addEventListener('message', handleLocalMessage);
+        if (data.type === 'NEW_ORDER') {
+          if (data.order?.id) {
+            processedOrderIds.add(data.order.id);
+          }
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onNewOrder) cb.onNewOrder({ order: data.order, items: data.items });
+          });
+        } else if (data.type === 'STAGE_CHANGE') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onStageChange) {
+              cb.onStageChange({
+                key: data.key,
+                stage: data.stage,
+                dishId: data.dishId,
+                chairId: data.chairId,
+                ticketNumber: data.ticketNumber,
+                dishName: data.dishName,
+                itemId: data.itemId,
+                itemIndex: data.itemIndex,
+              });
+            }
+          });
+        } else if (data.type === 'TICKET_DISPATCHED') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onTicketDispatched) cb.onTicketDispatched({ ticketNumber: data.ticketNumber, chairId: data.chairId });
+          });
+        } else if (data.type === 'SEAT_OCCUPIED') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onSeatOccupancyChange) cb.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: true });
+          });
+        } else if (data.type === 'SEAT_RELEASED') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onSeatOccupancyChange) cb.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: false });
+          });
+        } else if (data.type === 'NEW_ALERT') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onNewAlert) cb.onNewAlert(data.alert);
+          });
+        } else if (data.type === 'RESOLVE_ALERT') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onResolveAlert) cb.onResolveAlert(data.alertId);
+          });
+        } else if (data.type === 'BILL_REQUESTED') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onBillRequested) {
+              cb.onBillRequested({
+                chairId: data.chairId,
+                amount: data.amount,
+                verification: data.payload,
+              });
+            }
+          });
+        } else if (data.type === 'BILL_MODE_ACTIVE') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onBillModeActive) {
+              cb.onBillModeActive({ chairId: data.chairId, amount: data.amount, mode: data.mode, ticketNumber: data.ticketNumber });
+            }
+          });
+        } else if (data.type === 'CUSTOMER_PAID_UPI') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onCustomerPaidUpi) {
+              cb.onCustomerPaidUpi({ chairId: data.chairId, rawChairId: data.rawChairId, amount: data.amount, ticketNumber: data.ticketNumber });
+            }
+          });
+        } else if (data.type === 'BILL_SETTLED') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onBillSettled) {
+              cb.onBillSettled({ chairId: data.chairId, amount: data.amount, paymentMethod: data.paymentMethod, ticketNumber: data.ticketNumber });
+            }
+          });
+        } else if (data.type === 'AVAILABILITY_CHANGE') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onAvailabilityChange) cb.onAvailabilityChange({ dishId: data.dishId, isAvailable: data.isAvailable });
+          });
+        } else if (data.type === 'CLEAR_ALL_ORDERS') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onClearAll) cb.onClearAll();
+          });
+        }
+      });
     }
 
-    // Unsubscribe cleanup
+    // Unsubscribe cleanup removes callback from subscriber set
     return () => {
-      if (supabaseSub && supabase) {
-        supabase.removeChannel(supabaseSub);
-      }
-      if (localChannel) {
-        localChannel.removeEventListener('message', handleLocalMessage);
-      }
+      activeKdsSubscribers.delete(callbacks);
     };
   },
 };

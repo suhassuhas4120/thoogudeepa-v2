@@ -143,21 +143,50 @@ export default function KitchenDisplaySystemPage() {
       onNewOrder: (newOrder) => {
         playKitchenChime();
         setActiveOrders((prev) => {
-          // 1. Match by exact order ID
-          const matchById = prev.findIndex((o) => o.order.id === newOrder.order.id);
+          // 1. Match by exact order ID or previously tracked order IDs
+          const matchById = prev.findIndex(
+            (o) =>
+              (o.order.id && newOrder.order.id && o.order.id === newOrder.order.id) ||
+              ((o.order as any).order_ids && newOrder.order.id && (o.order as any).order_ids.includes(newOrder.order.id))
+          );
+
           if (matchById !== -1) {
             const current = prev[matchById];
-            const currentItemIds = new Set(current.items.map((it) => it.id));
-            const newItems = newOrder.items.filter((it) => !currentItemIds.has(it.id));
-            if (newItems.length === 0) return prev;
             const updated = [...prev];
+
+            // Harmonize item IDs with database UUIDs if matching items, while preserving local stages
+            let harmonizedItems = current.items;
+            if (
+              newOrder.items &&
+              newOrder.items.length === current.items.length &&
+              newOrder.items.length > 0
+            ) {
+              harmonizedItems = current.items.map((it, idx) => {
+                const incoming = newOrder.items[idx];
+                if (incoming && (incoming.dish_id === it.dish_id || incoming.dish_name === it.dish_name)) {
+                  return {
+                    ...incoming,
+                    id: incoming.id || it.id,
+                    stage: it.stage || incoming.stage || 'PLACED',
+                  };
+                }
+                return it;
+              });
+            }
+
+            const currentOrderIds: string[] = (current.order as any).order_ids || (current.order.id ? [current.order.id] : []);
+            const updatedOrderIds = newOrder.order.id && !currentOrderIds.includes(newOrder.order.id)
+              ? [...currentOrderIds, newOrder.order.id]
+              : currentOrderIds;
+
             updated[matchById] = {
               ...current,
               order: {
                 ...current.order,
-                total_amount: (current.order.total_amount || 0) + (newOrder.order.total_amount || 0),
-              },
-              items: [...current.items, ...newItems],
+                id: newOrder.order.id || current.order.id,
+                order_ids: updatedOrderIds,
+              } as any,
+              items: harmonizedItems,
             };
             return updated;
           }
@@ -173,37 +202,100 @@ export default function KitchenDisplaySystemPage() {
 
           if (matchByTicket !== -1) {
             const current = prev[matchByTicket];
-            const currentItemIds = new Set(current.items.map((it) => it.id));
-            const newItems = newOrder.items.filter((it) => !currentItemIds.has(it.id));
-
+            const currentOrderIds: string[] = (current.order as any).order_ids || (current.order.id ? [current.order.id] : []);
             const updated = [...prev];
-            if (newItems.length === 0) {
-              // Exact duplicate broadcast of the same ticket - update id if needed and return
+
+            // A. Check if this exact order was already processed for this ticket
+            if (newOrder.order.id && currentOrderIds.includes(newOrder.order.id)) {
+              return prev;
+            }
+
+            // B. Check if replacing an optimistic local order with confirmed database order
+            const isLocalReplacement =
+              Boolean(current.order.id && current.order.id.startsWith('local-')) &&
+              Boolean(newOrder.order.id && !newOrder.order.id.startsWith('local-'));
+
+            // C. Check if identical batch (same item count and matching dishes)
+            const isSameBatch =
+              current.items.length === newOrder.items.length &&
+              newOrder.items.length > 0 &&
+              newOrder.items.every((incoming, idx) => {
+                const existing = current.items[idx];
+                return (
+                  existing &&
+                  (existing.dish_id === incoming.dish_id || existing.dish_name === incoming.dish_name) &&
+                  existing.quantity === incoming.quantity
+                );
+              });
+
+            if (isLocalReplacement || isSameBatch) {
+              let harmonizedItems = current.items;
+              if (newOrder.items && newOrder.items.length === current.items.length) {
+                harmonizedItems = current.items.map((it, idx) => {
+                  const incoming = newOrder.items[idx];
+                  if (incoming && (incoming.dish_id === it.dish_id || incoming.dish_name === it.dish_name)) {
+                    return {
+                      ...incoming,
+                      id: incoming.id || it.id,
+                      stage: it.stage || incoming.stage || 'PLACED',
+                    };
+                  }
+                  return it;
+                });
+              }
+
+              const nextOrderIds = newOrder.order.id && !currentOrderIds.includes(newOrder.order.id)
+                ? [...currentOrderIds, newOrder.order.id]
+                : currentOrderIds;
+
               updated[matchByTicket] = {
                 ...current,
                 order: {
                   ...current.order,
                   id: newOrder.order.id || current.order.id,
-                },
+                  order_ids: nextOrderIds,
+                } as any,
+                items: harmonizedItems,
               };
               return updated;
             }
 
-            // Additional items placed for the same ticket: append to the existing ticket
+            // D. Additional items placed for the same ticket:
+            // Filter out any items that already exist in current items
+            const currentItemIds = new Set(current.items.map((it) => it.id));
+            const trulyNewItems = newOrder.items.filter((it) => !currentItemIds.has(it.id));
+
+            if (trulyNewItems.length === 0) {
+              return prev;
+            }
+
+            const nextOrderIds = newOrder.order.id && !currentOrderIds.includes(newOrder.order.id)
+              ? [...currentOrderIds, newOrder.order.id]
+              : currentOrderIds;
+
             updated[matchByTicket] = {
               ...current,
               order: {
                 ...current.order,
                 id: newOrder.order.id || current.order.id,
+                order_ids: nextOrderIds,
                 total_amount: (current.order.total_amount || 0) + (newOrder.order.total_amount || 0),
-              },
-              items: [...current.items, ...newItems],
+              } as any,
+              items: [...current.items, ...trulyNewItems],
             };
             return updated;
           }
 
           // 3. Brand new ticket
-          return [newOrder, ...prev];
+          const initialOrderIds = newOrder.order.id ? [newOrder.order.id] : [];
+          const ticketWithOrderIds = {
+            ...newOrder,
+            order: {
+              ...newOrder.order,
+              order_ids: initialOrderIds,
+            } as any,
+          };
+          return [ticketWithOrderIds, ...prev];
         });
       },
       onStageChange: (data) => {
@@ -305,7 +397,7 @@ export default function KitchenDisplaySystemPage() {
   const updateItemStage = (
     itemKey: string,
     stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED',
-    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string }
+    meta?: { chairId?: string; dishId?: string; ticketNumber?: string; dishName?: string; itemId?: string; itemIndex?: number }
   ) => {
     const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
     const tNum = meta?.ticketNumber || '';
@@ -322,6 +414,17 @@ export default function KitchenDisplaySystemPage() {
         if (chair) next[`${chair}-${targetItemId}`] = stage;
         if (chair && tNum) next[`${chair}-${tNum}-${targetItemId}`] = stage;
       }
+      if (tNum && meta?.dishId) {
+        next[`${tNum}-${meta.dishId}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${meta.dishId}`] = stage;
+        const cleanD = meta.dishId.replace(/^dish-/, '');
+        next[`${tNum}-${cleanD}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${cleanD}`] = stage;
+      }
+      if (tNum && meta?.dishName) {
+        next[`${tNum}-${meta.dishName}`] = stage;
+        if (chair) next[`${chair}-${tNum}-${meta.dishName}`] = stage;
+      }
       return next;
     });
 
@@ -334,9 +437,18 @@ export default function KitchenDisplaySystemPage() {
 
         const updatedItems = o.items.map((it) => {
           const matches =
-            it.id === targetItemId ||
-            it.id === itemKey ||
-            (!it.id && it.dish_id === meta?.dishId);
+            Boolean(targetItemId && it.id && it.id === targetItemId) ||
+            Boolean(itemKey && it.id && it.id === itemKey) ||
+            Boolean(
+              meta?.dishId &&
+              it.dish_id &&
+              (it.dish_id === meta.dishId || it.dish_id.replace(/^dish-/, '') === meta.dishId.replace(/^dish-/, ''))
+            ) ||
+            Boolean(
+              meta?.dishName &&
+              it.dish_name &&
+              it.dish_name.toLowerCase().trim() === meta.dishName.toLowerCase().trim()
+            );
 
           if (matches) {
             return { ...it, stage };

@@ -107,7 +107,7 @@ export const MobileCockpitMaster: React.FC = () => {
   const [activeTicketNumber, setActiveTicketNumber] = useState<string>('');
 >>>>>>> 1451677bb6f509a795cd977ea4d795953b9f87ee
   const [selectedGuestName, setSelectedGuestName] = useState<string>('Walk-In Guest');
-  const [selectedBillAmount, setSelectedBillAmount] = useState<number>(840);
+  const [selectedBillAmount, setSelectedBillAmount] = useState<number>(0);
 
   // Cart & KOT State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -339,6 +339,12 @@ export const MobileCockpitMaster: React.FC = () => {
           setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
         }
       },
+      onCustomerPaidUpi: (data) => {
+        if (data?.chairId) {
+          const clean = data.chairId.replace(/[^0-9]/g, '');
+          setVerifiedBillSeats(prev => ({ ...prev, [clean]: true, [data.chairId]: true }));
+        }
+      },
       onBillSettled: (data) => {
         refreshSeats();
         refreshAlerts();
@@ -462,7 +468,9 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleOpenTakeOrder = useCallback((seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Walk-In Guest');
+    setActiveTicketNumber('');
     setCartItems([]);
+    setSelectedBillAmount(0);
     setActiveScreen('order');
     showToast(`Taking new order for ${seatNum}`);
   }, [showToast]);
@@ -471,11 +479,17 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleOpenViewOrder = useCallback(async (seatNum: string, guest?: string) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest || 'Dining Guest');
+    setActiveTicketNumber('');
+    setCartItems([]);
+    setSelectedBillAmount(0);
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
     try {
       const details = await realtimeBridge.getOrderForSeat(cleanChair);
       if (details.order?.ticket_number) {
         setActiveTicketNumber(details.order.ticket_number);
+      }
+      if (details.order?.total_amount) {
+        setSelectedBillAmount(details.order.total_amount);
       }
       if (details.items && details.items.length > 0) {
         setCartItems(details.items.map(it => {
@@ -499,9 +513,13 @@ export const MobileCockpitMaster: React.FC = () => {
             },
             quantity: it.quantity,
             lineTotal: it.price * it.quantity,
-            stage: it.stage as any
+            stage: it.stage as any,
+            orderItemId: it.id,
+            ticketNumber: details.order?.ticket_number
           };
         }));
+      } else {
+        setCartItems([]);
       }
     } catch (err) {
       console.error('Error fetching order for seat:', err);
@@ -511,10 +529,49 @@ export const MobileCockpitMaster: React.FC = () => {
   }, [showToast]);
 
   // Handle opening seat bill checkout
-  const handleOpenSeatBill = useCallback((seatNum: string, guest: string, amount: number) => {
+  const handleOpenSeatBill = useCallback(async (seatNum: string, guest: string, amount: number) => {
     setSelectedSeatNumber(seatNum);
     setSelectedGuestName(guest);
     setSelectedBillAmount(amount);
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    if (cleanChair) {
+      try {
+        const details = await realtimeBridge.getOrderForSeat(cleanChair);
+        if (details.order?.ticket_number) {
+          setActiveTicketNumber(details.order.ticket_number);
+        }
+        if (details.items && details.items.length > 0) {
+          setCartItems(details.items.map(it => {
+            const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
+              id: String(it.dish_id || '999'),
+              name: it.dish_name,
+              kannadaName: '',
+              price: it.price,
+              category: 'biryani',
+              dietary: 'non_veg',
+              description: 'Authentic preparation',
+              prepTimeMinutes: 15,
+              isAvailable: true,
+              isBestseller: false
+            };
+            return {
+              menuItem: {
+                ...foundMenu,
+                id: it.dish_id || foundMenu.id,
+                name: it.dish_name || foundMenu.name
+              },
+              quantity: it.quantity,
+              lineTotal: it.price * it.quantity,
+              stage: it.stage as any,
+              orderItemId: it.id,
+              ticketNumber: details.order?.ticket_number
+            };
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching seat order for bill:', err);
+      }
+    }
     setActiveScreen('bill');
     realtimeBridge.notifyBillModeActive(seatNum, amount);
     showToast(`Loaded checkout receipt for ${seatNum}`);
@@ -647,7 +704,7 @@ export const MobileCockpitMaster: React.FC = () => {
   // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {
     const cleanChair = seatNum.replace(/[^0-9]/g, '');
-    realtimeBridge.settleBill(cleanChair, method, amount).then(() => {
+    realtimeBridge.settleBill(cleanChair, method, amount, { ticketNumber: activeTicketNumber || undefined }).then(() => {
       refreshSeats();
     });
     setSeats(prev => prev.map(s => s.seatNumber === seatNum ? {
@@ -756,6 +813,7 @@ export const MobileCockpitMaster: React.FC = () => {
               <MobileLiveCartKOT
                 seatNumber={selectedSeatNumber}
                 guestName={selectedGuestName}
+                activeTicketNumber={activeTicketNumber}
                 cartItems={cartItems}
                 pendingAlertCount={alerts.length}
                 isBillRequested={

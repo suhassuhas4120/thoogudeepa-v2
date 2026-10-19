@@ -12,6 +12,8 @@ export interface ActiveDiningSession {
   deviceToken?: string;
   items?: { 
     id: string; 
+    dish_id?: string;
+    stage?: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
     title: string; 
     quantity: number; 
     price: number; 

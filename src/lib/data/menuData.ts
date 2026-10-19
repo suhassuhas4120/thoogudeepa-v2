@@ -5,7 +5,6 @@ export const MENU_CATEGORIES: MenuCategory[] = [
   { id: 'cat-biryani', title: 'Donne Biryani & Rice', iconName: 'Flame', sortRank: 1 },
   { id: 'cat-starters', title: 'Starters & Sides', iconName: 'UtensilsCrossed', sortRank: 2 },
   { id: 'cat-special', title: 'Sunday Specials & Soups', iconName: 'Soup', sortRank: 3 },
-  { id: 'cat-drinks', title: 'Beverages', iconName: 'CupSoda', sortRank: 4 },
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
@@ -53,7 +52,7 @@ export const MENU_ITEMS: MenuItem[] = [
   {
     id: 'dish-21',
     categoryId: 'cat-biryani',
-    title: 'Biryani Rice (Khushka)',
+    title: 'Biryani Rice',
     description:
       'Aromatic Seeraga Samba kushka rice cooked in rich meat stock and fragrant whole spices without meat pieces.',
     price: 90,
@@ -416,26 +415,6 @@ export const MENU_ITEMS: MenuItem[] = [
     options: ['Traditional Medium Spicy', 'Military Hotel Hot'],
     addOns: [
       { name: 'Boiled Egg (1 Pc)', price: 20 },
-    ],
-  },
-
-  // ── Beverages ───────────────────────────────────────────────────────
-  {
-    id: 'dish-23',
-    categoryId: 'cat-drinks',
-    title: 'Masala Majjige (Spiced Buttermilk)',
-    description:
-      'Churned cooling yogurt blended with crushed green chillies, ginger, mustard seed tempering, and fresh coriander leaves.',
-    price: 50,
-    isVegetarian: true,
-    isSpicy: false,
-    isSignature: false,
-    inStock: true,
-    prepTimeMinutes: 2,
-    imageUrl: '/images/dishes/biryani-rice.webp',
-    options: ['Chilled Regular', 'Without Green Chilli'],
-    addOns: [
-      { name: 'Extra Salt & Cumin Sprinkle', price: 10 },
     ],
   },
 ];

@@ -60,9 +60,9 @@ export default function CustomerBottomNav({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-white h-16 select-none">
-      {/* Continuous horizontal baseline under all icons matching checkmark sketch */}
-      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-black pointer-events-none" />
+    <nav className="fixed bottom-0 left-0 right-0 z-40 w-full max-w-md mx-auto bg-[#FAF7F0]/95 backdrop-blur-md h-16 select-none border-t border-[#EAE3D5] shadow-[0_-4px_24px_rgba(40,55,45,0.06)]">
+      {/* Continuous horizontal baseline in forest green matching the arch */}
+      <div className="absolute left-0 right-0 bottom-[14px] h-[2px] bg-[#1E3A2F] pointer-events-none" />
 
       <div className="relative w-full h-full grid grid-cols-4 items-center">
         {navItems.map((item) => {
@@ -75,8 +75,8 @@ export default function CustomerBottomNav({
               {/* Downward indicator arrow pointing at profile icon as shown in sketch */}
               {item.id === 'profile' && showIndicatorArrowOnProfile && (
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-20 animate-bounce">
-                  <div className="w-[5px] h-5 bg-black" />
-                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-black -mt-[1px]" />
+                  <div className="w-[5px] h-5 bg-[#C85A32]" />
+                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-[#C85A32] -mt-[1px]" />
                 </div>
               )}
 
@@ -90,40 +90,52 @@ export default function CustomerBottomNav({
                   xmlns="http://www.w3.org/2000/svg"
                   className="absolute bottom-[13px] left-1/2 -translate-x-1/2 pointer-events-none"
                 >
-                  {/* White fill mask that clears the baseline directly under the dome */}
+                  <defs>
+                    <radialGradient id="archFillGlow" cx="50%" cy="50%" r="55%">
+                      <stop offset="0%" stopColor="#C85A32" stopOpacity="0.4" />
+                      <stop offset="65%" stopColor="#C85A32" stopOpacity="0.18" />
+                      <stop offset="100%" stopColor="#C85A32" stopOpacity="0.04" />
+                    </radialGradient>
+                  </defs>
+                  {/* Background-colored mask that clears the baseline strictly under the selected arch */}
                   <path
-                    d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 L 78,46 L 0,46 Z"
-                    fill="white"
+                    d="M 0,40 L 0,44 L 78,44 L 78,40 Z"
+                    fill="#FAF7F0"
                   />
-                  {/* Black curved arch line running over the selected icon only */}
+                  {/* Smooth fill contained precisely inside the curved arch geometry */}
+                  <path
+                    d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42 Z"
+                    fill="url(#archFillGlow)"
+                  />
+                  {/* Curved arch line in dark forest green */}
                   <path
                     d="M 0,42 C 16,42 24,2 39,2 C 54,2 62,42 78,42"
-                    stroke="black"
-                    strokeWidth="2"
+                    stroke="#1E3A2F"
+                    strokeWidth="2.5"
                     strokeLinecap="round"
                   />
                 </svg>
               )}
 
-              {/* Pure Icon: Sitting on the baseline; framed under the arch when selected without square borders */}
+              {/* Pure Icon: Sitting on the baseline; framed under the arch when selected */}
               <div
                 className={`relative z-10 flex items-center justify-center transition-all duration-200 ${
                   isDisabled ? 'opacity-25 grayscale pointer-events-none' : ''
                 } ${
                   isSelected
-                    ? 'bottom-[6px] p-1.5 text-black'
-                    : 'bottom-[4px] p-1.5 text-black active:scale-95'
+                    ? 'bottom-[6px] p-2 text-[#1E3A2F]'
+                    : 'bottom-[4px] p-1.5 text-[#8C7A6B] hover:text-[#1E3A2F] active:scale-95'
                 }`}
               >
                 <Icon
                   className={`transition-all ${
-                    isSelected ? 'w-5 h-5 stroke-[2.5]' : 'w-5 h-5 stroke-[1.8]'
+                    isSelected ? 'w-5 h-5 stroke-[2.4]' : 'w-5 h-5 stroke-[1.8]'
                   }`}
                 />
 
-                {/* Live Indicator Dot for Cart / Likes */}
+                {/* Live Indicator Dot for Cart / Likes with warm orange accent */}
                 {item.badge && !isSelected && !isDisabled && (
-                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-black border border-white" />
+                  <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-[#C85A32] border border-[#FFFEFC]" />
                 )}
               </div>
             </div>
