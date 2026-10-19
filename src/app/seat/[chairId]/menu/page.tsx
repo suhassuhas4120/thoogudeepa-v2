@@ -293,14 +293,16 @@ export default function CustomerMenuPage() {
                         e.stopPropagation();
                         toggleLike(item.id);
                       }}
-                      className={`w-7 h-7 shrink-0 border rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 ${
-                        isLiked
-                          ? 'border-[#1E3A2F] bg-[#1E3A2F] text-white shadow-xs'
-                          : 'border-[#EAE3D5] bg-[#FBF9F4] text-[#8C7A6B] hover:text-[#1E3A2F]'
-                      }`}
+                      className="w-7 h-7 shrink-0 border border-[#DCE4DC] rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 bg-transparent hover:border-[#1E3A2F]"
                       aria-label="Like item"
                     >
-                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-white stroke-white' : ''}`} />
+                      <Heart
+                        className={`w-3.5 h-3.5 transition-all ${
+                          isLiked
+                            ? 'fill-[#1E3A2F] text-[#1E3A2F]'
+                            : 'text-[#8C7A6B] hover:text-[#1E3A2F]'
+                        }`}
+                      />
                     </button>
                   </div>
                 </div>
