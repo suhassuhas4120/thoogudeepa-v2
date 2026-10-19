@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Heart, Minus, Plus } from 'lucide-react';
+import { ChevronLeft, Heart, Minus, Plus } from 'lucide-react';
 import { useCart } from '../../../../../lib/context/CartContext';
 import { useHardwareBack } from '../../../../../lib/hooks/useHardwareBack';
 import { getMenuItemById, MENU_CATEGORIES } from '../../../../../lib/data/menuData';
@@ -76,34 +76,7 @@ export default function ItemCustomizationPage() {
   const itemUnitPrice = dish.price + addOnsCost;
   const calculatedGrandTotal = itemUnitPrice * quantity;
 
-  // Multiple presentation visuals for the interactive carousel
-  const dishVisuals = useMemo(() => [
-    {
-      id: 1,
-      url: dish.imageUrl,
-      alt: `${dish.title} - Main View`,
-    },
-    {
-      id: 2,
-      url: '/images/dishes/chicken-kabab.jpg',
-      alt: `Authentic Kebab Starter Pairing`,
-    },
-    {
-      id: 3,
-      url: '/images/dishes/donne-khushka.jpg',
-      alt: `Seeraga Samba Herbal Rice`,
-    },
-  ], [dish]);
 
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-
-  const handlePrevImage = () => {
-    setActiveImageIndex((prev) => (prev - 1 + dishVisuals.length) % dishVisuals.length);
-  };
-
-  const handleNextImage = () => {
-    setActiveImageIndex((prev) => (prev + 1) % dishVisuals.length);
-  };
 
   const toggleAddOn = (addonName: string) => {
     setSelectedAddOns((prev) =>
@@ -153,55 +126,13 @@ export default function ItemCustomizationPage() {
           </button>
         </header>
 
-        {/* Hero Interactive Sliding Carousel Section */}
-        <div className="w-full flex flex-col items-center gap-3 relative">
-          <div className="w-full flex items-center justify-between gap-1 relative px-2">
-            {/* Previous Image Button */}
-            <button
-              type="button"
-              onClick={handlePrevImage}
-              className="w-9 h-9 rounded-full border border-[rgba(220,226,222,0.8)] flex items-center justify-center bg-[#FFFEFC] text-[#1A2621] cursor-pointer active:scale-90 transition-transform z-10 shadow-xs"
-              aria-label="Previous"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {/* Sliding Dish Circle Display */}
-            <div className="relative overflow-hidden w-48 h-48 sm:w-56 sm:h-56 rounded-full border border-[rgba(220,226,222,0.9)] flex items-center justify-center bg-[#fbf9f5] shadow-[0_8px_30px_rgb(0,0,0,0.08)] p-1">
-              <img
-                src={dishVisuals[activeImageIndex].url}
-                alt={dishVisuals[activeImageIndex].alt}
-                className="w-full h-full object-cover object-center rounded-full transition-opacity duration-300"
-              />
-            </div>
-
-            {/* Next Image Button */}
-            <button
-              type="button"
-              onClick={handleNextImage}
-              className="w-9 h-9 rounded-full border border-[rgba(220,226,222,0.8)] flex items-center justify-center bg-[#FFFEFC] text-[#1A2621] cursor-pointer active:scale-90 transition-transform z-10 shadow-xs"
-              aria-label="Next"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Carousel Indicator Dots */}
-          <div className="flex items-center gap-2 mt-1">
-            {dishVisuals.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setActiveImageIndex(idx)}
-                aria-label={`Go to slide ${idx + 1}`}
-                className={`transition-all rounded-full cursor-pointer ${
-                  activeImageIndex === idx
-                    ? 'w-4 h-2 bg-[#244436]'
-                    : 'w-2 h-2 border border-[rgba(220,226,222,0.8)] bg-[#FFFEFC] hover:bg-[#F9F8F5]'
-                }`}
-              />
-            ))}
-          </div>
+        {/* Big Rectangle Hero Dish Image Section */}
+        <div className="w-full h-64 sm:h-72 rounded-3xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.08)] border border-[#DCE4DC] bg-[#FAF8F5] relative">
+          <img
+            src={dish.imageUrl}
+            alt={dish.title}
+            className="w-full h-full object-cover object-center"
+          />
         </div>
 
         {/* Title & Price Section */}
