@@ -696,11 +696,60 @@ export const MobileCockpitMaster: React.FC = () => {
   }, [showToast]);
 
   // Serve Kitchen Dish
-  const handleServeDish = useCallback((alertId: string, dishName: string) => {
+  const handleServeDish = useCallback((alertId: string, dishName: string, alertObj?: FloorAlert) => {
+    const alert = alertObj || alerts.find(a => a.id === alertId);
     realtimeBridge.resolveServiceAlert(alertId);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
-    showToast(`Served ${dishName} to table!`);
-  }, [showToast]);
+
+    const rawSeat = alert?.seatNumber || '';
+    const cleanChair = alert?.chairId || rawSeat.replace(/[^0-9]/g, '');
+    const targetKey = alert?.itemId || alert?.dishId || dishName;
+
+    // Broadcast item served to KDS, customer tracking, and local registries
+    realtimeBridge.updateStage(targetKey, 'SERVED', {
+      chairId: cleanChair,
+      ticketNumber: alert?.kotNumber,
+      dishId: alert?.dishId,
+      dishName: alert?.dishName || dishName,
+      itemId: alert?.itemId
+    });
+
+    if (alert?.dishId) {
+      const cleanDish = alert.dishId.replace(/^dish-/, '');
+      realtimeBridge.updateStage(`dish-${cleanDish}`, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: `dish-${cleanDish}`,
+        dishName: alert?.dishName || dishName,
+        itemId: alert?.itemId
+      });
+      realtimeBridge.updateStage(cleanDish, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: cleanDish,
+        dishName: alert?.dishName || dishName,
+        itemId: alert?.itemId
+      });
+    }
+
+    // Update active cart items if currently viewing this seat
+    const curSeatClean = selectedSeatNumber.replace(/[^0-9]/g, '');
+    if (cleanChair && curSeatClean && cleanChair === curSeatClean) {
+      setCartItems(prev =>
+        prev.map(it => {
+          const itDishClean = String(it.menuItem.id).replace(/^dish-/, '');
+          const isMatch =
+            Boolean(alert?.itemId && it.orderItemId === alert.itemId) ||
+            Boolean(alert?.dishId && String(it.menuItem.id) === alert.dishId) ||
+            Boolean(alert?.dishId && itDishClean === alert.dishId.replace(/^dish-/, '')) ||
+            Boolean(it.menuItem.name.toLowerCase().trim() === dishName.toLowerCase().trim());
+          return isMatch ? { ...it, stage: 'SERVED' } : it;
+        })
+      );
+    }
+
+    showToast(`Served ${dishName} to ${alert?.seatNumber || 'table'}!`);
+  }, [alerts, selectedSeatNumber, showToast]);
 
   // Handle serving an item from live cart
   const handleServeItemMobile = useCallback((identifier: string) => {

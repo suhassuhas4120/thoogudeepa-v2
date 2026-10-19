@@ -46,7 +46,7 @@ export interface MobileAlertsProps {
   /** Callback to route directly to collect bill */
   readonly onCollectBill: (seatNumber: string, guestName: string, amount: number) => void;
   /** Callback when a kitchen dish is served to the table */
-  readonly onServeDish: (alertId: string, dishName: string) => void;
+  readonly onServeDish: (alertId: string, dishName: string, alert?: FloorAlert) => void;
 }
 
 export const MobileAlerts: React.FC<MobileAlertsProps> = ({
@@ -294,7 +294,7 @@ export const MobileAlerts: React.FC<MobileAlertsProps> = ({
                   {/* Right-Side Permanent Serve Action Button */}
                   <button
                     type="button"
-                    onClick={() => onServeDish(order.id, order.title)}
+                    onClick={() => onServeDish(order.id, order.title, order)}
                     className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 btn-press shadow-2xs transition-all"
                   >
                     <Check className="w-3.5 h-3.5" />

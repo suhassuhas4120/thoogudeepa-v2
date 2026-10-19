@@ -643,6 +643,59 @@ export const TabletCockpitMaster: React.FC = () => {
     showToast('Alert attended and synchronized');
   };
 
+  const handleServeKitchenDish = (alertId: string, dishName: string, alertObj?: any) => {
+    const alert = alertObj || alerts.find(a => a.id === alertId);
+    realtimeBridge.resolveServiceAlert(alertId);
+    setAlerts(prev => prev.filter(a => a.id !== alertId));
+
+    const rawSeat = alert?.seatNumber || '';
+    const cleanChair = alert?.chairId || rawSeat.replace(/[^0-9]/g, '');
+    const targetKey = alert?.itemId || alert?.dishId || dishName;
+
+    // Broadcast item served to KDS, customer tracking, and local registries
+    realtimeBridge.updateStage(targetKey, 'SERVED', {
+      chairId: cleanChair,
+      ticketNumber: alert?.kotNumber,
+      dishId: alert?.dishId,
+      dishName: alert?.dishName || dishName,
+      itemId: alert?.itemId
+    });
+
+    if (alert?.dishId) {
+      const cleanDish = alert.dishId.replace(/^dish-/, '');
+      realtimeBridge.updateStage(`dish-${cleanDish}`, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: `dish-${cleanDish}`,
+        dishName: alert?.dishName || dishName,
+        itemId: alert?.itemId
+      });
+      realtimeBridge.updateStage(cleanDish, 'SERVED', {
+        chairId: cleanChair,
+        ticketNumber: alert?.kotNumber,
+        dishId: cleanDish,
+        dishName: alert?.dishName || dishName,
+        itemId: alert?.itemId
+      });
+    }
+
+    // Update active ticket items if viewing this seat
+    const curSeatClean = activeSeatName.replace(/[^0-9]/g, '');
+    if (cleanChair && curSeatClean && cleanChair === curSeatClean) {
+      setTicketItems(prev =>
+        prev.map(it => {
+          const isMatch =
+            Boolean(alert?.itemId && it.orderItemId === alert.itemId) ||
+            Boolean(alert?.dishId && String(it.id) === alert.dishId) ||
+            Boolean(it.name.toLowerCase().trim() === dishName.toLowerCase().trim());
+          return isMatch ? { ...it, status: 'SERVED' } : it;
+        })
+      );
+    }
+
+    showToast(`Served ${dishName} to ${alert?.seatNumber || 'table'}!`);
+  };
+
   if (!hasMounted) {
     return (
       <div className="w-full h-full min-h-screen bg-slate-900 flex items-center justify-center text-white text-sm font-medium">
@@ -780,6 +833,7 @@ export const TabletCockpitMaster: React.FC = () => {
           onClose={() => setIsAlertSheetOpen(false)}
           onSwitchTab={(t) => setActiveSheetTab(t)}
           onResolveAlert={handleResolveAlert}
+          onServeKitchenDish={handleServeKitchenDish}
           onGoToCollectBill={(sNum, gName, amt) => {
             setIsAlertSheetOpen(false);
             handleOpenBill(sNum, gName, amt);

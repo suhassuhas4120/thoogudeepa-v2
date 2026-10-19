@@ -99,6 +99,10 @@ export interface FloorAlert {
   readonly id: string;
   readonly type: 'customer_call' | 'kitchen_ready';
   readonly seatNumber: string;
+  readonly chairId?: string;
+  readonly dishId?: string;
+  readonly dishName?: string;
+  readonly itemId?: string;
   readonly guestName?: string;
   readonly title: string;
   readonly message: string;

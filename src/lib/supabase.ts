@@ -46,6 +46,10 @@ export interface ServiceAlertRecord {
   id: string;
   type: 'customer_call' | 'kitchen_ready';
   seatNumber: string;
+  chairId?: string;
+  dishId?: string;
+  dishName?: string;
+  itemId?: string;
   guestName?: string;
   title: string;
   message: string;
@@ -668,17 +672,25 @@ export const realtimeBridge = {
 
       // 5. If marked READY, alert waitstaff for immediate pass pickup
       if (stage === 'READY') {
-        const chair = meta?.chairId || '01';
+        const chairClean = (meta?.chairId || '01').replace(/[^0-9]/g, '');
+        const normChair = chairClean.replace(/^0+/, '') || '1';
+        const paddedChair = normChair.padStart(2, '0');
+        const dishLabel = meta?.dishName || meta?.dishId || 'Dish';
+
         this.sendServiceAlert({
           id: `pass-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          seatNumber: `Seat ${chair.padStart(2, '0')}`,
-          guestName: 'Kitchen Pass',
+          seatNumber: `Seat ${paddedChair}`,
+          chairId: normChair,
+          dishId: meta?.dishId,
+          dishName: meta?.dishName || dishLabel,
+          itemId: meta?.itemId || itemIdOrKey,
+          guestName: `Seat ${paddedChair} Guest`,
           type: 'kitchen_ready',
-          title: `${meta?.dishId || 'Dish'} Ready to Serve`,
-          message: `Pass counter: Dish ready for Seat ${chair}`,
+          title: dishLabel,
+          message: `Kitchen Pass: ${dishLabel} ready for Seat ${normChair}`,
           timeAgo: 'Just now',
           kotNumber: meta?.ticketNumber || 'KOT',
-          isUrgent: false,
+          isUrgent: true,
           isResolved: false
         }).catch(() => {});
       }

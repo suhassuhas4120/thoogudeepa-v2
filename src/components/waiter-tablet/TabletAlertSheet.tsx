@@ -64,6 +64,8 @@ export interface TabletAlertSheetProps {
   onResolveAlert: (alertId: string) => void;
   /** Callback to navigate directly to right-pane bill settlement */
   onGoToCollectBill: (seatNumber: string, guestName: string, amount: number) => void;
+  /** Callback to mark kitchen dish served to seat */
+  onServeKitchenDish?: (alertId: string, dishName: string, alert?: any) => void;
   /** Optional callback to mark all alerts as resolved */
   onClearAllAlerts?: () => void;
   /** Optional callback to sound a tactile audio beep on alert resolution */
@@ -76,7 +78,8 @@ export const TabletAlertSheet: React.FC<TabletAlertSheetProps> = ({
   alerts,
   onClose,
   onResolveAlert,
-  onGoToCollectBill
+  onGoToCollectBill,
+  onServeKitchenDish
 }) => {
   // Filter unresolved alerts for each dedicated view
   const customerAlerts = useMemo(() => {
@@ -299,7 +302,13 @@ export const TabletAlertSheet: React.FC<TabletAlertSheetProps> = ({
                       {/* Right-Side Permanent Serve Action Button for each individual item */}
                       <button
                         type="button"
-                        onClick={() => onResolveAlert(alert.id)}
+                        onClick={() => {
+                          if (onServeKitchenDish) {
+                            onServeKitchenDish(alert.id, alert.title, alert);
+                          } else {
+                            onResolveAlert(alert.id);
+                          }
+                        }}
                         className="h-10 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-black flex items-center gap-1.5 shrink-0 shadow-xs transition-all cursor-pointer"
                         title="Mark order served to seat"
                       >
