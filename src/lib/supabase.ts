@@ -585,7 +585,15 @@ export const realtimeBridge = {
 
         if (!updatedInDb && meta?.chairId) {
           const cleanChair = meta.chairId.replace(/[^0-9]/g, '');
-          const possibleChairs = [meta.chairId, cleanChair, cleanChair.padStart(2, '0')];
+          const possibleChairs = [
+            meta.chairId,
+            cleanChair,
+            cleanChair.padStart(2, '0'),
+            cleanChair.replace(/^0+/, ''),
+            `Seat ${cleanChair}`,
+            `Seat ${cleanChair.padStart(2, '0')}`,
+            `Seat ${cleanChair.replace(/^0+/, '')}`,
+          ];
 
           // Query matching active orders by chair_id
           const { data: activeOrdersList } = await supabase
@@ -624,7 +632,20 @@ export const realtimeBridge = {
 
         // Advance order status from pending to in_progress when kitchen accepts
         if (meta?.chairId && stage !== 'PLACED') {
-          await supabase.from('orders').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('chair_id', meta.chairId).eq('status', 'pending');
+          const cleanC = meta.chairId.replace(/[^0-9]/g, '');
+          const targetChairVariants = [
+            meta.chairId,
+            cleanC,
+            cleanC.padStart(2, '0'),
+            cleanC.replace(/^0+/, ''),
+            `Seat ${cleanC}`,
+            `Seat ${cleanC.padStart(2, '0')}`,
+          ];
+          await supabase
+            .from('orders')
+            .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+            .in('chair_id', targetChairVariants)
+            .eq('status', 'pending');
         }
 
         const liveChannel = sharedSupabaseChannel || supabase.channel('kitchen_realtime_feed');
@@ -831,22 +852,19 @@ export const realtimeBridge = {
         }
 
         const addons = Array.isArray(it.addons) ? it.addons : [];
-        if (addons.includes('SERVED') || candidates.includes('SERVED')) {
+        if (addons.includes('SERVED') || candidates.includes('SERVED') || it.stage === 'SERVED') {
           return { ...it, stage: 'SERVED' };
         }
-        if (candidates.includes('READY')) {
+        if (candidates.includes('READY') || it.stage === 'READY') {
           return { ...it, stage: 'READY' };
         }
-        if (candidates.includes('PREP')) {
+        if (candidates.includes('PREP') || it.stage === 'PREP') {
           return { ...it, stage: 'PREP' };
         }
-        if (candidates.includes('REC') && !addons.includes('PLACED')) {
+        if (candidates.includes('REC') && !addons.includes('PLACED') && order.status !== 'pending') {
           return { ...it, stage: 'REC' };
         }
-        if (addons.includes('PLACED') || candidates.includes('PLACED')) {
-          return { ...it, stage: 'PLACED' };
-        }
-        return it;
+        return { ...it, stage: 'PLACED' };
       });
     } catch (err) {
       console.warn('Error hydrating order items:', err);
@@ -881,18 +899,16 @@ export const realtimeBridge = {
             const rawItems = (items || []).filter((it) => it.order_id === o.id).map((it) => {
               const addons = Array.isArray(it.addons) ? it.addons : [];
               let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
-              if (addons.includes('SERVED')) {
+              if (addons.includes('SERVED') || it.stage === 'SERVED') {
                 effStage = 'SERVED';
               } else if (it.stage === 'READY') {
                 effStage = 'READY';
               } else if (it.stage === 'PREP') {
                 effStage = 'PREP';
-              } else if (it.stage === 'REC' && !addons.includes('PLACED')) {
+              } else if (it.stage === 'REC' && !addons.includes('PLACED') && o.status !== 'pending') {
                 effStage = 'REC';
-              } else if (addons.includes('PLACED') || it.stage === 'PLACED') {
-                effStage = 'PLACED';
               } else {
-                effStage = (it.stage as any) || 'PLACED';
+                effStage = 'PLACED';
               }
               return {
                 ...it,
@@ -1528,7 +1544,7 @@ export const realtimeBridge = {
           const row = payload.new as any;
           const addons = Array.isArray(row.addons) ? row.addons : [];
           let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
-          if (addons.includes('SERVED')) {
+          if (addons.includes('SERVED') || row.stage === 'SERVED') {
             effStage = 'SERVED';
           } else if (row.stage === 'READY') {
             effStage = 'READY';
@@ -1536,10 +1552,8 @@ export const realtimeBridge = {
             effStage = 'PREP';
           } else if (row.stage === 'REC' && !addons.includes('PLACED')) {
             effStage = 'REC';
-          } else if (addons.includes('PLACED') || row.stage === 'PLACED') {
-            effStage = 'PLACED';
           } else {
-            effStage = (row.stage as any) || 'PLACED';
+            effStage = 'PLACED';
           }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onStageChange) {

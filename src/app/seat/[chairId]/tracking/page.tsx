@@ -187,9 +187,10 @@ export default function LiveOrderTrackingPage() {
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
-        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        const targetNum = (data.chairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const currentNum = (cleanCurrentChair || '').replace(/^0+/, '');
         // Isolate updates: ignore stage events meant for other dining seats
-        if (targetChair && targetChair !== cleanCurrentChair) {
+        if (targetNum && currentNum && targetNum !== currentNum) {
           return;
         }
 
@@ -202,6 +203,7 @@ export default function LiveOrderTrackingPage() {
             nextStages[data.dishId] = stage;
             const clean = data.dishId.replace(/^dish-/, '');
             nextStages[clean] = stage;
+            nextStages[`dish-${clean}`] = stage;
           }
           if (data.dishName) {
             nextStages[data.dishName] = stage;
@@ -215,6 +217,7 @@ export default function LiveOrderTrackingPage() {
               nextStages[`${tNum}-${data.dishId}`] = stage;
               const clean = data.dishId.replace(/^dish-/, '');
               nextStages[`${tNum}-${clean}`] = stage;
+              nextStages[`${tNum}-dish-${clean}`] = stage;
             }
             if (data.dishName) {
               nextStages[`${tNum}-${data.dishName}`] = stage;
@@ -400,23 +403,43 @@ export default function LiveOrderTrackingPage() {
 
                 // Determine this item's specific stage
                 const tNum = session?.ticketNumber || '';
-                const stageRaw =
-                  isDispatched
-                    ? 'SERVED'
-                    : (dish.id && itemStages[dish.id]) ||
-                      (dish.dish_id && itemStages[dish.dish_id]) ||
-                      (cleanDishNum && itemStages[cleanDishNum]) ||
-                      (dish.title && itemStages[dish.title]) ||
-                      (dish.title && itemStages[dish.title.toLowerCase()]) ||
-                      (dish.title && itemStages[dish.title.toLowerCase().trim()]) ||
-                      (tNum && dish.id && itemStages[`${tNum}-${dish.id}`]) ||
-                      (tNum && dish.dish_id && itemStages[`${tNum}-${dish.dish_id}`]) ||
-                      (tNum && cleanDishNum && itemStages[`${tNum}-${cleanDishNum}`]) ||
-                      (tNum && dish.title && itemStages[`${tNum}-${dish.title}`]) ||
-                      (tNum && dish.title && itemStages[`${tNum}-${dish.title.toLowerCase()}`]) ||
-                      (tNum && dish.title && itemStages[`${tNum}-${dish.title.toLowerCase().trim()}`]) ||
-                      (dish as any).stage ||
-                      'PLACED';
+                const candList: string[] = [];
+                if (isDispatched) candList.push('SERVED');
+                if ((dish as any).stage) candList.push((dish as any).stage);
+
+                const lookupKeys = [
+                  dish.id,
+                  dish.dish_id,
+                  cleanDishNum,
+                  `dish-${cleanDishNum}`,
+                  dish.title,
+                  dish.title?.toLowerCase(),
+                  dish.title?.toLowerCase().trim(),
+                  tNum && dish.id && `${tNum}-${dish.id}`,
+                  tNum && dish.dish_id && `${tNum}-${dish.dish_id}`,
+                  tNum && cleanDishNum && `${tNum}-${cleanDishNum}`,
+                  tNum && `${tNum}-dish-${cleanDishNum}`,
+                  tNum && dish.title && `${tNum}-${dish.title}`,
+                  tNum && dish.title && `${tNum}-${dish.title.toLowerCase()}`,
+                  tNum && dish.title && `${tNum}-${dish.title.toLowerCase().trim()}`,
+                ].filter(Boolean) as string[];
+
+                for (const k of lookupKeys) {
+                  if (itemStages[k]) candList.push(itemStages[k]);
+                }
+
+                let stageRaw: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
+                if (candList.includes('SERVED')) {
+                  stageRaw = 'SERVED';
+                } else if (candList.includes('READY')) {
+                  stageRaw = 'READY';
+                } else if (candList.includes('PREP')) {
+                  stageRaw = 'PREP';
+                } else if (candList.includes('REC')) {
+                  stageRaw = 'REC';
+                } else {
+                  stageRaw = 'PLACED';
+                }
 
                 // Map stage to numeric step 1..5
                 let currentStepNum = 1; // Default Placed

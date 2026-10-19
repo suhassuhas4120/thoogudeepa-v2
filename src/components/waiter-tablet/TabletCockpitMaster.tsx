@@ -221,8 +221,8 @@ export const TabletCockpitMaster: React.FC = () => {
         refreshSeats();
         refreshAlerts();
         const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
-        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-        const targetChair = payload?.order?.chair_id ? payload.order.chair_id.replace(/[^0-9]/g, '') : '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const targetChair = payload?.order?.chair_id ? payload.order.chair_id.replace(/[^0-9]/g, '').replace(/^0+/, '') : '';
         if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
           syncTicketForSeat(cleanCurSeat);
         }
@@ -230,8 +230,8 @@ export const TabletCockpitMaster: React.FC = () => {
       onStageChange: (data) => {
         refreshAlerts();
         const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
-        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '') : '';
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const targetChair = data.chairId ? data.chairId.replace(/[^0-9]/g, '').replace(/^0+/, '') : '';
 
         // Only update ticketItems if this stage change belongs to the currently selected seat
         if (targetChair && cleanCurSeat && targetChair !== cleanCurSeat) {

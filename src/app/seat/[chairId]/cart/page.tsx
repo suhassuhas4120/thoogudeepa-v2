@@ -129,6 +129,21 @@ export default function CustomerCartPage() {
         existingSession.seatId === chairId &&
         existingSession.paymentStatus === 'unpaid';
 
+      if (!isSameSession && typeof window !== 'undefined') {
+        const cleanC = chairId.replace(/[^0-9]/g, '');
+        const padC = cleanC.padStart(2, '0');
+        const unpadC = cleanC.replace(/^0+/, '');
+        try {
+          localStorage.removeItem(`thoogudeepa_item_stages_${chairId}`);
+          localStorage.removeItem(`thoogudeepa_item_stages_${cleanC}`);
+          localStorage.removeItem(`thoogudeepa_item_stages_${padC}`);
+          localStorage.removeItem(`thoogudeepa_item_stages_${unpadC}`);
+          localStorage.removeItem(`thoogudeepa_ticket_dispatched_${chairId}`);
+          localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC}`);
+          localStorage.removeItem(`thoogudeepa_ticket_dispatched_${padC}`);
+        } catch {}
+      }
+
       const activeTicketNumber = isSameSession ? existingSession.ticketNumber : ticketNum;
 
       const orderRecord = {

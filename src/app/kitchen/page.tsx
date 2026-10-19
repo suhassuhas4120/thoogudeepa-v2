@@ -122,8 +122,10 @@ export default function KitchenDisplaySystemPage() {
               effStage = 'READY';
             } else if (candList.includes('PREP')) {
               effStage = 'PREP';
-            } else if (candList.includes('REC')) {
+            } else if (candList.includes('REC') && o.order.status !== 'pending') {
               effStage = 'REC';
+            } else {
+              effStage = 'PLACED';
             }
 
             it.stage = effStage;
@@ -914,8 +916,10 @@ export default function KitchenDisplaySystemPage() {
                               currentStage = 'READY';
                             } else if (candStages.includes('PREP')) {
                               currentStage = 'PREP';
-                            } else if (candStages.includes('REC')) {
+                            } else if (candStages.includes('REC') && order.status !== 'pending') {
                               currentStage = 'REC';
+                            } else {
+                              currentStage = 'PLACED';
                             }
 
                             return (
