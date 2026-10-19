@@ -190,7 +190,7 @@ export default function CustomerMenuPage() {
               return (
                 <div
                   key={item.id}
-                  className="relative rounded-3xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-gradient-to-b from-[#FFFFFF] via-[#FAF7F2] to-[#F3EDE2] border border-[#EFE8DD] shadow-[0_12px_30px_-6px_rgba(200,140,80,0.12)] transition-all hover:shadow-[0_16px_36px_-6px_rgba(200,140,80,0.18)]"
+                  className="relative rounded-3xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-gradient-to-b from-[#FAF8F5] via-[#F2EFE8] to-[#E5ECE5] border border-[#DCE4DC] shadow-[0_12px_28px_-6px_rgba(50,70,55,0.1)] transition-all hover:shadow-[0_16px_34px_-6px_rgba(50,70,55,0.15)]"
                 >
                   {/* Clickable Card Body opening Item Details */}
                   <Link
