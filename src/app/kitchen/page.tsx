@@ -23,7 +23,9 @@ import {
   QrCode,
   Trash2,
   Sparkles,
-  Flame
+  Flame,
+  Filter,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function KitchenDisplaySystemPage() {
@@ -35,6 +37,19 @@ export default function KitchenDisplaySystemPage() {
   // Real incoming active orders from seats 01-100 (clean zero-order start)
   const [activeOrders, setActiveOrders] = useState<{ order: OrderRecord; items: OrderItemRecord[] }[]>([]);
   const [itemStages, setItemStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'>>({});
+  const [selectedWaiter, setSelectedWaiter] = useState<string | null>(null);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [demoStages, setDemoStages] = useState<Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY'>>({
+    'demo-1': 'PLACED',
+    'demo-2': 'PLACED',
+  });
+
+  const KITCHEN_WAITERS = [
+    { id: 'w1', name: 'Ramesh Kumar', zone: [1, 10] },
+    { id: 'w2', name: 'Suresh M', zone: [11, 20] },
+    { id: 'w3', name: 'Anand Kumar', zone: [21, 30] },
+    { id: 'w4', name: 'Deepa Naik', zone: [31, 40] },
+  ];
 
   // Screen 3 Item availability with Lock/Unlock and Reset/Update protection
   const defaultStockStatus: Record<string, boolean> = MENU_ITEMS.reduce(
@@ -598,42 +613,64 @@ export default function KitchenDisplaySystemPage() {
   };
 
   const handleStockReset = () => {
+    if (isStockLocked) return;
     const allAvailable = Object.keys(stockStatus).reduce<Record<string, boolean>>((acc, key) => {
       acc[key] = true;
       return acc;
     }, {});
     setStockStatus(allAvailable);
-    setStockNotice('All items set to Available');
+    setStockNotice('All items set to In Stock');
     setTimeout(() => setStockNotice(''), 2500);
   };
 
-  const handleStockUpdate = () => {
+  const handleStockUpdate = async () => {
+    if (isStockLocked) return;
     setCommittedStockStatus(stockStatus);
     setIsStockLocked(true);
-    setStockNotice('Saved & locked');
+    setStockNotice('Updated & broadcast to real menu');
     setTimeout(() => setStockNotice(''), 2500);
+
+    // 1. Broadcast over Supabase realtime channel
     Object.entries(stockStatus).forEach(([dishId, isAvailable]) => {
       realtimeBridge.setAvailability(dishId, isAvailable);
     });
+
+    // 2. Persist to inventory API endpoint
+    try {
+      for (const [dishId, isAvailable] of Object.entries(stockStatus)) {
+        await fetch('/api/inventory', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dish_id: dishId, is_available: isAvailable }),
+        });
+      }
+    } catch {
+      // Realtime channel already synchronized
+    }
   };
 
-  // Samsung Galaxy Tab A9 Frame Shell (8.7 inch, 5:3 aspect, 1340x800)
+  // Samsung Galaxy Tab A9 Frame Shell (8.7 inch, 1340x800 native resolution, aspect 1340/800)
   const renderGalaxyTabA9 = (content: React.ReactNode, title: string, screenNumber: number) => {
     return (
-      <div className="flex flex-col items-center gap-2 w-full max-w-[1020px]">
-        <div className="w-full flex items-center justify-between px-2 text-xs font-black tracking-wider text-zinc-500 uppercase">
+      <div className="flex flex-col items-center gap-2.5 w-full max-w-[1340px]">
+        {/* Device Information Header Banner */}
+        <div className="w-full flex items-center justify-between px-3 text-xs font-black tracking-wider text-zinc-500 uppercase">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-zinc-900 inline-block" />
-            <span>{title}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+            <span className="text-zinc-900 font-extrabold">{title}</span>
           </div>
-          <span className="text-[10px] text-zinc-400 font-mono">
-            SAMSUNG GALAXY TAB A9 • PASS STATION #{screenNumber}
+          <span className="text-[11px] text-zinc-500 font-mono tracking-tight font-bold">
+            SAMSUNG GALAXY TAB A9 • 8.7&quot; (1340 × 800) • STATION #{screenNumber}
           </span>
         </div>
 
-        <div className="w-full aspect-[5/3] bg-zinc-950 p-3 sm:p-4 rounded-[28px] sm:rounded-[36px] shadow-2xl border-4 border-zinc-800 relative flex items-center justify-center">
-          <div className="absolute top-1/2 left-1.5 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-zinc-700 pointer-events-none" />
-          <div className="w-full h-full bg-[#f8f9fa] rounded-[18px] sm:rounded-[24px] overflow-hidden flex flex-col p-3 sm:p-4 border border-zinc-300">
+        {/* Outer Tab A9 Tablet Bezel Chassis with exact 1340x800 aspect ratio */}
+        <div className="w-full aspect-[1340/800] max-h-[800px] bg-[#1a1b1e] p-3 sm:p-4 rounded-[32px] shadow-2xl border-[5px] border-[#2d3035] relative flex items-center justify-center">
+          {/* Front camera lens centered on the top bezel */}
+          <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#0a0a0b] ring-1 ring-zinc-700 pointer-events-none" />
+
+          {/* Active Screen Viewport Canvas */}
+          <div className="w-full h-full bg-[#f8f9fa] rounded-[20px] overflow-hidden flex flex-col p-3.5 sm:p-4 border border-zinc-200">
             {content}
           </div>
         </div>
@@ -774,58 +811,73 @@ export default function KitchenDisplaySystemPage() {
 
       {/* Content Rendering Engine */}
       {(() => {
-        {/* SCREEN 1: KDS Station Login */}
+        {/* SCREEN 1: KDS Station Login (Exact Layout from Hand-Drawn Sketch) */}
         const screen1Content = (
-          <div className="flex-1 flex flex-col justify-between items-center text-center w-full h-full py-1">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-12 h-12 rounded-full border-2 border-zinc-900 bg-amber-50 flex items-center justify-center mb-1">
-                <ChefHat className="w-6 h-6 text-amber-700" />
+          <div className="flex-1 w-full h-full flex flex-col md:flex-row items-center justify-around p-6 sm:p-10 bg-[#fbfbfa] overflow-hidden select-none gap-6 sm:gap-10">
+            {/* Left Column: Big Circular Logo Placed Higher Up and Brand Title */}
+            <div className="flex flex-col items-center justify-center text-center max-w-sm -translate-y-2 sm:-translate-y-5">
+              <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-amber-600/40 overflow-hidden shadow-lg bg-white flex items-center justify-center p-2 transition-transform hover:scale-105">
+                <img
+                  src="/logo.jpg"
+                  alt="Thoogudeepa Donne Biryani Mane"
+                  className="w-full h-full object-cover rounded-full"
+                />
               </div>
-              <h2 className="text-base font-black tracking-tight text-zinc-950 uppercase">
-                STATION ACCESS
-              </h2>
-              <p className="text-[11px] text-zinc-500 font-medium max-w-xs leading-tight">
-                Enter kitchen pass authority PIN (Default PIN: 1234)
-              </p>
+              <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-zinc-950 mt-4 leading-tight">
+                THOOGUDEEPA DONNE BIRYANI MANE
+              </h1>
+              <span className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-amber-700 mt-1.5">
+                Kitchen Display System
+              </span>
             </div>
 
-            <div className="w-full max-w-[280px] flex flex-col items-center gap-2 my-auto">
-              <div className="flex items-center justify-center gap-3 py-2 px-4 rounded-xl bg-white border-2 border-zinc-900 w-full shadow-2xs">
+            {/* Right Column: High-Visibility Large PIN Display + Keypad + Login Button */}
+            <div className="flex flex-col items-center gap-3 w-full max-w-[340px] sm:max-w-[370px]">
+              {/* 4-Digit PIN Indicator Pill */}
+              <div className="w-full flex items-center justify-center gap-5 py-3.5 px-6 rounded-2xl bg-white border-2 border-zinc-900 shadow-sm">
                 {[0, 1, 2, 3].map((idx) => (
                   <div
                     key={idx}
-                    className={`w-3.5 h-3.5 rounded-full border border-zinc-800 transition-all ${
-                      pin.length > idx ? 'bg-zinc-950 scale-110' : 'bg-transparent'
+                    className={`w-4 h-4 rounded-full border-2 border-zinc-900 transition-all ${
+                      pin.length > idx ? 'bg-zinc-950 scale-125' : 'bg-transparent'
                     }`}
                   />
                 ))}
               </div>
 
               {errorMessage && (
-                <span className="text-[10px] font-bold text-red-600 leading-none">
+                <span className="text-xs font-black text-red-600 leading-none py-0.5">
                   {errorMessage}
                 </span>
               )}
 
-              <div className="grid grid-cols-3 gap-1.5 w-full pt-1">
+              {/* High-Visibility Large 3x4 Number Pad Grid */}
+              <div className="grid grid-cols-3 gap-2.5 w-full">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'CLR', '0', 'DEL'].map((val) => (
                   <button
                     key={val}
                     type="button"
                     onClick={() => handleKeyPress(val)}
-                    className="h-10 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-100 active:bg-zinc-200 text-xs font-black text-zinc-800 transition-all flex items-center justify-center cursor-pointer shadow-2xs"
+                    className={`h-14 sm:h-16 rounded-2xl text-xl sm:text-2xl font-black transition-all flex items-center justify-center cursor-pointer shadow-xs border-2 ${
+                      val === 'CLR'
+                        ? 'bg-amber-100/70 hover:bg-amber-100 text-amber-950 border-amber-300 active:scale-95'
+                        : val === 'DEL'
+                        ? 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-300 active:scale-95'
+                        : 'bg-white hover:bg-zinc-50 active:bg-zinc-100 text-zinc-950 border-zinc-300 active:scale-95'
+                    }`}
                   >
                     {val}
                   </button>
                 ))}
               </div>
 
+              {/* Wide Login Button as Drawn in Sketch */}
               <button
                 type="button"
                 onClick={handleLoginSubmit}
-                className="w-full mt-2 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-colors"
+                className="w-full h-13 sm:h-14 rounded-2xl bg-zinc-950 hover:bg-black text-white font-black text-base uppercase tracking-widest flex items-center justify-center gap-2.5 cursor-pointer shadow-md active:scale-95 transition-all mt-0.5"
               >
-                <ShieldCheck className="w-4 h-4 text-white" />
+                <Check className="w-5 h-5 text-emerald-400 stroke-[3]" />
                 <span>LOGIN</span>
               </button>
             </div>
@@ -921,298 +973,554 @@ export default function KitchenDisplaySystemPage() {
           })
           .filter((active) => active.items.length === 0 || active.unservedItems.length > 0);
 
+        const filteredTickets = selectedWaiter
+          ? activeTicketsToDisplay.filter((active) => {
+              const order = active.order;
+              const anyOrder = order as unknown as Record<string, unknown>;
+              if (typeof anyOrder.waiter_name === 'string' && anyOrder.waiter_name.toLowerCase().includes(selectedWaiter.toLowerCase())) {
+                return true;
+              }
+              const seatNum = parseInt((order.chair_id || '').replace(/[^0-9]/g, ''), 10);
+              const wInfo = KITCHEN_WAITERS.find((w) => w.name === selectedWaiter);
+              if (wInfo && !isNaN(seatNum)) {
+                return seatNum >= wInfo.zone[0] && seatNum <= wInfo.zone[1];
+              }
+              return false;
+            })
+          : activeTicketsToDisplay;
+
         const screen2Content = (
-          <div className="flex-1 flex flex-col justify-between w-full h-full overflow-hidden">
-            {/* Header Status */}
-            <div className="flex items-center justify-between pb-1 shrink-0 border-b border-zinc-200">
+          <div className="flex-1 flex flex-col justify-between w-full h-full overflow-hidden bg-white select-none">
+            {/* Top Bar matching hand-drawn sketch: THOOGUDEEPA KDS | Filter & Waiter Chips | ORDERS [ X ] */}
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2 shrink-0 border-b-2 border-zinc-950 bg-white gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                  ALL SEATS ({activeTicketsToDisplay.length} ACTIVE {activeTicketsToDisplay.length === 1 ? 'TICKET' : 'TICKETS'})
+                <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-zinc-950 whitespace-nowrap">
+                  THOOGUDEEPA KDS
                 </h3>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {activeTicketsToDisplay.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClearAllOrders}
-                    className="ml-2 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-50 text-red-700 hover:bg-red-700 hover:text-white border border-red-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                    title="Delete all active orders"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Delete All</span>
-                  </button>
-                )}
               </div>
-              <span className="text-[10px] text-zinc-500 font-bold uppercase">
-                Real-Time Pass Queue
-              </span>
+
+              {/* Filter funnel & Waiter Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <div className="p-1 text-zinc-700 shrink-0" title="Filter by Waiter">
+                  <Filter className="w-3.5 h-3.5" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedWaiter(null)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase transition-all cursor-pointer whitespace-nowrap border ${
+                    selectedWaiter === null
+                      ? 'bg-zinc-950 text-white border-zinc-950'
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border-zinc-300'
+                  }`}
+                >
+                  ALL
+                </button>
+                {KITCHEN_WAITERS.map((waiter) => {
+                  const isSelected = selectedWaiter === waiter.name;
+                  return (
+                    <button
+                      key={waiter.id}
+                      type="button"
+                      onClick={() => setSelectedWaiter(isSelected ? null : waiter.name)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-black uppercase transition-all cursor-pointer whitespace-nowrap border ${
+                        isSelected
+                          ? 'bg-zinc-950 text-white border-zinc-950'
+                          : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-300'
+                      }`}
+                    >
+                      {waiter.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Orders Counter Badge from Sketch: ORDERS [ 11 ] */}
+              <div className="flex items-center shrink-0">
+                <div className="px-3 py-1 rounded-md border-2 border-zinc-950 bg-zinc-100 font-mono font-black text-xs text-zinc-950 tracking-wider">
+                  ORDERS [{filteredTickets.length}]
+                </div>
+              </div>
             </div>
 
-            {/* Zero Orders Fresh State */}
-            {activeTicketsToDisplay.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-zinc-300 rounded-2xl bg-white/60 my-auto">
-                <div className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-600 flex items-center justify-center text-emerald-700 mb-2.5 shadow-2xs">
-                  <CheckCircle2 className="w-7 h-7" />
-                </div>
-                <h3 className="text-sm font-black uppercase tracking-tight text-zinc-950">
-                  ALL PASSES CLEAR • 0 ACTIVE ORDERS
-                </h3>
-                <p className="text-[11px] text-zinc-500 font-medium max-w-sm mt-1 leading-relaxed">
-                  No orders are currently waiting. When customers scan their tabletop QR (Seats 01–100) and place an order, it will appear here immediately!
-                </p>
-                <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-zinc-600 bg-zinc-100 px-3 py-1 rounded-full border border-zinc-200">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Supabase Real-Time Channel Connected</span>
-                </div>
-              </div>
-            ) : (
-              /* Grid of Active Orders (Content-fitting, compact, neatly aligned) */
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 w-full flex-1 overflow-y-auto py-1 items-start content-start">
-                {activeTicketsToDisplay.map((active, orderIdx) => {
-                  const order = active.order;
-                  const chairId = order.chair_id || '12';
+            {/* Grid of Active Orders (3 Columns layout matching sketch for Galaxy Tab A9) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 w-full flex-1 overflow-y-auto p-3 items-start content-start no-scrollbar bg-[#fcfcfb]">
+              {filteredTickets.map((active, orderIdx) => {
+                const order = active.order;
+                const chairId = order.chair_id || '12';
 
-                  return (
-                    <div
-                      key={order.id || `${order.ticket_number}-${orderIdx}`}
-                      className="w-full h-fit bg-white rounded-xl border-2 border-zinc-950 shadow-xs p-3 flex flex-col gap-2.5"
-                    >
-                      {/* Ticket Header (Seat & KOT on Same Line) */}
-                      <div className="pb-2 border-b border-zinc-200 flex items-center gap-2 shrink-0">
-                        <span className="font-black text-xs text-zinc-950 uppercase tracking-tight bg-zinc-100 px-2 py-0.5 rounded border border-zinc-300 whitespace-nowrap shrink-0">
-                          SEAT {chairId}
-                        </span>
-                        <span className="text-[11px] font-bold text-zinc-700 font-mono whitespace-nowrap">
-                          KOT: #{order.ticket_number}
-                        </span>
-                      </div>
+                return (
+                  <div
+                    key={order.id || `${order.ticket_number}-${orderIdx}`}
+                    className="w-full bg-white rounded-xl border-2 border-zinc-950 shadow-xs p-3.5 flex flex-col gap-3"
+                  >
+                    {/* Ticket Header: [SEAT 17] KOT: #TK-17-569 */}
+                    <div className="pb-2 border-b-2 border-zinc-200 flex items-center justify-between gap-2 shrink-0">
+                      <span className="font-black text-xs text-zinc-950 uppercase tracking-wider bg-zinc-100 px-2.5 py-1 rounded border-2 border-zinc-950 whitespace-nowrap">
+                        SEAT {chairId}
+                      </span>
+                      <span className="text-xs font-black text-zinc-800 font-mono whitespace-nowrap">
+                        KOT: #{order.ticket_number}
+                      </span>
+                    </div>
 
-                      {/* Items List (Tight spacing, no excessive gaps) */}
-                      <div className="flex flex-col gap-1.5 py-0.5">
-                        {active.items.length === 0 ? (
-                          <div className="text-[11px] text-zinc-500 font-medium italic py-2 text-center">
-                            Order received (compiling line items...)
+                    {/* Items List */}
+                    <div className="flex flex-col gap-3 py-0.5">
+                      {active.unservedItems.map((it, idx) => {
+                        const itemKey = it.id || `${order.ticket_number}-${it.dish_id}-${idx}`;
+                        const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
+                        const tNum = order.ticket_number || '';
+
+                        const candStages: string[] = [];
+                        if (it.stage) candStages.push(it.stage);
+
+                        const renderKeys = [
+                          it.id,
+                          itemKey,
+                          cleanChair && it.id && `${cleanChair}-${it.id}`,
+                          cleanChair && tNum && it.id && `${cleanChair}-${tNum}-${it.id}`,
+                          cleanChair && `${cleanChair}-${itemKey}`,
+                          cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
+                        ].filter(Boolean) as string[];
+
+                        for (const k of renderKeys) {
+                          if (itemStages[k]) candStages.push(itemStages[k]);
+                        }
+
+                        let currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
+                        if (candStages.includes('SERVED')) {
+                          currentStage = 'SERVED';
+                        } else if (candStages.includes('READY')) {
+                          currentStage = 'READY';
+                        } else if (candStages.includes('PREP')) {
+                          currentStage = 'PREP';
+                        } else if (candStages.includes('REC') && order.status !== 'pending') {
+                          currentStage = 'REC';
+                        } else {
+                          currentStage = 'PLACED';
+                        }
+
+                        const hasAddon =
+                          (it.notes && it.notes.trim().length > 0) ||
+                          (it.addons && it.addons.length > 0 && !it.addons.every((a) => a === 'PLACED'));
+
+                        return (
+                          <div
+                            key={itemKey}
+                            className="border-b border-zinc-200 pb-2.5 last:border-b-0 last:pb-0 flex flex-col gap-1.5"
+                          >
+                            {/* Dish Title and Addon Badge */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-black text-sm text-zinc-950 leading-snug">
+                                {it.quantity}x {it.dish_name}
+                              </span>
+                              {hasAddon && (
+                                <span className="px-1.5 py-0.5 rounded border border-zinc-900 bg-zinc-100 text-[10px] font-black uppercase text-zinc-900 shrink-0">
+                                  Addon
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Customizations / Notes if present */}
+                            {hasAddon && (it.notes || it.addons) && (
+                              <div className="text-[10px] font-bold text-amber-950 bg-amber-50 border border-amber-300 rounded px-2 py-0.5 leading-snug">
+                                <span>{(it.notes || it.addons?.filter((a) => a !== 'PLACED').join(', '))}</span>
+                              </div>
+                            )}
+
+                            {/* 3 Buttons: [REC] [PREP] [READY] as in sketch */}
+                            <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                              {(['REC', 'PREP', 'READY'] as const).map((stage) => {
+                                // Dynamic color progression:
+                                // 1. PLACED: All three no color
+                                // 2. REC clicked: REC is orange, PREP/READY no color
+                                // 3. PREP clicked: REC has traffic green border, PREP is orange, READY no color
+                                // 4. READY clicked: REC & PREP have traffic green border, READY is solid full traffic green
+                                const trafficGreenBorder = 'bg-white text-[#008f39] border-[#00c853] shadow-xs';
+                                const trafficGreenFilled = 'bg-[#00c853] text-white border-[#00b048] shadow-xs font-black';
+                                let btnStyle = 'bg-white hover:bg-zinc-100 text-zinc-800 border-zinc-300';
+
+                                if (currentStage === 'REC') {
+                                  if (stage === 'REC') {
+                                    btnStyle = 'bg-orange-500 text-white border-orange-600 shadow-xs';
+                                  }
+                                } else if (currentStage === 'PREP') {
+                                  if (stage === 'REC') {
+                                    btnStyle = trafficGreenBorder;
+                                  } else if (stage === 'PREP') {
+                                    btnStyle = 'bg-orange-500 text-white border-orange-600 shadow-xs';
+                                  }
+                                } else if (currentStage === 'READY' || currentStage === 'SERVED') {
+                                  if (stage === 'READY') {
+                                    btnStyle = trafficGreenFilled;
+                                  } else {
+                                    btnStyle = trafficGreenBorder;
+                                  }
+                                }
+
+                                return (
+                                  <button
+                                    key={stage}
+                                    type="button"
+                                    onClick={() =>
+                                      updateItemStage(itemKey, stage, {
+                                        chairId: order.chair_id,
+                                        dishId: it.dish_id,
+                                        ticketNumber: order.ticket_number,
+                                        dishName: it.dish_name,
+                                        itemId: it.id || itemKey,
+                                      })
+                                    }
+                                    className={`h-9 rounded-md text-xs font-black tracking-wider uppercase transition-all border-2 cursor-pointer flex items-center justify-center select-none active:scale-95 ${btnStyle}`}
+                                  >
+                                    {stage}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ) : (
-                          active.unservedItems.map((it, idx) => {
-                            const itemKey = it.id || `${order.ticket_number}-${it.dish_id}-${idx}`;
-                            const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
-                            const tNum = order.ticket_number || '';
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
 
-                            const candStages: string[] = [];
-                            if (it.stage) candStages.push(it.stage);
+              {/* Empty Slots matching sketch rack grid structure (up to 6 slots minimum) */}
+              {Array.from({ length: Math.max(0, 6 - filteredTickets.length) }).map((_, slotIdx) => (
+                <div
+                  key={`empty-slot-${slotIdx}`}
+                  className="w-full min-h-[200px] rounded-xl border-2 border-dashed border-zinc-300 bg-white/40 flex items-center justify-center select-none"
+                >
+                  <span className="text-zinc-300 font-black text-xs uppercase tracking-widest">
+                    Available Slot
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
 
-                            const renderKeys = [
-                              it.id,
-                              itemKey,
-                              cleanChair && it.id && `${cleanChair}-${it.id}`,
-                              cleanChair && tNum && it.id && `${cleanChair}-${tNum}-${it.id}`,
-                              cleanChair && `${cleanChair}-${itemKey}`,
-                              cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
-                            ].filter(Boolean) as string[];
+        {/* SCREEN 3: Seat Detail (Left Panel) & Items Availability 86 Inventory (Right Panel) */}
+        const currentActiveTicket =
+          (selectedTicketId
+            ? activeTicketsToDisplay.find(
+                (a) => a.order.id === selectedTicketId || a.order.ticket_number === selectedTicketId
+              )
+            : null) ||
+          activeTicketsToDisplay[0] ||
+          null;
 
-                            for (const k of renderKeys) {
-                              if (itemStages[k]) candStages.push(itemStages[k]);
-                            }
+        const detailChairId = currentActiveTicket?.order.chair_id || '17';
+        const detailKOT = currentActiveTicket?.order.ticket_number || '17-8969';
 
-                            let currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
-                            if (candStages.includes('SERVED')) {
-                              currentStage = 'SERVED';
-                            } else if (candStages.includes('READY')) {
-                              currentStage = 'READY';
-                            } else if (candStages.includes('PREP')) {
-                              currentStage = 'PREP';
-                            } else if (candStages.includes('REC') && order.status !== 'pending') {
-                              currentStage = 'REC';
-                            } else {
-                              currentStage = 'PLACED';
+        const screen3Content = (
+          <div className="flex-1 w-full h-full flex flex-col lg:flex-row divide-y-2 lg:divide-y-0 lg:divide-x-2 divide-zinc-950 bg-white overflow-hidden select-none">
+            {/* LEFT PANEL: Seat Order Detail matching sketch */}
+            <div className="w-full lg:w-1/2 flex flex-col justify-between p-3.5 sm:p-5 bg-white overflow-hidden">
+              {/* Header: [SEAT 17] KOT #17-8969 | THOOGUDEEPA KDS */}
+              <div className="pb-3 border-b-2 border-zinc-950 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-xs sm:text-sm text-zinc-950 uppercase tracking-wider bg-zinc-100 px-2.5 py-1 rounded border-2 border-zinc-950 whitespace-nowrap">
+                    SEAT {detailChairId}
+                  </span>
+                  <span className="text-xs sm:text-sm font-black text-zinc-800 font-mono whitespace-nowrap">
+                    KOT #{detailKOT}
+                  </span>
+                </div>
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight text-zinc-950 whitespace-nowrap">
+                  THOOGUDEEPA KDS
+                </h3>
+              </div>
+
+              {/* Items List */}
+              <div className="flex-1 overflow-y-auto no-scrollbar py-3 flex flex-col gap-3">
+                {currentActiveTicket && currentActiveTicket.unservedItems.length > 0 ? (
+                  currentActiveTicket.unservedItems.map((it, idx) => {
+                    const itemKey = it.id || `${currentActiveTicket.order.ticket_number}-${it.dish_id}-${idx}`;
+                    const cleanChair = (currentActiveTicket.order.chair_id || '').replace(/[^0-9]/g, '');
+                    const tNum = currentActiveTicket.order.ticket_number || '';
+
+                    const candStages: string[] = [];
+                    if (it.stage) candStages.push(it.stage);
+
+                    const renderKeys = [
+                      it.id,
+                      itemKey,
+                      cleanChair && it.id && `${cleanChair}-${it.id}`,
+                      cleanChair && tNum && it.id && `${cleanChair}-${tNum}-${it.id}`,
+                      cleanChair && `${cleanChair}-${itemKey}`,
+                      cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
+                    ].filter(Boolean) as string[];
+
+                    for (const k of renderKeys) {
+                      if (itemStages[k]) candStages.push(itemStages[k]);
+                    }
+
+                    let currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
+                    if (candStages.includes('SERVED')) {
+                      currentStage = 'SERVED';
+                    } else if (candStages.includes('READY')) {
+                      currentStage = 'READY';
+                    } else if (candStages.includes('PREP')) {
+                      currentStage = 'PREP';
+                    } else if (candStages.includes('REC') && currentActiveTicket.order.status !== 'pending') {
+                      currentStage = 'REC';
+                    } else {
+                      currentStage = 'PLACED';
+                    }
+
+                    const hasAddon =
+                      (it.notes && it.notes.trim().length > 0) ||
+                      (it.addons && it.addons.length > 0 && !it.addons.every((a) => a === 'PLACED'));
+
+                    const trafficGreenBorder = 'bg-white text-[#008f39] border-[#00c853] shadow-xs';
+                    const trafficGreenFilled = 'bg-[#00c853] text-white border-[#00b048] shadow-xs font-black';
+
+                    return (
+                      <div
+                        key={itemKey}
+                        className="p-3 rounded-xl border-2 border-zinc-200 bg-[#fdfdfc] flex flex-col gap-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-black text-sm text-zinc-950">
+                            {it.quantity}x {it.dish_name}
+                          </span>
+                          {hasAddon && (
+                            <span className="px-2 py-0.5 rounded border border-zinc-900 bg-zinc-100 text-[10px] font-black uppercase text-zinc-900 shrink-0 flex items-center gap-1">
+                              <span>+</span>
+                              <span>Add on</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {hasAddon && (it.notes || it.addons) && (
+                          <div className="text-[10px] font-bold text-amber-950 bg-amber-50 border border-amber-300 rounded px-2 py-0.5 leading-snug">
+                            <span>{(it.notes || it.addons?.filter((a) => a !== 'PLACED').join(', '))}</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-3 gap-1.5 pt-1">
+                          {(['REC', 'PREP', 'READY'] as const).map((stage) => {
+                            let btnStyle = 'bg-white hover:bg-zinc-100 text-zinc-800 border-zinc-300';
+
+                            if (currentStage === 'REC') {
+                              if (stage === 'REC') {
+                                btnStyle = 'bg-orange-500 text-white border-orange-600 shadow-xs';
+                              }
+                            } else if (currentStage === 'PREP') {
+                              if (stage === 'REC') {
+                                btnStyle = trafficGreenBorder;
+                              } else if (stage === 'PREP') {
+                                btnStyle = 'bg-orange-500 text-white border-orange-600 shadow-xs';
+                              }
+                            } else if (currentStage === 'READY' || currentStage === 'SERVED') {
+                              if (stage === 'READY') {
+                                btnStyle = trafficGreenFilled;
+                              } else {
+                                btnStyle = trafficGreenBorder;
+                              }
                             }
 
                             return (
-                              <div
-                                key={itemKey}
-                                className="bg-[#fbf9f5] rounded-lg border border-zinc-200 p-2 flex flex-col gap-1.5"
+                              <button
+                                key={stage}
+                                type="button"
+                                onClick={() =>
+                                  updateItemStage(itemKey, stage, {
+                                    chairId: currentActiveTicket.order.chair_id,
+                                    dishId: it.dish_id,
+                                    ticketNumber: currentActiveTicket.order.ticket_number,
+                                    dishName: it.dish_name,
+                                    itemId: it.id || itemKey,
+                                  })
+                                }
+                                className={`h-9 rounded-md text-xs font-black tracking-wider uppercase transition-all border-2 cursor-pointer flex items-center justify-center select-none active:scale-95 ${btnStyle}`}
                               >
-                                {/* Full Dish Title and Multiplier (Zero Prices) */}
-                                <div className="flex items-start gap-2 min-w-0">
-                                  <span className="w-5 h-5 rounded bg-zinc-900 text-white text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
-                                    {it.quantity}x
-                                  </span>
-                                  <span className="font-black text-xs text-zinc-950 leading-snug break-words flex-1">
-                                    {it.dish_name}
-                                  </span>
-                                </div>
-
-                                {/* Customizations & Add-ons Clearly Visible */}
-                                {(it.notes || (it.addons && it.addons.length > 0 && !it.addons.every((a) => a === 'PLACED'))) && (
-                                  <div className="text-[10px] font-bold text-amber-950 bg-amber-50/90 border border-amber-300 rounded px-2 py-1 leading-snug">
-                                    <span className="font-black text-[9px] uppercase tracking-wide text-amber-800 block">
-                                      ADD-ONS &amp; CUSTOMIZATION:
-                                    </span>
-                                    <span>{(it.notes || it.addons?.filter((a) => a !== 'PLACED').join(', '))}</span>
-                                  </div>
-                                )}
-
-                                {/* Dish Stage Status Indicator */}
-                                <div className="flex items-center justify-between text-[9px] font-bold">
-                                  <span className="text-zinc-500 font-extrabold uppercase tracking-tight">Status:</span>
-                                  {currentStage === 'PLACED' && (
-                                    <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 font-black flex items-center gap-1 shadow-2xs">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                      PLACED (Tap 1.REC to accept)
-                                    </span>
-                                  )}
-                                  {currentStage === 'REC' && (
-                                    <span className="text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-300 font-black flex items-center gap-1 shadow-2xs">
-                                      <Check className="w-3 h-3 text-sky-600" />
-                                      RECEIVED IN KITCHEN
-                                    </span>
-                                  )}
-                                  {currentStage === 'PREP' && (
-                                    <span className="text-orange-900 bg-orange-50 px-2 py-0.5 rounded border border-orange-300 font-black flex items-center gap-1 shadow-2xs">
-                                      <Flame className="w-3 h-3 text-orange-600" />
-                                      COOKING IN WOK
-                                    </span>
-                                  )}
-                                  {currentStage === 'READY' && (
-                                    <span className="text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-black flex items-center gap-1 shadow-2xs">
-                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                      PASS READY TO SERVE
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Interactive 3-Stage Stepper: REC -> PREP -> READY */}
-                                <div className="grid grid-cols-3 gap-1 pt-0.5">
-                                  {(['REC', 'PREP', 'READY'] as const).map((stage, sIdx) => {
-                                    const isCurrent = currentStage === stage;
-                                    return (
-                                      <button
-                                        key={stage}
-                                        type="button"
-                                        onClick={() =>
-                                          updateItemStage(itemKey, stage, {
-                                            chairId: order.chair_id,
-                                            dishId: it.dish_id,
-                                            ticketNumber: order.ticket_number,
-                                            dishName: it.dish_name,
-                                            itemId: it.id || itemKey,
-                                          })
-                                        }
-                                        className={`h-7 rounded-md text-[9px] font-black tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center select-none ${
-                                          isCurrent
-                                            ? 'bg-zinc-950 text-white border-zinc-950 ring-1 ring-zinc-400'
-                                            : 'bg-white hover:bg-zinc-100 text-zinc-700 border-zinc-300'
-                                        }`}
-                                      >
-                                        {sIdx + 1}.{stage}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
+                                {stage}
+                              </button>
                             );
-                          })
-                        )}
+                          })}
+                        </div>
                       </div>
+                    );
+                  })
+                ) : (
+                  /* Demo interactive items exactly from the sketch if no active tickets right now */
+                  [
+                    { key: 'demo-1', title: '1x Chilli Chicken', addon: true },
+                    { key: 'demo-2', title: '2x Chicken Biryani', addon: true },
+                  ].map((demo) => {
+                    const stage = demoStages[demo.key] || 'PLACED';
+                    const trafficGreenBorder = 'bg-white text-[#008f39] border-[#00c853] shadow-xs';
+                    const trafficGreenFilled = 'bg-[#00c853] text-white border-[#00b048] shadow-xs font-black';
+
+                    return (
+                      <div
+                        key={demo.key}
+                        className="p-3 rounded-xl border-2 border-zinc-200 bg-[#fdfdfc] flex flex-col gap-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-black text-sm text-zinc-950">{demo.title}</span>
+                          <span className="px-2 py-0.5 rounded border border-zinc-900 bg-zinc-100 text-[10px] font-black uppercase text-zinc-900 shrink-0 flex items-center gap-1">
+                            <span>+</span>
+                            <span>Add on</span>
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 pt-1">
+                          {(['REC', 'PREP', 'READY'] as const).map((s) => {
+                            let btnStyle = 'bg-white hover:bg-zinc-100 text-zinc-800 border-zinc-300';
+                            if (stage === 'REC') {
+                              if (s === 'REC') btnStyle = 'bg-orange-500 text-white border-orange-600 shadow-xs';
+                            } else if (stage === 'PREP') {
+                              if (s === 'REC') btnStyle = trafficGreenBorder;
+                              else if (s === 'PREP') btnStyle = 'bg-orange-500 text-white border-orange-600 shadow-xs';
+                            } else if (stage === 'READY') {
+                              if (s === 'READY') btnStyle = trafficGreenFilled;
+                              else btnStyle = trafficGreenBorder;
+                            }
+
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => setDemoStages((prev) => ({ ...prev, [demo.key]: s }))}
+                                className={`h-9 rounded-md text-xs font-black tracking-wider uppercase transition-all border-2 cursor-pointer flex items-center justify-center select-none active:scale-95 ${btnStyle}`}
+                              >
+                                {s}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Bottom Actions: [ < Back ] [ All items Ready ] */}
+              <div className="pt-3 border-t-2 border-zinc-950 flex items-center justify-between gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveScreenTab(2)}
+                  className="px-4 py-2 rounded-lg border-2 border-zinc-950 bg-white hover:bg-zinc-100 text-zinc-950 font-black text-xs uppercase tracking-wider cursor-pointer shadow-xs active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentActiveTicket) {
+                      currentActiveTicket.items.forEach((it, idx) => {
+                        const itemKey = it.id || `${currentActiveTicket.order.ticket_number}-${it.dish_id}-${idx}`;
+                        updateItemStage(itemKey, 'READY', {
+                          chairId: currentActiveTicket.order.chair_id,
+                          dishId: it.dish_id,
+                          ticketNumber: currentActiveTicket.order.ticket_number,
+                          dishName: it.dish_name,
+                          itemId: it.id || itemKey,
+                        });
+                      });
+                    } else {
+                      setDemoStages({ 'demo-1': 'READY', 'demo-2': 'READY' });
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg border-2 border-zinc-950 bg-zinc-950 hover:bg-black text-white font-black text-xs uppercase tracking-wider cursor-pointer shadow-xs active:scale-95 transition-all"
+                >
+                  All items Ready
+                </button>
+              </div>
+            </div>
+
+            {/* RIGHT PANEL: Items availability matching sketch */}
+            <div className="w-full lg:w-1/2 flex flex-col justify-between p-3.5 sm:p-5 bg-[#fafaf9] overflow-hidden">
+              {/* Header: Items availability | Lock Symbol */}
+              <div className="pb-3 border-b-2 border-zinc-950 flex items-center justify-between gap-2 shrink-0">
+                <h3 className="text-sm sm:text-base font-black uppercase tracking-tight text-zinc-950">
+                  Items availability
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsStockLocked(!isStockLocked)}
+                  className="p-1.5 rounded-lg border-2 border-zinc-950 bg-white hover:bg-zinc-100 cursor-pointer shadow-xs transition-all active:scale-95"
+                  title={isStockLocked ? 'Controls Locked. Click to unlock.' : 'Controls Unlocked. Click to lock.'}
+                >
+                  {isStockLocked ? (
+                    <Lock className="w-4 h-4 text-amber-600" />
+                  ) : (
+                    <Unlock className="w-4 h-4 text-emerald-600" />
+                  )}
+                </button>
+              </div>
+
+              {/* Dishes Vertical List */}
+              <div className="flex-1 overflow-y-auto no-scrollbar py-3 flex flex-col gap-2.5">
+                {MENU_ITEMS.map((dish) => {
+                  const isAvailable = stockStatus[dish.id] !== false;
+                  return (
+                    <div
+                      key={dish.id}
+                      className="flex items-center justify-between p-2.5 bg-white rounded-lg border-2 border-zinc-300 shadow-2xs gap-2 transition-all hover:border-zinc-400"
+                    >
+                      <span className="font-black text-xs sm:text-sm text-zinc-950 truncate flex-1">
+                        {dish.title}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isStockLocked}
+                        onClick={() => {
+                          if (isStockLocked) return;
+                          setStockStatus((prev) => ({ ...prev, [dish.id]: !isAvailable }));
+                        }}
+                        className={`px-3 py-1.5 rounded-md font-black text-xs uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all select-none ${
+                          isAvailable
+                            ? 'border-[#00c853] bg-emerald-50 text-[#008f39]'
+                            : 'border-red-500 bg-red-50 text-red-700'
+                        } ${isStockLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.02] active:scale-95 shadow-xs'}`}
+                      >
+                        {isAvailable ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 stroke-[3] text-[#00c853]" />
+                            <span>In stock</span>
+                          </>
+                        ) : (
+                          <>
+                            <Ban className="w-3.5 h-3.5 stroke-[2.5] text-red-600" />
+                            <span>Out of stock</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </div>
-        );
 
-        {/* SCREEN 3: Seat Detail & 86 Inventory */}
-        const screen3Content = (
-          <div className="flex-1 flex flex-col justify-between w-full h-full overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-1 shrink-0 border-b border-zinc-200">
-              <h3 className="text-xs font-black uppercase tracking-wider text-zinc-900">
-                86 INVENTORY CONTROL (MENU AVAILABILITY)
-              </h3>
-              {stockNotice && (
-                <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                  {stockNotice}
-                </span>
-              )}
-            </div>
-
-            {/* Dish Toggles Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 overflow-y-auto py-2">
-              {MENU_ITEMS.map((dish) => {
-                const isAvailable = stockStatus[dish.id] !== false;
-                return (
-                  <div
-                    key={dish.id}
-                    className="p-2 rounded-xl border border-zinc-300 bg-white shadow-2xs flex flex-col justify-between gap-2"
-                  >
-                    <div>
-                      <span className="text-xs font-bold text-zinc-900 block leading-tight">
-                        {dish.title}
-                      </span>
-                      <span className={`text-[10px] font-black uppercase tracking-wider mt-0.5 inline-block ${
-                        isAvailable ? 'text-emerald-700' : 'text-red-600 line-through'
-                      }`}>
-                        {isAvailable ? 'Available' : 'Sold Out (86)'}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={isStockLocked}
-                      onClick={() => toggleStock(dish.id)}
-                      className={`w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer transition-all ${
-                        isAvailable
-                          ? 'bg-zinc-900 hover:bg-black text-white'
-                          : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-300'
-                      } ${isStockLocked ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    >
-                      {isAvailable ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span>IN STOCK</span>
-                        </>
-                      ) : (
-                        <>
-                          <Ban className="w-3 h-3" />
-                          <span>86 OUT</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Controls Lock / Unlock & Save */}
-            <div className="pt-2 border-t border-zinc-200 flex items-center justify-between gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsStockLocked(!isStockLocked)}
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-100 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                {isStockLocked ? <Lock className="w-3.5 h-3.5 text-amber-600" /> : <Unlock className="w-3.5 h-3.5 text-emerald-600" />}
-                <span>{isStockLocked ? 'UNLOCK TO EDIT' : 'LOCK CONTROLS'}</span>
-              </button>
-
-              <div className="flex items-center gap-2">
+              {/* Bottom Actions: [ RESET ] [ UPDATE ] */}
+              <div className="pt-3 border-t-2 border-zinc-950 flex items-center justify-between gap-3 shrink-0">
                 <button
                   type="button"
                   disabled={isStockLocked}
                   onClick={handleStockReset}
-                  className="px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-100 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 rounded-lg border-2 border-zinc-950 bg-white hover:bg-zinc-100 text-zinc-950 font-black text-xs uppercase tracking-wider cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>ALL AVAILABLE</span>
+                  RESET
                 </button>
+
+                {stockNotice && (
+                  <span className="text-[11px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md animate-fade-in">
+                    {stockNotice}
+                  </span>
+                )}
+
                 <button
                   type="button"
                   disabled={isStockLocked}
                   onClick={handleStockUpdate}
-                  className="px-4 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+                  className="px-5 py-2 rounded-lg border-2 border-zinc-950 bg-zinc-950 hover:bg-black text-white font-black text-xs uppercase tracking-wider cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all"
                 >
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>SAVE &amp; BROADCAST</span>
+                  UPDATE
                 </button>
               </div>
             </div>
@@ -1220,7 +1528,7 @@ export default function KitchenDisplaySystemPage() {
         );
 
         return (
-          <main className="w-full max-w-[1220px] mx-auto px-2 sm:px-4 mt-4 flex-1 flex flex-col items-center">
+          <main className="w-full max-w-[1400px] mx-auto px-2 sm:px-4 mt-4 flex-1 flex flex-col items-center">
             {viewMode === 'all' ? (
               <div className="flex flex-col gap-10 w-full items-center pb-12">
                 {renderGalaxyTabA9(screen1Content, "1. KDS STATION LOGIN", 1)}
