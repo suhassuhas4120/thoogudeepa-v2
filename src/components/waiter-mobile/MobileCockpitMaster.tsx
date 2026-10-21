@@ -310,11 +310,14 @@ export const MobileCockpitMaster: React.FC = () => {
       } else {
         setActiveTicketNumber('');
       }
-      if (details.items && details.items.length > 0) {
-        setCartItems(expandOrderItemsToCart(details.items, details.order?.ticket_number, cleanChair));
-      } else {
-        setCartItems([]);
-      }
+      setCartItems((prev) => {
+        const unplacedDrafts = prev.filter((c) => !c.orderItemId && !c.isFired);
+        const serverFiredItems =
+          details.items && details.items.length > 0
+            ? expandOrderItemsToCart(details.items, details.order?.ticket_number, cleanChair)
+            : [];
+        return [...serverFiredItems, ...unplacedDrafts];
+      });
 
       // Check if bill request is already active for this seat
       const activeReq = realtimeBridge.getActiveBillRequest(cleanChair);
@@ -456,11 +459,6 @@ export const MobileCockpitMaster: React.FC = () => {
     const pollInterval = setInterval(() => {
       refreshSeats();
       refreshAlerts();
-      const curSeat = selectedSeatRef.current || '';
-      const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-      if (cleanCurSeat && activeScreenRef.current === 'cart') {
-        syncCartForSeat(cleanCurSeat);
-      }
     }, 2500);
 
     return () => {

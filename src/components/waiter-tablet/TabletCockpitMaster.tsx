@@ -239,11 +239,13 @@ export const TabletCockpitMaster: React.FC = () => {
             });
           }
         });
-        setDishQuantities({});
-        setTicketItems(items.map(it => ({ ...it, isPunched: true })));
+        const serverPunchedItems = items.map(it => ({ ...it, isPunched: true }));
+        setTicketItems(prev => {
+          const unpunchedDrafts = prev.filter(it => !it.isPunched && !it.orderItemId);
+          return [...serverPunchedItems, ...unpunchedDrafts];
+        });
       } else {
-        setDishQuantities({});
-        setTicketItems([]);
+        setTicketItems(prev => prev.filter(it => !it.isPunched && !it.orderItemId));
       }
     });
   }, []);
@@ -396,11 +398,6 @@ export const TabletCockpitMaster: React.FC = () => {
     const pollInterval = setInterval(() => {
       refreshSeats();
       refreshAlerts();
-      const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
-      const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-      if (cleanCurSeat && isDiningRef.current) {
-        syncTicketForSeat(cleanCurSeat);
-      }
     }, 2500);
 
     return () => {
