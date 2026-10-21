@@ -262,10 +262,10 @@ export default function ItemCustomizationPage() {
       </div>
 
       {/* Bottom Sticky Action Bar */}
-      <div className="sticky bottom-0 z-30 w-full max-w-md bg-[#FFFEFC]/95 backdrop-blur-md border-t border-[rgba(220,226,222,0.8)] pt-3 pb-2 mt-8 flex items-center justify-between gap-4">
-        <div className="flex flex-col">
-          <span className="text-[10px] text-[#5A6860] uppercase font-bold">Total</span>
-          <span className="text-xl font-black text-[#244436]">₹ {calculatedGrandTotal}</span>
+      <div className="sticky bottom-0 z-30 w-full max-w-md bg-[#FFFEFC]/95 backdrop-blur-md border-t border-[rgba(220,226,222,0.8)] py-3 px-3 mt-8 flex items-center justify-between gap-4">
+        <div className="flex flex-col pl-1.5 pb-0.5">
+          <span className="text-[10px] text-[#5A6860] uppercase font-bold tracking-wider">Total</span>
+          <span className="text-xl font-black text-[#244436] leading-tight">₹ {calculatedGrandTotal}</span>
         </div>
         <button
           type="button"
