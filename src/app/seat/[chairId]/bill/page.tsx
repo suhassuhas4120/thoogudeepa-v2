@@ -109,70 +109,71 @@ export default function OrderSummaryBillPage() {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     const normChair = normalizeSeatId(chairId);
 
-    // 1. Prioritize active bill request with verified items from Floor Captain
+    // 1. Check if bill request is already active
     const activeReq =
       realtimeBridge.getActiveBillRequest(chairId) ||
       realtimeBridge.getActiveBillRequest(cleanChair) ||
       realtimeBridge.getActiveBillRequest(normChair);
 
-    if (activeReq && activeReq.items && activeReq.items.length > 0) {
+    if (activeReq) {
       setWaiterCalled(true);
-      const verifiedSession: ActiveDiningSession = {
-        seatId: chairId,
-        ticketNumber: activeReq.ticketNumber || '',
-        orderId: activeReq.orderId || `ord-${Date.now()}`,
-        orderStatus: 'pending',
-        paymentStatus: 'unpaid',
-        orderedAt: activeReq.requestedAt || Date.now(),
-        totalAmount: activeReq.amount,
-        items: activeReq.items.map((it, idx) => ({
-          id: it.id || `item-${chairId}-${idx}`,
-          title: it.title || it.dish_name || 'Dish',
+    }
+
+    // 2. Fetch authoritative live order for this specific seat from floor orders
+    realtimeBridge.getOrderForSeat(cleanChair || chairId).then((res) => {
+      if (res.order && res.items && res.items.length > 0) {
+        const liveItems = res.items.map((it, idx) => ({
+          id: it.id || it.dish_id || `item-${cleanChair}-${idx}`,
+          dish_id: it.dish_id,
+          title: it.dish_name || 'Dish',
           quantity: it.quantity,
           price: it.price,
-        })),
-      };
-      setSession(verifiedSession);
-      setActiveDiningSession(verifiedSession);
-    } else {
-      // 2. Fetch live order for this specific seat from floor orders
-      realtimeBridge.getOrderForSeat(cleanChair || chairId).then((res) => {
-        if (res.order && res.items && res.items.length > 0) {
-          const liveItems = res.items.map((it, idx) => ({
-            id: it.id || it.dish_id || `item-${cleanChair}-${idx}`,
-            dish_id: it.dish_id,
-            title: it.dish_name || 'Dish',
+          stage: it.stage,
+          notes: it.notes,
+          addons: it.addons,
+        }));
+        const liveSession: ActiveDiningSession = {
+          seatId: chairId,
+          ticketNumber: res.order.ticket_number || '',
+          orderId: res.order.id || `ord-${Date.now()}`,
+          orderStatus: 'pending',
+          paymentStatus: 'unpaid',
+          orderedAt: res.order.created_at ? new Date(res.order.created_at).getTime() : Date.now(),
+          totalAmount: res.order.total_amount || liveItems.reduce((acc, it) => acc + it.price * it.quantity, 0),
+          items: liveItems,
+        };
+        setSession(liveSession);
+        setActiveDiningSession(liveSession);
+      } else if (activeReq && activeReq.items && activeReq.items.length > 0) {
+        const verifiedSession: ActiveDiningSession = {
+          seatId: chairId,
+          ticketNumber: activeReq.ticketNumber || '',
+          orderId: activeReq.orderId || `ord-${Date.now()}`,
+          orderStatus: 'pending',
+          paymentStatus: 'unpaid',
+          orderedAt: activeReq.requestedAt || Date.now(),
+          totalAmount: activeReq.amount,
+          items: activeReq.items.map((it, idx) => ({
+            id: it.id || `item-${chairId}-${idx}`,
+            title: it.title || it.dish_name || 'Dish',
             quantity: it.quantity,
             price: it.price,
-            stage: it.stage,
-            notes: it.notes,
-            addons: it.addons,
-          }));
-          const liveSession: ActiveDiningSession = {
-            seatId: chairId,
-            ticketNumber: res.order.ticket_number || '',
-            orderId: res.order.id || `ord-${Date.now()}`,
-            orderStatus: 'pending',
-            paymentStatus: 'unpaid',
-            orderedAt: res.order.created_at ? new Date(res.order.created_at).getTime() : Date.now(),
-            totalAmount: res.order.total_amount || liveItems.reduce((acc, it) => acc + it.price * it.quantity, 0),
-            items: liveItems,
-          };
-          setSession(liveSession);
-          setActiveDiningSession(liveSession);
-        } else {
-          // 3. Fallback to local dining session if order is pending sync
-          const s = getActiveDiningSession();
-          if (s && s.paymentStatus === 'unpaid') {
-            if (s.seatId !== chairId) {
-              window.location.replace(`/seat/${s.seatId}/bill`);
-              return;
-            }
-            setSession(s);
+          })),
+        };
+        setSession(verifiedSession);
+        setActiveDiningSession(verifiedSession);
+      } else {
+        // 3. Fallback to local dining session if order is pending sync
+        const s = getActiveDiningSession();
+        if (s && s.paymentStatus === 'unpaid') {
+          if (s.seatId !== chairId) {
+            window.location.replace(`/seat/${s.seatId}/bill`);
+            return;
           }
+          setSession(s);
         }
-      });
-    }
+      }
+    });
 
     // Supplementary check: if seat is already in billing mode from waiter actions
     realtimeBridge.getFloorSeats().then((floorSeats) => {

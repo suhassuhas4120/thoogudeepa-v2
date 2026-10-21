@@ -207,19 +207,57 @@ export const realtimeBridge = {
       setLocalOccupancyMap(occupancyMap);
 
       // 2. Record order locally for offline / local resilience
+      if (typeof window !== 'undefined') {
+        const cleanC = order.chair_id.replace(/[^0-9]/g, '');
+        localStorage.removeItem(`thoogudeepa_ticket_dispatched_${order.chair_id}`);
+        localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC}`);
+        localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC.padStart(2, '0')}`);
+      }
+
       const currentOrders = getLocalOrdersList();
+      const cleanChair = order.chair_id.replace(/[^0-9]/g, '');
+      const existingSameTicket = currentOrders.find(
+        (x) =>
+          x.order.ticket_number === order.ticket_number &&
+          x.order.chair_id.replace(/[^0-9]/g, '') === cleanChair
+      );
+
+      const newEntryItems = items.map((it, idx) => ({
+        ...it,
+        id: it.id || `item-${order.chair_id}-${order.ticket_number}-${it.dish_id}-${Date.now()}-${idx}`,
+        stage: it.stage || 'PLACED',
+      }));
+
       const newEntry = {
         order: { ...order, id: generatedId },
-        items: items.map((it, idx) => ({
-          ...it,
-          id: it.id || `item-${order.chair_id}-${order.ticket_number}-${it.dish_id}-${Date.now()}-${idx}`,
-          stage: it.stage || 'PLACED',
-        })),
+        items: newEntryItems,
       };
-      const updatedOrders = [
-        newEntry,
-        ...currentOrders.filter((x) => x.order.id !== generatedId && x.order.id !== order.id)
-      ];
+
+      let updatedOrders: typeof currentOrders;
+      if (existingSameTicket) {
+        const mergedItems = [
+          ...existingSameTicket.items,
+          ...newEntryItems.filter((it) => !existingSameTicket.items.some((e) => e.id === it.id)),
+        ];
+        updatedOrders = currentOrders.map((x) =>
+          x.order.id === existingSameTicket.order.id
+            ? {
+                ...x,
+                order: {
+                  ...x.order,
+                  total_amount: (x.order.total_amount || 0) + (order.total_amount || 0),
+                  status: 'pending',
+                },
+                items: mergedItems,
+              }
+            : x
+        );
+      } else {
+        updatedOrders = [
+          newEntry,
+          ...currentOrders.filter((x) => x.order.id !== generatedId && x.order.id !== order.id),
+        ];
+      }
       setLocalOrdersList(updatedOrders);
 
       // 3. Broadcast to all open tabs immediately
@@ -470,17 +508,7 @@ export const realtimeBridge = {
           o.items.forEach((it) => {
             const matches =
               Boolean(targetItemId && it.id && it.id === targetItemId) ||
-              Boolean(itemIdOrKey && it.id && it.id === itemIdOrKey) ||
-              Boolean(
-                meta?.dishId &&
-                it.dish_id &&
-                (it.dish_id === meta.dishId || it.dish_id.replace(/^dish-/, '') === meta.dishId.replace(/^dish-/, ''))
-              ) ||
-              Boolean(
-                meta?.dishName &&
-                it.dish_name &&
-                it.dish_name.toLowerCase().trim() === meta.dishName.toLowerCase().trim()
-              );
+              Boolean(itemIdOrKey && it.id && it.id === itemIdOrKey);
 
             if (matches) {
               it.stage = stage;
@@ -505,69 +533,54 @@ export const realtimeBridge = {
             const normChair = chair.replace(/^0+/, '') || '1';
             const padChair = normChair.padStart(2, '0');
 
-            existing[itemIdOrKey] = stage;
-            existing[`${chair}-${itemIdOrKey}`] = stage;
-            existing[`${normChair}-${itemIdOrKey}`] = stage;
-            existing[`${padChair}-${itemIdOrKey}`] = stage;
+            // Purge all legacy generic dish keys from storage
+            for (const k of Object.keys(existing)) {
+              if (
+                k.startsWith('dish-') ||
+                /^[0-9]+$/.test(k) ||
+                k.includes('-dish-') ||
+                /^[A-Za-z\s]+$/.test(k)
+              ) {
+                delete existing[k];
+              }
+            }
+
+            const isGenericKey =
+              !itemIdOrKey ||
+              itemIdOrKey.startsWith('dish-') ||
+              /^[0-9]+$/.test(itemIdOrKey) ||
+              /^[A-Za-z\s]+$/.test(itemIdOrKey);
+
+            if (!isGenericKey) {
+              existing[itemIdOrKey] = stage;
+              existing[`${chair}-${itemIdOrKey}`] = stage;
+              existing[`${normChair}-${itemIdOrKey}`] = stage;
+              existing[`${padChair}-${itemIdOrKey}`] = stage;
+              if (tNum) {
+                existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
+                existing[`${normChair}-${tNum}-${itemIdOrKey}`] = stage;
+                existing[`${padChair}-${tNum}-${itemIdOrKey}`] = stage;
+                existing[`${tNum}-${itemIdOrKey}`] = stage;
+              }
+            }
 
             if (targetItemId && targetItemId !== itemIdOrKey) {
-              existing[targetItemId] = stage;
-              existing[`${chair}-${targetItemId}`] = stage;
-              existing[`${normChair}-${targetItemId}`] = stage;
-              existing[`${padChair}-${targetItemId}`] = stage;
-            }
-            if (meta?.dishId) {
-              existing[meta.dishId] = stage;
-              existing[`${chair}-${meta.dishId}`] = stage;
-              existing[`${normChair}-${meta.dishId}`] = stage;
-              existing[`${padChair}-${meta.dishId}`] = stage;
-              const cleanD = meta.dishId.replace(/^dish-/, '');
-              existing[cleanD] = stage;
-              existing[`${chair}-${cleanD}`] = stage;
-              existing[`${normChair}-${cleanD}`] = stage;
-              existing[`${padChair}-${cleanD}`] = stage;
-              existing[`dish-${cleanD}`] = stage;
-              existing[`${chair}-dish-${cleanD}`] = stage;
-              existing[`${normChair}-dish-${cleanD}`] = stage;
-              existing[`${padChair}-dish-${cleanD}`] = stage;
-            }
-            if (meta?.dishName) {
-              const nameLower = meta.dishName.toLowerCase().trim();
-              existing[meta.dishName] = stage;
-              existing[nameLower] = stage;
-              existing[`${chair}-${meta.dishName}`] = stage;
-              existing[`${normChair}-${meta.dishName}`] = stage;
-              existing[`${padChair}-${meta.dishName}`] = stage;
-              existing[`${chair}-${nameLower}`] = stage;
-              existing[`${normChair}-${nameLower}`] = stage;
-              existing[`${padChair}-${nameLower}`] = stage;
-            }
-            if (tNum) {
-              existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
-              existing[`${normChair}-${tNum}-${itemIdOrKey}`] = stage;
-              existing[`${padChair}-${tNum}-${itemIdOrKey}`] = stage;
-              existing[`${tNum}-${itemIdOrKey}`] = stage;
-              if (meta?.dishId) {
-                const cleanD = meta.dishId.replace(/^dish-/, '');
-                existing[`${tNum}-${meta.dishId}`] = stage;
-                existing[`${chair}-${tNum}-${meta.dishId}`] = stage;
-                existing[`${normChair}-${tNum}-${meta.dishId}`] = stage;
-                existing[`${padChair}-${tNum}-${meta.dishId}`] = stage;
-                existing[`${tNum}-${cleanD}`] = stage;
-                existing[`${chair}-${tNum}-${cleanD}`] = stage;
-                existing[`${normChair}-${tNum}-${cleanD}`] = stage;
-                existing[`${padChair}-${tNum}-${cleanD}`] = stage;
-              }
-              if (meta?.dishName) {
-                const nameLower = meta.dishName.toLowerCase().trim();
-                existing[`${tNum}-${meta.dishName}`] = stage;
-                existing[`${chair}-${tNum}-${meta.dishName}`] = stage;
-                existing[`${normChair}-${tNum}-${meta.dishName}`] = stage;
-                existing[`${padChair}-${tNum}-${meta.dishName}`] = stage;
-                existing[`${tNum}-${nameLower}`] = stage;
-                existing[`${chair}-${tNum}-${nameLower}`] = stage;
-                existing[`${normChair}-${tNum}-${nameLower}`] = stage;
-                existing[`${padChair}-${tNum}-${nameLower}`] = stage;
+              const isGenericTarget =
+                targetItemId.startsWith('dish-') ||
+                /^[0-9]+$/.test(targetItemId) ||
+                /^[A-Za-z\s]+$/.test(targetItemId);
+
+              if (!isGenericTarget) {
+                existing[targetItemId] = stage;
+                existing[`${chair}-${targetItemId}`] = stage;
+                existing[`${normChair}-${targetItemId}`] = stage;
+                existing[`${padChair}-${targetItemId}`] = stage;
+                if (tNum) {
+                  existing[`${chair}-${tNum}-${targetItemId}`] = stage;
+                  existing[`${normChair}-${tNum}-${targetItemId}`] = stage;
+                  existing[`${padChair}-${tNum}-${targetItemId}`] = stage;
+                  existing[`${tNum}-${targetItemId}`] = stage;
+                }
               }
             }
             localStorage.setItem(key, JSON.stringify(existing));
@@ -870,6 +883,27 @@ export const realtimeBridge = {
         } catch {}
       }
 
+      // Purge any legacy generic dish keys from cached storage
+      let hadLegacyKeys = false;
+      for (const k of Object.keys(cached)) {
+        if (
+          k.startsWith('dish-') ||
+          /^[0-9]+$/.test(k) ||
+          k.includes('-dish-') ||
+          /^[A-Za-z\s]+$/.test(k)
+        ) {
+          delete cached[k];
+          hadLegacyKeys = true;
+        }
+      }
+      if (hadLegacyKeys) {
+        for (const k of keysToTry) {
+          try {
+            localStorage.setItem(k, JSON.stringify(cached));
+          } catch {}
+        }
+      }
+
       // Check localOrders list in storage
       const localOrders = getLocalOrdersList();
       const matchingLocalOrder = localOrders.find((lo) => {
@@ -895,35 +929,21 @@ export const realtimeBridge = {
         if (localStage) candidates.push(localStage);
         if (it.stage) candidates.push(it.stage);
 
-        const itemSpecificKey = it.id || `${tNum}-${it.dish_id}-${idx}`;
-        const cleanDish = (it.dish_id || '').replace(/^dish-/, '');
-        const checkKeys = [
-          it.id,
-          it.id && `${chair}-${it.id}`,
-          it.id && `${chair}-${tNum}-${it.id}`,
-          it.id && `${tNum}-${it.id}`,
-          it.dish_id,
-          it.dish_id && `${chair}-${it.dish_id}`,
-          it.dish_id && `${tNum}-${it.dish_id}`,
-          it.dish_id && `${chair}-${tNum}-${it.dish_id}`,
-          cleanDish,
-          cleanDish && `${chair}-${cleanDish}`,
-          cleanDish && `${tNum}-${cleanDish}`,
-          cleanDish && `${chair}-${tNum}-${cleanDish}`,
-          it.dish_name,
-          it.dish_name && `${chair}-${it.dish_name}`,
-          it.dish_name && `${tNum}-${it.dish_name}`,
-          itemSpecificKey,
-          chair && `${chair}-${itemSpecificKey}`,
-          chair && tNum && `${chair}-${tNum}-${itemSpecificKey}`,
-        ].filter(Boolean) as string[];
+        const checkKeys = it.id
+          ? [
+              it.id,
+              chair && `${chair}-${it.id}`,
+              tNum && `${tNum}-${it.id}`,
+              chair && tNum && `${chair}-${tNum}-${it.id}`,
+            ].filter(Boolean) as string[]
+          : [];
 
         for (const k of checkKeys) {
           if (cached[k]) candidates.push(cached[k]);
         }
 
         const addons = Array.isArray(it.addons) ? it.addons : [];
-        if (addons.includes('SERVED') || candidates.includes('SERVED') || it.stage === 'SERVED') {
+        if (candidates.includes('SERVED') || (it.stage === 'SERVED' && addons.includes('SERVED'))) {
           return { ...it, stage: 'SERVED' };
         }
         if (candidates.includes('READY') || it.stage === 'READY') {
@@ -932,7 +952,7 @@ export const realtimeBridge = {
         if (candidates.includes('PREP') || it.stage === 'PREP') {
           return { ...it, stage: 'PREP' };
         }
-        if (candidates.includes('REC') && !addons.includes('PLACED') && order.status !== 'pending') {
+        if (candidates.includes('REC') || it.stage === 'REC') {
           return { ...it, stage: 'REC' };
         }
         return { ...it, stage: 'PLACED' };
@@ -994,14 +1014,22 @@ export const realtimeBridge = {
           });
 
           const remoteTickets = new Set(remoteOrders.map((ro) => ro.order.ticket_number));
+          const remoteChairs = new Set(remoteOrders.map((ro) => (ro.order.chair_id || '').replace(/[^0-9]/g, '')));
+          const validLocalOrders = localOrders.filter((lo) => {
+            if (!lo.order?.ticket_number) return false;
+            if (remoteTickets.has(lo.order.ticket_number)) return false;
+            if (lo.order.status === 'completed' || lo.order.status === 'cancelled') return false;
+            // If remote has active orders for this chair, do not keep older local orders for the same chair
+            const loChair = (lo.order.chair_id || '').replace(/[^0-9]/g, '');
+            if (remoteChairs.has(loChair)) return false;
+            return true;
+          });
           const merged = [
             ...remoteOrders,
-            ...localOrders
-              .filter((lo) => !remoteTickets.has(lo.order.ticket_number))
-              .map((lo) => ({
-                order: lo.order,
-                items: this.hydrateOrderItemStages(lo.order, lo.items),
-              })),
+            ...validLocalOrders.map((lo) => ({
+              order: lo.order,
+              items: this.hydrateOrderItemStages(lo.order, lo.items),
+            })),
           ];
 
           setLocalOrdersList(merged);
@@ -1400,11 +1428,24 @@ export const realtimeBridge = {
         const oChair = (o.order.chair_id || '').replace(/[^0-9]/g, '');
         return oChair === chairId || oChair === unpadded || Number(oChair) === i || o.order.chair_id === seatNumber;
       });
+      const activeTicket = seatOrders[0]?.order?.ticket_number;
+      const currentTicketOrders = activeTicket
+        ? seatOrders.filter((o) => o.order.ticket_number === activeTicket)
+        : seatOrders;
+
       const allSeatItems: OrderItemRecord[] = [];
-      seatOrders.forEach((so) => {
-        if (so.items) allSeatItems.push(...so.items);
+      const seenFloorItemIds = new Set<string>();
+      currentTicketOrders.forEach((so) => {
+        if (so.items) {
+          so.items.forEach((it) => {
+            if (!it.id || !seenFloorItemIds.has(it.id)) {
+              if (it.id) seenFloorItemIds.add(it.id);
+              allSeatItems.push(it);
+            }
+          });
+        }
       });
-      const foundOrder = seatOrders[0];
+      const foundOrder = currentTicketOrders[0];
       const seatAlert = alerts.find((a) => {
         const aSeatClean = a.seatNumber.replace(/[^0-9]/g, '');
         return aSeatClean === chairId || aSeatClean === unpadded || Number(aSeatClean) === i || a.seatNumber === seatNumber;
@@ -1412,14 +1453,14 @@ export const realtimeBridge = {
 
       const activeBillReq = getLocalBillRequests()[chairId] || getLocalBillRequests()[unpadded];
       const isBilling = Boolean(activeBillReq) || occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
-      const isOccupied = Boolean(occ || seatOrders.length > 0);
+      const isOccupied = Boolean(occ || currentTicketOrders.length > 0);
 
       let calculatedTotal = 0;
       if (allSeatItems.length > 0) {
         const sub = allSeatItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
         calculatedTotal = sub + Math.round(sub * 0.05);
-      } else if (seatOrders.length > 0) {
-        calculatedTotal = seatOrders.reduce((acc, so) => acc + (so.order.total_amount || 0), 0);
+      } else if (currentTicketOrders.length > 0) {
+        calculatedTotal = currentTicketOrders.reduce((acc, so) => acc + (so.order.total_amount || 0), 0);
       } else if (occ) {
         calculatedTotal = 840;
       }
@@ -1461,7 +1502,7 @@ export const realtimeBridge = {
     return list;
   },
 
-  // Get active order details for a specific seat combining all active batches
+  // Get active order details for a specific seat combining all active batches for the current ticket
   async getOrderForSeat(chairId: string): Promise<{ order: OrderRecord | null; items: OrderItemRecord[] }> {
     const cleanId = chairId.replace(/[^0-9]/g, '');
     const padded = cleanId.padStart(2, '0');
@@ -1475,12 +1516,24 @@ export const realtimeBridge = {
         (o.order.chair_id && o.order.chair_id.replace(/[^0-9]/g, '') === cleanId)
     );
     if (matchingOrders.length > 0) {
+      // Isolate strictly to the active ticket of the current dining session
+      const activeTicket = matchingOrders[0]?.order?.ticket_number;
+      const sessionOrders = activeTicket
+        ? matchingOrders.filter((o) => o.order.ticket_number === activeTicket)
+        : matchingOrders;
+
+      const seenItemIds = new Set<string>();
       const allItems: OrderItemRecord[] = [];
-      matchingOrders.forEach((o) => {
+      sessionOrders.forEach((o) => {
         const hydratedItems = this.hydrateOrderItemStages(o.order, o.items);
-        allItems.push(...hydratedItems);
+        hydratedItems.forEach((it) => {
+          if (!it.id || !seenItemIds.has(it.id)) {
+            if (it.id) seenItemIds.add(it.id);
+            allItems.push(it);
+          }
+        });
       });
-      const latestOrder = matchingOrders[0].order;
+      const latestOrder = sessionOrders[0].order;
       const combinedTotal = allItems.reduce((acc, it) => acc + (it.price * it.quantity), 0);
       return {
         order: {

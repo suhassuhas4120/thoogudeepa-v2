@@ -249,35 +249,8 @@ export const TabletCockpitMaster: React.FC = () => {
           data.stage === 'SERVED' ? 'SERVED' : 'PLACED';
 
         setTicketItems(prev => {
-          let hasExactMatch = false;
-          if (data.itemId) {
-            hasExactMatch = prev.some(item => item.orderItemId === data.itemId);
-          }
-          if (hasExactMatch) {
-            return prev.map(item => item.orderItemId === data.itemId ? { ...item, status: nextStatus } : item);
-          }
-
-          const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
-          const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-
-          let updatedOne = false;
-          return prev.map(item => {
-            if (updatedOne) return item;
-            const itemNum = String(item.id).replace(/[^0-9]/g, '');
-            const itemName = item.name.toLowerCase().replace(/donne\s*/i, '').trim();
-
-            const matches =
-              String(item.id) === data.dishId ||
-              data.key === String(item.id) ||
-              (targetNum && itemNum === targetNum) ||
-              (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
-
-            if (matches && (!data.ticketNumber || !item.ticketNumber || data.ticketNumber === item.ticketNumber)) {
-              updatedOne = true;
-              return { ...item, status: nextStatus };
-            }
-            return item;
-          });
+          if (!data.itemId) return prev;
+          return prev.map(item => item.orderItemId === data.itemId ? { ...item, status: nextStatus } : item);
         });
       },
       onTicketDispatched: () => { refreshAlerts(); },
@@ -543,7 +516,7 @@ export const TabletCockpitMaster: React.FC = () => {
     const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
     const dish = ticketItems.find(item => item.orderItemId === itemIdentifier || item.id === itemIdentifier);
 
-    setTicketItems(prev => prev.map(item => (item.orderItemId === itemIdentifier || item.id === itemIdentifier ? { ...item, status: 'SERVED' } : item)));
+    setTicketItems(prev => prev.map(item => (item.orderItemId === itemIdentifier || (!item.orderItemId && item.id === itemIdentifier) ? { ...item, status: 'SERVED' } : item)));
 
     const targetKey = dish?.orderItemId || (typeof itemIdentifier === 'string' ? itemIdentifier : `dish-${itemIdentifier}`);
 
@@ -554,24 +527,6 @@ export const TabletCockpitMaster: React.FC = () => {
       dishName: dish?.name,
       itemId: dish?.orderItemId
     });
-
-    if (dish && typeof itemIdentifier === 'number') {
-      realtimeBridge.updateStage(`dish-${itemIdentifier}`, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: activeTicketNumber || undefined,
-        dishId: `dish-${itemIdentifier}`,
-        dishName: dish.name,
-        itemId: dish.orderItemId
-      });
-
-      realtimeBridge.updateStage(String(itemIdentifier), 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: activeTicketNumber || undefined,
-        dishId: String(itemIdentifier),
-        dishName: dish.name,
-        itemId: dish.orderItemId
-      });
-    }
 
     const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === activeSeatNum) && a.type === 'kitchen');
     if (matchingAlert) {
@@ -679,43 +634,15 @@ export const TabletCockpitMaster: React.FC = () => {
       });
     }
 
-    if (alert?.dishId) {
-      const cleanDish = alert.dishId.replace(/^dish-/, '');
-      realtimeBridge.updateStage(`dish-${cleanDish}`, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: alert?.kotNumber,
-        dishId: `dish-${cleanDish}`,
-        dishName: alert?.dishName || dishName,
-        itemId: alert?.itemId
-      });
-      realtimeBridge.updateStage(cleanDish, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: alert?.kotNumber,
-        dishId: cleanDish,
-        dishName: alert?.dishName || dishName,
-        itemId: alert?.itemId
-      });
-    }
-
-    if (dishName && dishName !== targetKey) {
-      realtimeBridge.updateStage(dishName, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: alert?.kotNumber,
-        dishId: alert?.dishId,
-        dishName,
-        itemId: alert?.itemId
-      });
-    }
-
     // Update active ticket items if viewing this seat
     const curSeatClean = activeSeatName.replace(/[^0-9]/g, '');
     if (cleanChair && curSeatClean && cleanChair === curSeatClean) {
       setTicketItems(prev =>
         prev.map(it => {
-          const isMatch =
-            Boolean(alert?.itemId && it.orderItemId === alert.itemId) ||
-            Boolean(alert?.dishId && String(it.id) === alert.dishId) ||
-            Boolean(it.name.toLowerCase().trim() === dishName.toLowerCase().trim());
+          const isMatch = alert?.itemId
+            ? it.orderItemId === alert.itemId
+            : (Boolean(alert?.dishId && String(it.id) === alert.dishId) ||
+               Boolean(it.name.toLowerCase().trim() === dishName.toLowerCase().trim()));
           return isMatch ? { ...it, status: 'SERVED' } : it;
         })
       );

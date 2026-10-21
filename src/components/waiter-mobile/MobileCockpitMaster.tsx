@@ -315,35 +315,8 @@ export const MobileCockpitMaster: React.FC = () => {
         }
 
         setCartItems(prev => {
-          let hasExactMatch = false;
-          if (data.itemId) {
-            hasExactMatch = prev.some(item => item.orderItemId === data.itemId);
-          }
-          if (hasExactMatch) {
-            return prev.map(item => item.orderItemId === data.itemId ? { ...item, stage: data.stage } : item);
-          }
-
-          const targetNum = (data.dishId || data.key || '').replace(/[^0-9]/g, '');
-          const targetName = data.dishName ? data.dishName.toLowerCase().replace(/donne\s*/i, '').trim() : '';
-
-          let updatedOne = false;
-          return prev.map(item => {
-            if (updatedOne) return item;
-            const itemNum = String(item.menuItem.id).replace(/[^0-9]/g, '');
-            const itemName = item.menuItem.name.toLowerCase().replace(/donne\s*/i, '').trim();
-
-            const matches =
-              String(item.menuItem.id) === data.dishId ||
-              data.key === String(item.menuItem.id) ||
-              (targetNum && itemNum === targetNum) ||
-              (targetName && (itemName === targetName || itemName.includes(targetName) || targetName.includes(itemName)));
-
-            if (matches && (!data.ticketNumber || !item.ticketNumber || data.ticketNumber === item.ticketNumber)) {
-              updatedOne = true;
-              return { ...item, stage: data.stage };
-            }
-            return item;
-          });
+          if (!data.itemId) return prev;
+          return prev.map(item => item.orderItemId === data.itemId ? { ...item, stage: data.stage } : item);
         });
       },
       onTicketDispatched: () => { refreshAlerts(); },
@@ -619,6 +592,11 @@ export const MobileCockpitMaster: React.FC = () => {
               ticketNumber: details.order?.ticket_number
             };
           }));
+          const sub = details.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
+          const computedTotalWithTax = sub + Math.round(sub * 0.05);
+          if (computedTotalWithTax > 0) {
+            setSelectedBillAmount(computedTotalWithTax);
+          }
         }
       } catch (err) {
         console.error('Error fetching seat order for bill:', err);
@@ -732,45 +710,15 @@ export const MobileCockpitMaster: React.FC = () => {
       });
     }
 
-    if (alert?.dishId) {
-      const cleanDish = alert.dishId.replace(/^dish-/, '');
-      realtimeBridge.updateStage(`dish-${cleanDish}`, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: alert?.kotNumber,
-        dishId: `dish-${cleanDish}`,
-        dishName: alert?.dishName || dishName,
-        itemId: alert?.itemId
-      });
-      realtimeBridge.updateStage(cleanDish, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: alert?.kotNumber,
-        dishId: cleanDish,
-        dishName: alert?.dishName || dishName,
-        itemId: alert?.itemId
-      });
-    }
-
-    if (dishName && dishName !== targetKey) {
-      realtimeBridge.updateStage(dishName, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: alert?.kotNumber,
-        dishId: alert?.dishId,
-        dishName,
-        itemId: alert?.itemId
-      });
-    }
-
     // Update active cart items if currently viewing this seat
     const curSeatClean = selectedSeatNumber.replace(/[^0-9]/g, '');
     if (cleanChair && curSeatClean && cleanChair === curSeatClean) {
       setCartItems(prev =>
         prev.map(it => {
-          const itDishClean = String(it.menuItem.id).replace(/^dish-/, '');
-          const isMatch =
-            Boolean(alert?.itemId && it.orderItemId === alert.itemId) ||
-            Boolean(alert?.dishId && String(it.menuItem.id) === alert.dishId) ||
-            Boolean(alert?.dishId && itDishClean === alert.dishId.replace(/^dish-/, '')) ||
-            Boolean(it.menuItem.name.toLowerCase().trim() === dishName.toLowerCase().trim());
+          const isMatch = alert?.itemId
+            ? it.orderItemId === alert.itemId
+            : (Boolean(alert?.dishId && String(it.menuItem.id) === alert.dishId) ||
+               Boolean(it.menuItem.name.toLowerCase().trim() === dishName.toLowerCase().trim()));
           return isMatch ? { ...it, stage: 'SERVED' } : it;
         })
       );
@@ -783,9 +731,8 @@ export const MobileCockpitMaster: React.FC = () => {
   const handleServeItemMobile = useCallback((identifier: string) => {
     const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
     const dish = cartItems.find(i => i.orderItemId === identifier || String(i.menuItem.id) === identifier);
-    const cleanDishNum = identifier.replace(/[^0-9]/g, '');
 
-    setCartItems(prev => prev.map(i => (i.orderItemId === identifier || String(i.menuItem.id) === identifier) ? { ...i, stage: 'SERVED' } : i));
+    setCartItems(prev => prev.map(i => (i.orderItemId === identifier || (!i.orderItemId && String(i.menuItem.id) === identifier)) ? { ...i, stage: 'SERVED' } : i));
 
     const targetKey = dish?.orderItemId || identifier;
     realtimeBridge.updateStage(targetKey, 'SERVED', {
@@ -795,23 +742,6 @@ export const MobileCockpitMaster: React.FC = () => {
       dishName: dish?.menuItem?.name,
       itemId: dish?.orderItemId
     });
-
-    if (cleanDishNum && (!dish?.orderItemId || dish.orderItemId === identifier)) {
-      realtimeBridge.updateStage(`dish-${cleanDishNum}`, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: activeTicketNumber || undefined,
-        dishId: `dish-${cleanDishNum}`,
-        dishName: dish?.menuItem?.name,
-        itemId: dish?.orderItemId
-      });
-      realtimeBridge.updateStage(cleanDishNum, 'SERVED', {
-        chairId: cleanChair,
-        ticketNumber: activeTicketNumber || undefined,
-        dishId: cleanDishNum,
-        dishName: dish?.menuItem?.name,
-        itemId: dish?.orderItemId
-      });
-    }
 
     const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === selectedSeatNumber) && a.type === 'kitchen_ready');
     if (matchingAlert) {

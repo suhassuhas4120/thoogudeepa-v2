@@ -137,7 +137,7 @@ export default function KitchenDisplaySystemPage() {
               effStage = 'READY';
             } else if (candList.includes('PREP')) {
               effStage = 'PREP';
-            } else if (candList.includes('REC') && o.order.status !== 'pending') {
+            } else if (candList.includes('REC')) {
               effStage = 'REC';
             } else {
               effStage = 'PLACED';
@@ -230,22 +230,10 @@ export default function KitchenDisplaySystemPage() {
             // B. Check if replacing an optimistic local order with confirmed database order
             const isLocalReplacement =
               Boolean(current.order.id && current.order.id.startsWith('local-')) &&
-              Boolean(newOrder.order.id && !newOrder.order.id.startsWith('local-'));
+              Boolean(newOrder.order.id && !newOrder.order.id.startsWith('local-')) &&
+              current.items.length === newOrder.items.length;
 
-            // C. Check if identical batch (same item count and matching dishes)
-            const isSameBatch =
-              current.items.length === newOrder.items.length &&
-              newOrder.items.length > 0 &&
-              newOrder.items.every((incoming, idx) => {
-                const existing = current.items[idx];
-                return (
-                  existing &&
-                  (existing.dish_id === incoming.dish_id || existing.dish_name === incoming.dish_name) &&
-                  existing.quantity === incoming.quantity
-                );
-              });
-
-            if (isLocalReplacement || isSameBatch) {
+            if (isLocalReplacement) {
               let harmonizedItems = current.items;
               if (newOrder.items && newOrder.items.length === current.items.length) {
                 harmonizedItems = current.items.map((it, idx) => {
@@ -331,64 +319,18 @@ export default function KitchenDisplaySystemPage() {
         setItemStages((prev) => {
           const next = { ...prev };
           const stage = data.stage;
-          if (itemKey) next[itemKey] = stage;
-          if (targetItemId) next[targetItemId] = stage;
-          if (dishId) {
-            next[dishId] = stage;
-            if (cleanDish) {
-              next[cleanDish] = stage;
-              next[`dish-${cleanDish}`] = stage;
-            }
-          }
-          if (dishName) {
-            next[dishName] = stage;
-            next[dishNameLower] = stage;
-          }
-
-          const chairVariants = [chair, normChair, paddedChair].filter(Boolean);
-          for (const c of chairVariants) {
-            if (itemKey) next[`${c}-${itemKey}`] = stage;
-            if (targetItemId) next[`${c}-${targetItemId}`] = stage;
-            if (dishId) {
-              next[`${c}-${dishId}`] = stage;
-              if (cleanDish) {
-                next[`${c}-${cleanDish}`] = stage;
-                next[`${c}-dish-${cleanDish}`] = stage;
+          const specificItemId = targetItemId || (itemKey && !itemKey.startsWith('dish-') && !/^[0-9]+$/.test(itemKey) ? itemKey : '');
+          if (specificItemId) {
+            next[specificItemId] = stage;
+            const chairVariants = [chair, normChair, paddedChair].filter(Boolean);
+            for (const c of chairVariants) {
+              next[`${c}-${specificItemId}`] = stage;
+              if (tNum) {
+                next[`${c}-${tNum}-${specificItemId}`] = stage;
               }
-            }
-            if (dishName) {
-              next[`${c}-${dishName}`] = stage;
-              next[`${c}-${dishNameLower}`] = stage;
             }
             if (tNum) {
-              if (itemKey) next[`${c}-${tNum}-${itemKey}`] = stage;
-              if (targetItemId) next[`${c}-${tNum}-${targetItemId}`] = stage;
-              if (dishId) {
-                next[`${c}-${tNum}-${dishId}`] = stage;
-                if (cleanDish) {
-                  next[`${c}-${tNum}-${cleanDish}`] = stage;
-                  next[`${c}-${tNum}-dish-${cleanDish}`] = stage;
-                }
-              }
-              if (dishName) {
-                next[`${c}-${tNum}-${dishName}`] = stage;
-                next[`${c}-${tNum}-${dishNameLower}`] = stage;
-              }
-            }
-          }
-          if (tNum) {
-            if (itemKey) next[`${tNum}-${itemKey}`] = stage;
-            if (targetItemId) next[`${tNum}-${targetItemId}`] = stage;
-            if (dishId) {
-              next[`${tNum}-${dishId}`] = stage;
-              if (cleanDish) {
-                next[`${tNum}-${cleanDish}`] = stage;
-                next[`${tNum}-dish-${cleanDish}`] = stage;
-              }
-            }
-            if (dishName) {
-              next[`${tNum}-${dishName}`] = stage;
-              next[`${tNum}-${dishNameLower}`] = stage;
+              next[`${tNum}-${specificItemId}`] = stage;
             }
           }
           return next;
@@ -404,13 +346,9 @@ export default function KitchenDisplaySystemPage() {
             if (tNum && o.order.ticket_number && o.order.ticket_number !== tNum) return o;
 
             const updatedItems = o.items.map((it) => {
-              const itCleanDish = (it.dish_id || '').replace(/^dish-/, '');
-              const itDishNameLower = (it.dish_name || '').toLowerCase().trim();
               const matches =
                 Boolean(targetItemId && it.id && it.id === targetItemId) ||
-                Boolean(itemKey && it.id && (it.id === itemKey || it.id === data.key)) ||
-                Boolean(dishId && it.dish_id && (it.dish_id === dishId || itCleanDish === cleanDish)) ||
-                Boolean(dishNameLower && itDishNameLower && (itDishNameLower === dishNameLower || itDishNameLower.includes(dishNameLower) || dishNameLower.includes(itDishNameLower)));
+                Boolean(itemKey && it.id && (it.id === itemKey || it.id === data.key));
 
               if (matches) {
                 const addons = Array.isArray(it.addons) ? [...it.addons] : [];
@@ -498,24 +436,12 @@ export default function KitchenDisplaySystemPage() {
     // 1. Update React itemStages using strict item-scoped keys
     setItemStages((prev) => {
       const next = { ...prev };
-      next[itemKey] = stage;
-      if (chair) next[`${chair}-${itemKey}`] = stage;
-      if (chair && tNum) next[`${chair}-${tNum}-${itemKey}`] = stage;
-      if (targetItemId && targetItemId !== itemKey) {
-        next[targetItemId] = stage;
-        if (chair) next[`${chair}-${targetItemId}`] = stage;
-        if (chair && tNum) next[`${chair}-${tNum}-${targetItemId}`] = stage;
-      }
-      if (tNum && meta?.dishId) {
-        next[`${tNum}-${meta.dishId}`] = stage;
-        if (chair) next[`${chair}-${tNum}-${meta.dishId}`] = stage;
-        const cleanD = meta.dishId.replace(/^dish-/, '');
-        next[`${tNum}-${cleanD}`] = stage;
-        if (chair) next[`${chair}-${tNum}-${cleanD}`] = stage;
-      }
-      if (tNum && meta?.dishName) {
-        next[`${tNum}-${meta.dishName}`] = stage;
-        if (chair) next[`${chair}-${tNum}-${meta.dishName}`] = stage;
+      const specificItemId = targetItemId || (itemKey && !itemKey.startsWith('dish-') && !/^[0-9]+$/.test(itemKey) ? itemKey : '');
+      if (specificItemId) {
+        next[specificItemId] = stage;
+        if (chair) next[`${chair}-${specificItemId}`] = stage;
+        if (chair && tNum) next[`${chair}-${tNum}-${specificItemId}`] = stage;
+        if (tNum) next[`${tNum}-${specificItemId}`] = stage;
       }
       return next;
     });
@@ -530,17 +456,7 @@ export default function KitchenDisplaySystemPage() {
         const updatedItems = o.items.map((it) => {
           const matches =
             Boolean(targetItemId && it.id && it.id === targetItemId) ||
-            Boolean(itemKey && it.id && it.id === itemKey) ||
-            Boolean(
-              meta?.dishId &&
-              it.dish_id &&
-              (it.dish_id === meta.dishId || it.dish_id.replace(/^dish-/, '') === meta.dishId.replace(/^dish-/, ''))
-            ) ||
-            Boolean(
-              meta?.dishName &&
-              it.dish_name &&
-              it.dish_name.toLowerCase().trim() === meta.dishName.toLowerCase().trim()
-            );
+            Boolean(itemKey && it.id && it.id === itemKey);
 
           if (matches) {
             return { ...it, stage };
@@ -929,42 +845,13 @@ export default function KitchenDisplaySystemPage() {
               const isServed =
                 it.stage === 'SERVED' ||
                 addons.includes('SERVED') ||
-                (it.id && itemStages[it.id] === 'SERVED') ||
-                (it.id && cleanChair && itemStages[`${cleanChair}-${it.id}`] === 'SERVED') ||
-                (it.id && normChair && itemStages[`${normChair}-${it.id}`] === 'SERVED') ||
-                (it.id && paddedChair && itemStages[`${paddedChair}-${it.id}`] === 'SERVED') ||
-                (it.id && tNum && itemStages[`${tNum}-${it.id}`] === 'SERVED') ||
-                (it.id && cleanChair && tNum && itemStages[`${cleanChair}-${tNum}-${it.id}`] === 'SERVED') ||
-                (it.id && normChair && tNum && itemStages[`${normChair}-${tNum}-${it.id}`] === 'SERVED') ||
-                (it.dish_id && itemStages[it.dish_id] === 'SERVED') ||
-                (dClean && itemStages[dClean] === 'SERVED') ||
-                (dClean && itemStages[`dish-${dClean}`] === 'SERVED') ||
-                (dNum && itemStages[dNum] === 'SERVED') ||
-                (dName && itemStages[dName] === 'SERVED') ||
-                (dNameFull && itemStages[dNameFull] === 'SERVED') ||
-                (cleanChair && it.dish_id && itemStages[`${cleanChair}-${it.dish_id}`] === 'SERVED') ||
-                (normChair && it.dish_id && itemStages[`${normChair}-${it.dish_id}`] === 'SERVED') ||
-                (paddedChair && it.dish_id && itemStages[`${paddedChair}-${it.dish_id}`] === 'SERVED') ||
-                (cleanChair && dClean && itemStages[`${cleanChair}-${dClean}`] === 'SERVED') ||
-                (normChair && dClean && itemStages[`${normChair}-${dClean}`] === 'SERVED') ||
-                (paddedChair && dClean && itemStages[`${paddedChair}-${dClean}`] === 'SERVED') ||
-                (cleanChair && dClean && itemStages[`${cleanChair}-dish-${dClean}`] === 'SERVED') ||
-                (normChair && dClean && itemStages[`${normChair}-dish-${dClean}`] === 'SERVED') ||
-                (paddedChair && dClean && itemStages[`${paddedChair}-dish-${dClean}`] === 'SERVED') ||
-                (cleanChair && dName && itemStages[`${cleanChair}-${dName}`] === 'SERVED') ||
-                (normChair && dName && itemStages[`${normChair}-${dName}`] === 'SERVED') ||
-                (cleanChair && dNameFull && itemStages[`${cleanChair}-${dNameFull}`] === 'SERVED') ||
-                (normChair && dNameFull && itemStages[`${normChair}-${dNameFull}`] === 'SERVED') ||
-                (cleanChair && tNum && it.dish_id && itemStages[`${cleanChair}-${tNum}-${it.dish_id}`] === 'SERVED') ||
-                (normChair && tNum && it.dish_id && itemStages[`${normChair}-${tNum}-${it.dish_id}`] === 'SERVED') ||
-                (cleanChair && tNum && dClean && itemStages[`${cleanChair}-${tNum}-${dClean}`] === 'SERVED') ||
-                (normChair && tNum && dClean && itemStages[`${normChair}-${tNum}-${dClean}`] === 'SERVED') ||
-                (cleanChair && tNum && dName && itemStages[`${cleanChair}-${tNum}-${dName}`] === 'SERVED') ||
-                (normChair && tNum && dName && itemStages[`${normChair}-${tNum}-${dName}`] === 'SERVED') ||
-                (cleanChair && tNum && dNameFull && itemStages[`${cleanChair}-${tNum}-${dNameFull}`] === 'SERVED') ||
-                (normChair && tNum && dNameFull && itemStages[`${normChair}-${tNum}-${dNameFull}`] === 'SERVED') ||
-                (cleanChair && itemStages[`${cleanChair}-${itemKey}`] === 'SERVED') ||
-                (normChair && itemStages[`${normChair}-${itemKey}`] === 'SERVED');
+                Boolean(it.id && itemStages[it.id] === 'SERVED') ||
+                Boolean(it.id && cleanChair && itemStages[`${cleanChair}-${it.id}`] === 'SERVED') ||
+                Boolean(it.id && normChair && itemStages[`${normChair}-${it.id}`] === 'SERVED') ||
+                Boolean(it.id && paddedChair && itemStages[`${paddedChair}-${it.id}`] === 'SERVED') ||
+                Boolean(it.id && tNum && itemStages[`${tNum}-${it.id}`] === 'SERVED') ||
+                Boolean(it.id && cleanChair && tNum && itemStages[`${cleanChair}-${tNum}-${it.id}`] === 'SERVED') ||
+                Boolean(it.id && normChair && tNum && itemStages[`${normChair}-${tNum}-${it.id}`] === 'SERVED');
 
               return !isServed;
             });
@@ -1093,7 +980,7 @@ export default function KitchenDisplaySystemPage() {
                           currentStage = 'READY';
                         } else if (candStages.includes('PREP')) {
                           currentStage = 'PREP';
-                        } else if (candStages.includes('REC') && order.status !== 'pending') {
+                        } else if (candStages.includes('REC')) {
                           currentStage = 'REC';
                         } else {
                           currentStage = 'PLACED';
@@ -1263,7 +1150,7 @@ export default function KitchenDisplaySystemPage() {
                       currentStage = 'READY';
                     } else if (candStages.includes('PREP')) {
                       currentStage = 'PREP';
-                    } else if (candStages.includes('REC') && currentActiveTicket.order.status !== 'pending') {
+                    } else if (candStages.includes('REC')) {
                       currentStage = 'REC';
                     } else {
                       currentStage = 'PLACED';

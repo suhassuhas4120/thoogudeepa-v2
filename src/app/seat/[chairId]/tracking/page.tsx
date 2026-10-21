@@ -70,11 +70,7 @@ export default function LiveOrderTrackingPage() {
             };
           }
           const updatedItems = res.items.map((it) => {
-            const prevItem = prev.items?.find((p) =>
-              (p.id && it.id && p.id === it.id) ||
-              (p.dish_id && it.dish_id && (p.dish_id === it.dish_id || p.dish_id.replace(/^dish-/, '') === it.dish_id.replace(/^dish-/, ''))) ||
-              (p.title && it.dish_name && p.title.toLowerCase().trim() === it.dish_name.toLowerCase().trim())
-            );
+            const prevItem = prev.items?.find((p) => p.id && it.id && p.id === it.id);
             return {
               id: it.id || prevItem?.id || `dish-${it.dish_id}`,
               dish_id: it.dish_id,
@@ -94,27 +90,14 @@ export default function LiveOrderTrackingPage() {
           };
         });
 
-        // 2. Hydrate itemStages across ticket-scoped keys
+        // 2. Hydrate itemStages across item-specific keys
         setItemStages((prev) => {
           const updated = { ...prev };
           res.items.forEach((it) => {
-            if (it.stage) {
-              if (it.id) updated[it.id] = it.stage;
-              if (it.dish_id) updated[it.dish_id] = it.stage;
-              const clean = it.dish_id ? it.dish_id.replace(/^dish-/, '') : '';
-              if (clean) updated[clean] = it.stage;
-              if (it.dish_name) {
-                updated[it.dish_name] = it.stage;
-                updated[it.dish_name.toLowerCase()] = it.stage;
-              }
+            if (it.stage && it.id) {
+              updated[it.id] = it.stage;
               if (tNum) {
-                if (it.id) updated[`${tNum}-${it.id}`] = it.stage;
-                if (it.dish_id) updated[`${tNum}-${it.dish_id}`] = it.stage;
-                if (clean) updated[`${tNum}-${clean}`] = it.stage;
-                if (it.dish_name) {
-                  updated[`${tNum}-${it.dish_name}`] = it.stage;
-                  updated[`${tNum}-${it.dish_name.toLowerCase()}`] = it.stage;
-                }
+                updated[`${tNum}-${it.id}`] = it.stage;
               }
             }
           });
@@ -163,6 +146,26 @@ export default function LiveOrderTrackingPage() {
         const raw = localStorage.getItem(k);
         if (raw) cached = { ...cached, ...JSON.parse(raw) };
       }
+      // Purge any legacy generic dish keys from cached storage
+      let hadLegacy = false;
+      for (const k of Object.keys(cached)) {
+        if (
+          k.startsWith('dish-') ||
+          /^[0-9]+$/.test(k) ||
+          k.includes('-dish-') ||
+          /^[A-Za-z\s]+$/.test(k)
+        ) {
+          delete (cached as any)[k];
+          hadLegacy = true;
+        }
+      }
+      if (hadLegacy) {
+        for (const k of keysToTry) {
+          try {
+            localStorage.setItem(k, JSON.stringify(cached));
+          } catch {}
+        }
+      }
       if (Object.keys(cached).length > 0) {
         setItemStages(cached);
       }
@@ -197,33 +200,10 @@ export default function LiveOrderTrackingPage() {
         setItemStages((prev) => {
           const nextStages = { ...prev };
           const stage = data.stage;
-          if (data.itemId) nextStages[data.itemId] = stage;
-          if (data.key) nextStages[data.key] = stage;
-          if (data.dishId) {
-            nextStages[data.dishId] = stage;
-            const clean = data.dishId.replace(/^dish-/, '');
-            nextStages[clean] = stage;
-            nextStages[`dish-${clean}`] = stage;
-          }
-          if (data.dishName) {
-            nextStages[data.dishName] = stage;
-            nextStages[data.dishName.toLowerCase()] = stage;
-            nextStages[data.dishName.toLowerCase().trim()] = stage;
-          }
-          const tNum = data.ticketNumber || '';
-          if (tNum) {
-            if (data.itemId) nextStages[`${tNum}-${data.itemId}`] = stage;
-            if (data.dishId) {
-              nextStages[`${tNum}-${data.dishId}`] = stage;
-              const clean = data.dishId.replace(/^dish-/, '');
-              nextStages[`${tNum}-${clean}`] = stage;
-              nextStages[`${tNum}-dish-${clean}`] = stage;
-            }
-            if (data.dishName) {
-              nextStages[`${tNum}-${data.dishName}`] = stage;
-              nextStages[`${tNum}-${data.dishName.toLowerCase()}`] = stage;
-              nextStages[`${tNum}-${data.dishName.toLowerCase().trim()}`] = stage;
-            }
+          if (data.itemId) {
+            nextStages[data.itemId] = stage;
+            const tNum = data.ticketNumber || '';
+            if (tNum) nextStages[`${tNum}-${data.itemId}`] = stage;
           }
           return nextStages;
         });
@@ -231,19 +211,9 @@ export default function LiveOrderTrackingPage() {
         // Update active session items stage immediately
         setSession((prev) => {
           if (!prev || !prev.items) return prev;
-          const targetCleanDish = data.dishId ? data.dishId.replace(/^dish-/, '') : '';
+          if (!data.itemId) return prev;
           const updatedItems = prev.items.map((it) => {
-            const cleanDishId = (it.dish_id || it.id || '').replace(/^dish-/, '');
-            const itTitleLower = (it.title || '').toLowerCase().trim();
-            const dataTitleLower = (data.dishName || '').toLowerCase().trim();
-            const matches =
-              Boolean(data.itemId && it.id && it.id === data.itemId) ||
-              Boolean(data.key && it.id && (it.id === data.key || it.dish_id === data.key)) ||
-              Boolean(data.dishId && it.dish_id && it.dish_id === data.dishId) ||
-              Boolean(targetCleanDish && cleanDishId && cleanDishId === targetCleanDish) ||
-              Boolean(dataTitleLower && itTitleLower && (itTitleLower === dataTitleLower || itTitleLower.includes(dataTitleLower) || dataTitleLower.includes(itTitleLower)));
-
-            if (matches) {
+            if (it.id === data.itemId) {
               const addons = Array.isArray(it.addons) ? [...it.addons] : [];
               if (data.stage === 'SERVED' && !addons.includes('SERVED')) {
                 addons.push('SERVED');
@@ -411,7 +381,6 @@ export default function LiveOrderTrackingPage() {
                 // Determine this item's specific stage
                 const tNum = session?.ticketNumber || '';
                 const candList: string[] = [];
-                if (isDispatched) candList.push('SERVED');
                 if ((dish as any).stage) candList.push((dish as any).stage);
                 if (Array.isArray((dish as any).addons) && (dish as any).addons.includes('SERVED')) {
                   candList.push('SERVED');
@@ -419,19 +388,8 @@ export default function LiveOrderTrackingPage() {
 
                 const lookupKeys = [
                   dish.id,
-                  dish.dish_id,
-                  cleanDishNum,
-                  `dish-${cleanDishNum}`,
-                  dish.title,
-                  dish.title?.toLowerCase(),
-                  dish.title?.toLowerCase().trim(),
                   tNum && dish.id && `${tNum}-${dish.id}`,
-                  tNum && dish.dish_id && `${tNum}-${dish.dish_id}`,
-                  tNum && cleanDishNum && `${tNum}-${cleanDishNum}`,
-                  tNum && `${tNum}-dish-${cleanDishNum}`,
-                  tNum && dish.title && `${tNum}-${dish.title}`,
-                  tNum && dish.title && `${tNum}-${dish.title.toLowerCase()}`,
-                  tNum && dish.title && `${tNum}-${dish.title.toLowerCase().trim()}`,
+                  chairId && dish.id && `${chairId}-${dish.id}`,
                 ].filter(Boolean) as string[];
 
                 for (const k of lookupKeys) {
