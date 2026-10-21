@@ -15,12 +15,14 @@ import {
   UtensilsCrossed,
   CheckCircle2,
   Receipt,
-  RotateCcw,
   Percent,
   Armchair,
   Grid,
   X,
-  ChevronDown,
+  Package,
+  Send,
+  Clock,
+  Flame,
 } from 'lucide-react';
 
 interface BillItem {
@@ -28,47 +30,10 @@ interface BillItem {
   name: string;
   price: number;
   qty: number;
-  seatNumber: number;
+  seatNumber: number | string;
   stage: string;
+  isDraft?: boolean;
 }
-
-const PRESET_SEAT_ITEMS: Record<string, BillItem[]> = {
-  '17': [
-    { id: 'b17-1', name: 'Chicken Pepper Dry', price: 160, qty: 1, seatNumber: 17, stage: 'SERVED' },
-    { id: 'b17-2', name: 'Dosa (2pcs)', price: 50, qty: 1, seatNumber: 17, stage: 'SERVED' },
-    { id: 'b17-3', name: 'Mutton Liver', price: 240, qty: 1, seatNumber: 17, stage: 'SERVED' },
-    { id: 'b17-4', name: 'Chilli Chicken', price: 160, qty: 1, seatNumber: 17, stage: 'SERVED' },
-  ],
-  '04': [
-    { id: 'b4-1', name: 'Chicken Biryani', price: 170, qty: 2, seatNumber: 4, stage: 'SERVED' },
-    { id: 'b4-2', name: 'Chicken Pepper Dry', price: 180, qty: 1, seatNumber: 4, stage: 'SERVED' },
-  ],
-  '01': [
-    { id: 'b1-1', name: 'Chicken Biryani', price: 170, qty: 2, seatNumber: 1, stage: 'SERVED' },
-    { id: 'b1-2', name: 'Guntur Chicken Fry', price: 190, qty: 1, seatNumber: 1, stage: 'READY' },
-    { id: 'b1-3', name: 'Mutton Biryani', price: 280, qty: 1, seatNumber: 1, stage: 'PREP' },
-  ],
-  '02': [
-    { id: 'b2-1', name: 'Mutton Biryani', price: 280, qty: 1, seatNumber: 2, stage: 'PREP' },
-    { id: 'b2-2', name: 'Chilli Chicken Donne', price: 180, qty: 1, seatNumber: 2, stage: 'PREP' },
-  ],
-  '03': [
-    { id: 'b3-1', name: 'Mutton Biryani', price: 280, qty: 1, seatNumber: 3, stage: 'SERVED' },
-    { id: 'b3-2', name: 'Elaneer Payasam', price: 90, qty: 1, seatNumber: 3, stage: 'SERVED' },
-  ],
-  '07': [
-    { id: 'b7-1', name: 'Chicken Biryani', price: 170, qty: 3, seatNumber: 7, stage: 'SERVED' },
-    { id: 'b7-2', name: 'Kushka Rice Portion', price: 90, qty: 2, seatNumber: 7, stage: 'SERVED' },
-  ],
-  '28': [
-    { id: 'b28-1', name: 'Chicken Biryani', price: 170, qty: 3, seatNumber: 28, stage: 'SERVED' },
-    { id: 'b28-2', name: 'Mutton Chops', price: 290, qty: 1, seatNumber: 28, stage: 'SERVED' },
-  ],
-  '32': [
-    { id: 'b32-1', name: 'Mutton Biryani', price: 280, qty: 4, seatNumber: 32, stage: 'SERVED' },
-    { id: 'b32-2', name: 'Guntur Chicken Fry', price: 190, qty: 2, seatNumber: 32, stage: 'SERVED' },
-  ],
-};
 
 const ALL_100_SEATS = Array.from({ length: 100 }, (_, i) => (i + 1).toString().padStart(2, '0'));
 
@@ -85,15 +50,19 @@ export function ScreenM4BillingPOS({
   liveOrders = [],
   onSettled,
 }: ScreenM4BillingPOSProps) {
-  // Normalize clean seat number (e.g. '17', '04', '01')
-  const cleanInitialSeat = selectedSeatId.replace(/[^0-9]/g, '') || '17';
-  const paddedInitial = cleanInitialSeat.padStart(2, '0');
+  // Normalize clean seat identifier (e.g. '17', '04', '01' or 'TK-01')
+  const initialSeatNormalized = useMemo(() => {
+    if (selectedSeatId === 'TK-01' || selectedSeatId?.toLowerCase().includes('takeaway')) {
+      return 'TK-01';
+    }
+    const clean = selectedSeatId?.replace(/[^0-9]/g, '') || '17';
+    return clean.padStart(2, '0');
+  }, [selectedSeatId]);
 
-  const [activeSeat, setActiveSeat] = useState<string>(paddedInitial);
-  const [items, setItems] = useState<BillItem[]>([]);
-  const [seatBillsMap, setSeatBillsMap] = useState<Record<string, BillItem[]>>({});
+  const [activeSeat, setActiveSeat] = useState<string>(initialSeatNormalized);
+  const [seatDraftMap, setSeatDraftMap] = useState<Record<string, BillItem[]>>({});
   const [seatPickerModalOpen, setSeatPickerModalOpen] = useState<boolean>(false);
-  const [modalZoneFilter, setModalZoneFilter] = useState<'ALL' | 'Z1' | 'Z2' | 'Z3' | 'Z4'>('ALL');
+  const [modalZoneFilter, setModalZoneFilter] = useState<'ALL' | 'TAKEAWAY' | 'Z1' | 'Z2' | 'Z3' | 'Z4'>('ALL');
   const [modalSearch, setModalSearch] = useState<string>('');
   const [jumpInput, setJumpInput] = useState<string>('');
 
@@ -101,98 +70,108 @@ export function ScreenM4BillingPOS({
   const [complimentary, setComplimentary] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CASH' | 'CARD'>('UPI');
   const [settledSuccess, setSettledSuccess] = useState<boolean>(false);
+  const [punchNotice, setPunchNotice] = useState<string | null>(null);
   const [menuSearch, setMenuSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [printThermalOpen, setPrintThermalOpen] = useState<boolean>(false);
 
-  // Set of occupied seats from live orders and presets
+  const isTakeaway = activeSeat === 'TK-01' || activeSeat.toLowerCase().includes('takeaway');
+  const seatDisplayTitle = isTakeaway ? 'Takeaway Parcel #01' : `Seat #${activeSeat}`;
+
+  // Sync when selectedSeatId prop changes from Screen 2
+  useEffect(() => {
+    if (selectedSeatId === 'TK-01' || selectedSeatId?.toLowerCase().includes('takeaway')) {
+      setActiveSeat('TK-01');
+      setSettledSuccess(false);
+      return;
+    }
+    const clean = selectedSeatId?.replace(/[^0-9]/g, '') || '17';
+    const padded = clean.padStart(2, '0');
+    setActiveSeat(padded);
+    setSettledSuccess(false);
+  }, [selectedSeatId]);
+
+  // Set of occupied seats strictly from live orders (zero mock presets)
   const liveOccupiedSeats = useMemo(() => {
     const set = new Set<string>();
     liveOrders.forEach((o) => {
-      const chairNum = (o.order.chair_id || '').replace(/[^0-9]/g, '');
-      if (chairNum) {
-        set.add(chairNum.padStart(2, '0'));
+      const chairRaw = (o.order.chair_id || '').trim();
+      if (chairRaw === 'TK-01' || chairRaw.toLowerCase().includes('takeaway') || chairRaw.toLowerCase().includes('parcel')) {
+        set.add('TK-01');
+      } else {
+        const chairNum = chairRaw.replace(/[^0-9]/g, '');
+        if (chairNum) {
+          set.add(chairNum.padStart(2, '0'));
+        }
       }
-    });
-    Object.keys(PRESET_SEAT_ITEMS).forEach((k) => {
-      set.add(k.padStart(2, '0'));
     });
     return set;
   }, [liveOrders]);
 
-  // Quick ribbon seats (always includes activeSeat)
+  // Quick ribbon seats (always includes activeSeat and Takeaway)
   const quickRibbonSeats = useMemo(() => {
-    const base = ['17', '04', '01', '02', '03', '07', '16', '28'];
-    const list = [activeSeat, ...base.filter((s) => s !== activeSeat && s.padStart(2, '0') !== activeSeat)];
-    return Array.from(new Set(list)).slice(0, 7);
-  }, [activeSeat]);
+    const occupied = Array.from(liveOccupiedSeats);
+    const defaults = ['01', '04', '17', '28'];
+    const candidates = [activeSeat, 'TK-01', ...occupied, ...defaults];
+    return Array.from(new Set(candidates)).slice(0, 8);
+  }, [activeSeat, liveOccupiedSeats]);
 
-  // Helper to load items for a seat
-  const loadSeatItems = (seatNumPadded: string): BillItem[] => {
-    if (seatBillsMap[seatNumPadded]) {
-      return seatBillsMap[seatNumPadded];
-    }
-    const unpadded = seatNumPadded.replace(/^0+/, '') || '1';
+  // Real placed kitchen orders strictly for this seat
+  const placedOrders = useMemo<BillItem[]>(() => {
+    const isTk = activeSeat === 'TK-01' || activeSeat.toLowerCase().includes('takeaway');
+    const unpadded = activeSeat.replace(/^0+/, '') || '1';
     const num = parseInt(unpadded, 10);
 
-    // 1. Check live orders from Supabase/resilience store
     const matchingLive = liveOrders.filter((o) => {
-      const oChair = (o.order.chair_id || '').replace(/[^0-9]/g, '');
-      return oChair === seatNumPadded || oChair === unpadded || Number(oChair) === num;
+      const chairRaw = (o.order.chair_id || '').trim();
+      if (isTk) {
+        return chairRaw === 'TK-01' || chairRaw.toLowerCase().includes('takeaway') || chairRaw.toLowerCase().includes('parcel');
+      }
+      const oChair = chairRaw.replace(/[^0-9]/g, '');
+      return oChair === activeSeat || oChair === unpadded || Number(oChair) === num;
     });
 
-    if (matchingLive.length > 0) {
-      const liveItemsList: BillItem[] = [];
-      matchingLive.forEach((lo) => {
+    const list: BillItem[] = [];
+    matchingLive.forEach((lo) => {
+      if (lo.items) {
         lo.items.forEach((it, idx) => {
-          liveItemsList.push({
-            id: it.id || `live-${seatNumPadded}-${idx}`,
+          list.push({
+            id: it.id || `live-${activeSeat}-${idx}`,
             name: it.dish_name,
             price: it.price,
             qty: it.quantity,
-            seatNumber: num,
+            seatNumber: isTk ? 'TK-01' : num,
             stage: it.stage || 'SERVED',
+            isDraft: false,
           });
         });
-      });
-      if (liveItemsList.length > 0) {
-        return liveItemsList;
       }
-    }
+    });
+    return list;
+  }, [liveOrders, activeSeat]);
 
-    // 2. Check preset mock items
-    if (PRESET_SEAT_ITEMS[seatNumPadded]) {
-      return PRESET_SEAT_ITEMS[seatNumPadded];
-    }
-    if (PRESET_SEAT_ITEMS[unpadded]) {
-      return PRESET_SEAT_ITEMS[unpadded];
-    }
+  // Draft items pending KOT punch or immediate settlement
+  const draftItems = seatDraftMap[activeSeat] || [];
 
-    // 3. Fallback default item
-    return [
-      { id: `b-${seatNumPadded}-1`, name: 'Chicken Biryani', price: 170, qty: 1, seatNumber: num, stage: 'SERVED' },
-    ];
-  };
+  // All combined items on the running bill
+  const allCurrentBillItems = useMemo(() => {
+    return [...placedOrders, ...draftItems];
+  }, [placedOrders, draftItems]);
 
-  // Sync when selectedSeatId prop changes from Screen 2
-  useEffect(() => {
-    const clean = selectedSeatId.replace(/[^0-9]/g, '') || '17';
-    const padded = clean.padStart(2, '0');
+  // Switching active seat
+  const handleSwitchSeat = (seatId: string) => {
+    const clean = seatId.trim();
+    if (clean === 'TK-01' || clean.toLowerCase().includes('takeaway')) {
+      setActiveSeat('TK-01');
+      setSettledSuccess(false);
+      if (onSelectSeatId) {
+        onSelectSeatId('TK-01');
+      }
+      return;
+    }
+    const numClean = clean.replace(/[^0-9]/g, '') || '17';
+    const padded = numClean.padStart(2, '0');
     setActiveSeat(padded);
-    const initialItems = loadSeatItems(padded);
-    setItems(initialItems);
-    setSeatBillsMap((m) => ({ ...m, [padded]: initialItems }));
-    setSettledSuccess(false);
-  }, [selectedSeatId]);
-
-  // Handle switching seat
-  const handleSwitchSeat = (seatNum: string) => {
-    const clean = seatNum.replace(/[^0-9]/g, '') || '17';
-    const padded = clean.padStart(2, '0');
-    setActiveSeat(padded);
-    const loaded = loadSeatItems(padded);
-    setItems(loaded);
-    setSeatBillsMap((m) => ({ ...m, [padded]: loaded }));
     setSettledSuccess(false);
     if (onSelectSeatId) {
       onSelectSeatId(padded);
@@ -207,6 +186,158 @@ export function ScreenM4BillingPOS({
       setJumpInput('');
     }
   };
+
+  // Add item from menu into draft items list
+  const handleAddDirectItem = (dish: typeof MENU_ITEMS[0]) => {
+    setSeatDraftMap((prev) => {
+      const currentDrafts = prev[activeSeat] || [];
+      const idx = currentDrafts.findIndex((it) => it.name === dish.title);
+      let updated: BillItem[];
+      if (idx >= 0) {
+        updated = currentDrafts.map((it, i) => (i === idx ? { ...it, qty: it.qty + 1 } : it));
+      } else {
+        updated = [
+          ...currentDrafts,
+          {
+            id: `draft-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            name: dish.title,
+            price: dish.price,
+            qty: 1,
+            seatNumber: isTakeaway ? 'TK-01' : parseInt(activeSeat, 10) || 17,
+            stage: 'DRAFT',
+            isDraft: true,
+          },
+        ];
+      }
+      return { ...prev, [activeSeat]: updated };
+    });
+  };
+
+  const updateDraftItemQty = (id: string, delta: number) => {
+    setSeatDraftMap((prev) => {
+      const currentDrafts = prev[activeSeat] || [];
+      const updated = currentDrafts
+        .map((it) => (it.id === id ? { ...it, qty: it.qty + delta } : it))
+        .filter((it) => it.qty > 0);
+      return { ...prev, [activeSeat]: updated };
+    });
+  };
+
+  const removeDraftItem = (id: string) => {
+    setSeatDraftMap((prev) => {
+      const currentDrafts = prev[activeSeat] || [];
+      const updated = currentDrafts.filter((it) => it.id !== id);
+      return { ...prev, [activeSeat]: updated };
+    });
+  };
+
+  // Dispatch new items as a real KOT to the Kitchen
+  const handlePunchKotToKitchen = async () => {
+    if (draftItems.length === 0) return;
+    const ticketNumber = isTakeaway
+      ? `TK-${Date.now().toString().slice(-4)}`
+      : `T-${activeSeat}-${Date.now().toString().slice(-3)}`;
+
+    const newOrderRecord: OrderRecord = {
+      ticket_number: ticketNumber,
+      chair_id: isTakeaway ? 'TK-01' : activeSeat,
+      seat_label: seatDisplayTitle,
+      status: 'pending',
+      total_amount: draftItems.reduce((sum, it) => sum + it.price * it.qty, 0),
+      device_token: 'manager-pos',
+    };
+
+    const newOrderItems: OrderItemRecord[] = draftItems.map((it, idx) => ({
+      chair_id: isTakeaway ? 'TK-01' : activeSeat,
+      seat_label: seatDisplayTitle,
+      dish_id: `dish-pos-${idx}`,
+      dish_name: it.name,
+      quantity: it.qty,
+      price: it.price,
+      stage: 'PLACED',
+    }));
+
+    await realtimeBridge.placeOrder(newOrderRecord, newOrderItems);
+
+    setSeatDraftMap((prev) => {
+      const next = { ...prev };
+      delete next[activeSeat];
+      return next;
+    });
+
+    setPunchNotice(`Thermal KOT #${ticketNumber} dispatched to Kitchen for ${seatDisplayTitle}!`);
+    setTimeout(() => setPunchNotice(null), 3500);
+
+    if (onSettled) {
+      onSettled();
+    }
+  };
+
+  // Pricing math
+  const subtotal = allCurrentBillItems.reduce((sum, it) => sum + it.price * it.qty, 0);
+  const discountAmount = Math.round(subtotal * (discountPercent / 100));
+  const taxable = Math.max(0, subtotal - discountAmount);
+  const gst = Math.round(taxable * 0.05);
+  const grandTotal = complimentary ? 0 : taxable + gst;
+
+  // Settle & Close Seat or Parcel
+  const handleSettle = async () => {
+    if (allCurrentBillItems.length === 0) return;
+    setSettledSuccess(true);
+
+    // If there were any unpunched draft items, complete their order record
+    if (draftItems.length > 0) {
+      const ticketNumber = isTakeaway
+        ? `TK-${Date.now().toString().slice(-4)}`
+        : `T-${activeSeat}-${Date.now().toString().slice(-3)}`;
+
+      const newOrderRecord: OrderRecord = {
+        ticket_number: ticketNumber,
+        chair_id: isTakeaway ? 'TK-01' : activeSeat,
+        seat_label: seatDisplayTitle,
+        status: 'completed',
+        total_amount: draftItems.reduce((sum, it) => sum + it.price * it.qty, 0),
+        device_token: 'manager-pos',
+      };
+
+      const newOrderItems: OrderItemRecord[] = draftItems.map((it, idx) => ({
+        chair_id: isTakeaway ? 'TK-01' : activeSeat,
+        seat_label: seatDisplayTitle,
+        dish_id: `dish-pos-${idx}`,
+        dish_name: it.name,
+        quantity: it.qty,
+        price: it.price,
+        stage: 'SERVED',
+      }));
+
+      await realtimeBridge.placeOrder(newOrderRecord, newOrderItems);
+    }
+
+    // Authoritative bill settlement
+    await realtimeBridge.settleBill(activeSeat, paymentMethod, grandTotal);
+
+    // Clear drafts for this seat
+    setSeatDraftMap((prev) => {
+      const next = { ...prev };
+      delete next[activeSeat];
+      return next;
+    });
+
+    if (onSettled) {
+      onSettled();
+    }
+
+    setTimeout(() => {
+      setSettledSuccess(false);
+      setPrintThermalOpen(true);
+    }, 1500);
+  };
+
+  const filteredDishes = MENU_ITEMS.filter((dish) => {
+    const matchesCat = selectedCategory === 'all' || dish.categoryId === selectedCategory;
+    const matchesSearch = dish.title.toLowerCase().includes(menuSearch.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
 
   const modalFilteredSeats = useMemo(() => {
     return ALL_100_SEATS.filter((seatStr) => {
@@ -226,98 +357,54 @@ export function ScreenM4BillingPOS({
     });
   }, [modalZoneFilter, modalSearch]);
 
-  const updateItemQty = (id: string, delta: number) => {
-    setItems((prev) => {
-      const updated = prev
-        .map((it) => (it.id === id ? { ...it, qty: it.qty + delta } : it))
-        .filter((it) => it.qty > 0);
-      setSeatBillsMap((m) => ({ ...m, [activeSeat]: updated }));
-      return updated;
-    });
-  };
-
-  const removeItem = (id: string) => {
-    setItems((prev) => {
-      const updated = prev.filter((it) => it.id !== id);
-      setSeatBillsMap((m) => ({ ...m, [activeSeat]: updated }));
-      return updated;
-    });
-  };
-
-  const handleAddDirectItem = (dish: typeof MENU_ITEMS[0]) => {
-    setItems((prev) => {
-      let updated: BillItem[];
-      const idx = prev.findIndex((it) => it.name === dish.title);
-      if (idx >= 0) {
-        updated = prev.map((it, i) => (i === idx ? { ...it, qty: it.qty + 1 } : it));
-      } else {
-        updated = [
-          ...prev,
-          {
-            id: `new-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            name: dish.title,
-            price: dish.price,
-            qty: 1,
-            seatNumber: parseInt(activeSeat, 10) || 17,
-            stage: 'NEW',
-          },
-        ];
-      }
-      setSeatBillsMap((m) => ({ ...m, [activeSeat]: updated }));
-      return updated;
-    });
-  };
-
-  const subtotal = items.reduce((sum, it) => sum + it.price * it.qty, 0);
-  const discountAmount = Math.round(subtotal * (discountPercent / 100));
-  const taxable = Math.max(0, subtotal - discountAmount);
-  const gst = Math.round(taxable * 0.05);
-  const grandTotal = complimentary ? 0 : taxable + gst;
-
-  const handleSettle = async () => {
-    setSettledSuccess(true);
-    const chairNum = activeSeat.replace(/[^0-9]/g, '');
-    if (chairNum) {
-      await realtimeBridge.settleBill(chairNum, paymentMethod, grandTotal);
-    }
-    if (onSettled) {
-      onSettled();
-    }
-    setTimeout(() => {
-      setItems([]);
-      setSettledSuccess(false);
-    }, 2000);
-  };
-
-  const filteredDishes = MENU_ITEMS.filter((dish) => {
-    const matchesCat = selectedCategory === 'all' || dish.categoryId === selectedCategory;
-    const matchesSearch = dish.title.toLowerCase().includes(menuSearch.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
-
   return (
     <div className="w-full mx-auto p-1 space-y-4 font-mono">
       {/* Top Header Banner */}
       <div className="bg-white border border-[#EAE5DF] rounded-xl p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#9C3D1E] text-white shadow-sm">
-            <Receipt className="h-6 w-6" />
+            {isTakeaway ? <Package className="h-6 w-6" /> : <Receipt className="h-6 w-6" />}
           </div>
           <div>
-            <span className="font-mono text-[10px] font-black uppercase tracking-wider text-orange-800 bg-orange-100 rounded px-1.5 py-0.5">
-              POINT OF SALE
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] font-black uppercase tracking-wider text-orange-800 bg-orange-100 rounded px-1.5 py-0.5">
+                POINT OF SALE
+              </span>
+              {isTakeaway && (
+                <span className="font-mono text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 rounded px-1.5 py-0.5">
+                  PARCEL COUNTER
+                </span>
+              )}
+            </div>
             <h1 className="text-base sm:text-lg font-black font-mono text-slate-900 mt-1">
-              Billing &amp; Cashier POS &bull; Seat #{activeSeat}
+              Billing &amp; Cashier POS &bull; {seatDisplayTitle}
             </h1>
           </div>
         </div>
 
-        {/* Seat Selection Controls (Pick ANY Seat 1-100) */}
+        {/* Seat & Takeaway Selection Controls */}
         <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap">
-          {/* Direct Dropdown for ANY of the 100 Seats */}
+          {/* Dedicated Takeaway Parcel Desk Quick Button */}
+          <button
+            type="button"
+            onClick={() => handleSwitchSeat('TK-01')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shadow-xs shrink-0 ${
+              isTakeaway
+                ? 'bg-amber-600 text-white ring-2 ring-amber-300'
+                : 'bg-[#FAF8F5] border border-amber-300 text-amber-900 hover:bg-amber-100'
+            }`}
+          >
+            <Package className="h-3.5 w-3.5 text-amber-500" />
+            <span>Takeaway Parcel</span>
+          </button>
+
+          {/* Direct Dropdown for Takeaway + Any of the 100 Seats */}
           <div className="flex items-center gap-1.5 bg-[#FAF8F5] border border-slate-300 rounded-lg px-2.5 py-1.5 shadow-xs">
-            <Armchair className="h-3.5 w-3.5 text-[#9C3D1E] shrink-0" />
+            {isTakeaway ? (
+              <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            ) : (
+              <Armchair className="h-3.5 w-3.5 text-[#9C3D1E] shrink-0" />
+            )}
             <label htmlFor="seat-dropdown-pos" className="text-[11px] font-black text-slate-600 uppercase shrink-0">
               Seat:
             </label>
@@ -327,6 +414,7 @@ export function ScreenM4BillingPOS({
               onChange={(e) => handleSwitchSeat(e.target.value)}
               className="bg-transparent text-xs font-black font-mono text-[#9C3D1E] outline-none cursor-pointer pr-1"
             >
+              <option value="TK-01">📦 Takeaway / Parcel Desk (TK-01)</option>
               {ALL_100_SEATS.map((numStr) => {
                 const hasOrder = liveOccupiedSeats.has(numStr);
                 return (
@@ -371,11 +459,11 @@ export function ScreenM4BillingPOS({
             <span>All 100 Seats</span>
           </button>
 
-          {/* Quick Ribbon (Dynamic: active seat + top active seats) */}
+          {/* Quick Ribbon (Dynamic: active seat + takeaway + active seats) */}
           <div className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar">
             {quickRibbonSeats.map((seatNum) => {
-              const padded = seatNum.padStart(2, '0');
-              const isCurrent = activeSeat === padded;
+              const isCurrent = activeSeat === seatNum;
+              const isTk = seatNum === 'TK-01';
               return (
                 <button
                   key={seatNum}
@@ -384,10 +472,12 @@ export function ScreenM4BillingPOS({
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
                     isCurrent
                       ? 'bg-[#9C3D1E] text-white shadow-xs'
+                      : isTk
+                      ? 'bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100'
                       : 'bg-[#FAF8F5] border border-slate-200 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
-                  Seat {padded}
+                  {isTk ? '📦 Takeaway' : `Seat ${seatNum}`}
                 </button>
               );
             })}
@@ -395,77 +485,167 @@ export function ScreenM4BillingPOS({
         </div>
       </div>
 
+      {punchNotice && (
+        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl text-emerald-900 text-xs font-bold flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+          <span>{punchNotice}</span>
+        </div>
+      )}
+
       {/* Main 2-Column Split Console */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Bill Line Items & Tender (~60% / lg:col-span-7) */}
+        {/* Left Column: Orders Placed + New Draft Items + Bill Summary (~60% / lg:col-span-7) */}
         <div className="lg:col-span-7 bg-white border border-[#EAE5DF] rounded-xl p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2">
-              <Armchair className="h-4 w-4 text-[#9C3D1E]" />
-              <span className="font-black text-sm text-slate-900">Current Seat: Seat #{activeSeat}</span>
-              <span className="text-xs text-slate-500 font-mono">({items.length} items)</span>
+              {isTakeaway ? (
+                <Package className="h-4 w-4 text-amber-600" />
+              ) : (
+                <Armchair className="h-4 w-4 text-[#9C3D1E]" />
+              )}
+              <span className="font-black text-sm text-slate-900">Current: {seatDisplayTitle}</span>
+              <span className="text-xs text-slate-500 font-mono">
+                ({allCurrentBillItems.length} total items)
+              </span>
             </div>
             <button
               type="button"
               onClick={() => setPrintThermalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1 bg-[#FAF8F5] border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition cursor-pointer"
+              disabled={allCurrentBillItems.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1 bg-[#FAF8F5] border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition disabled:opacity-40 cursor-pointer"
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Print Bill</span>
             </button>
           </div>
 
-          {/* Line items table for this particular seat */}
-          {items.length === 0 ? (
-            <div className="text-center py-10 text-slate-400 text-xs font-mono">
-              No items on Seat #{activeSeat} bill. Add from right menu catalog.
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-72 overflow-y-auto no-scrollbar">
-              {items.map((it) => (
-                <div
-                  key={it.id}
-                  className="flex items-center justify-between p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs"
-                >
-                  <div className="flex-1 pr-2 truncate">
-                    <div className="font-bold text-slate-900 truncate">{it.name}</div>
-                    <div className="text-[10px] text-slate-500">Seat {activeSeat} &bull; ₹{it.price} each</div>
-                  </div>
+          {/* Section 1: Active Placed Orders in Kitchen */}
+          {placedOrders.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-slate-700 flex items-center gap-1.5">
+                  <Flame className="h-3.5 w-3.5 text-orange-600" />
+                  Placed Orders ({placedOrders.length} in kitchen)
+                </span>
+                <span className="text-[10px] text-slate-500 font-bold">Live Tracking</span>
+              </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-[#9C3D1E]">
-                      {it.stage}
-                    </span>
-                    <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-1.5 py-0.5">
+              <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar">
+                {placedOrders.map((it) => (
+                  <div
+                    key={it.id}
+                    className="flex items-center justify-between p-2.5 bg-[#FAF8F5] border border-slate-200 rounded-xl text-xs"
+                  >
+                    <div className="flex-1 pr-2 truncate">
+                      <div className="font-bold text-slate-900 truncate">
+                        {it.qty}x {it.name}
+                      </div>
+                      <div className="text-[10px] text-slate-500">₹{it.price} each</div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                          it.stage === 'READY'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : it.stage === 'PREP'
+                            ? 'bg-blue-100 text-blue-800'
+                            : it.stage === 'SERVED'
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {it.stage}
+                      </span>
+                      <span className="w-14 text-right font-black font-mono text-slate-900">
+                        ₹{it.price * it.qty}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 2: Newly Added Items (Draft - Pending Punch) */}
+          {draftItems.length > 0 && (
+            <div className="space-y-2 border-t border-dashed border-slate-300 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5">
+                  <Plus className="h-3.5 w-3.5 text-amber-600" />
+                  New Items to Place ({draftItems.length} draft)
+                </span>
+                <span className="text-[10px] text-amber-700 font-bold">Pending KOT Punch</span>
+              </div>
+
+              <div className="space-y-1.5 max-h-56 overflow-y-auto no-scrollbar">
+                {draftItems.map((it) => (
+                  <div
+                    key={it.id}
+                    className="flex items-center justify-between p-2.5 bg-amber-50/60 border border-amber-200 rounded-xl text-xs"
+                  >
+                    <div className="flex-1 pr-2 truncate">
+                      <div className="font-bold text-slate-900 truncate">{it.name}</div>
+                      <div className="text-[10px] text-slate-500">₹{it.price} each</div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                        DRAFT
+                      </span>
+                      <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-1.5 py-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateDraftItemQty(it.id, -1)}
+                          className="text-slate-500 hover:text-black font-bold p-0.5 cursor-pointer"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="font-mono font-bold px-1">{it.qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateDraftItemQty(it.id, 1)}
+                          className="text-slate-500 hover:text-black font-bold p-0.5 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <span className="w-14 text-right font-black font-mono text-slate-900">
+                        ₹{it.price * it.qty}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => updateItemQty(it.id, -1)}
-                        className="text-slate-500 hover:text-black font-bold p-0.5 cursor-pointer"
+                        onClick={() => removeDraftItem(it.id)}
+                        className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
                       >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span className="font-mono font-bold px-1">{it.qty}</span>
-                      <button
-                        type="button"
-                        onClick={() => updateItemQty(it.id, 1)}
-                        className="text-slate-500 hover:text-black font-bold p-0.5 cursor-pointer"
-                      >
-                        <Plus className="h-3 w-3" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <span className="w-14 text-right font-black font-mono text-slate-900">
-                      ₹{it.price * it.qty}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(it.id)}
-                      className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              {/* Punch KOT to Kitchen Action Button */}
+              <button
+                type="button"
+                onClick={handlePunchKotToKitchen}
+                className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs mt-1"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>
+                  Punch KOT to Kitchen ({draftItems.reduce((sum, it) => sum + it.qty, 0)} Items)
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Empty State When Neither Placed Nor Draft Items Exist */}
+          {allCurrentBillItems.length === 0 && (
+            <div className="text-center py-12 text-slate-400 text-xs font-mono bg-[#FAF8F5] rounded-xl border border-dashed border-slate-300 space-y-1">
+              <div>No active orders for {seatDisplayTitle}.</div>
+              <div className="text-[11px] text-slate-400">
+                Click <span className="font-bold text-slate-600">+ Add</span> on any dish from the Menu Catalog on the right to start an order.
+              </div>
             </div>
           )}
 
@@ -511,7 +691,7 @@ export function ScreenM4BillingPOS({
             </div>
 
             <div className="flex items-center justify-between text-slate-900 font-black text-base border-t border-slate-300 pt-2">
-              <span>Total Seat Bill:</span>
+              <span>Total Table Bill:</span>
               <span className="text-[#9C3D1E] font-mono text-xl">₹{grandTotal}</span>
             </div>
           </div>
@@ -546,28 +726,28 @@ export function ScreenM4BillingPOS({
             {settledSuccess ? (
               <div className="w-full py-3 bg-emerald-600 text-white rounded-xl text-center font-bold text-xs flex items-center justify-center gap-2">
                 <CheckCircle2 className="h-4 w-4" />
-                <span>Seat #{activeSeat} Bill Settled Successfully! Printing Receipt...</span>
+                <span>{seatDisplayTitle} Bill Settled Successfully! Printing Thermal Slip...</span>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={handleSettle}
-                disabled={items.length === 0}
+                disabled={allCurrentBillItems.length === 0}
                 className="w-full py-3 bg-[#9C3D1E] text-white rounded-xl font-mono text-xs font-black uppercase tracking-wider shadow-xs hover:bg-orange-700 transition disabled:opacity-40 cursor-pointer"
               >
-                Settle &amp; Close Seat #{activeSeat} ({paymentMethod} ₹{grandTotal})
+                Settle &amp; Close {seatDisplayTitle} ({paymentMethod} ₹{grandTotal})
               </button>
             )}
           </div>
         </div>
 
-        {/* Right Column: Direct Menu Catalog (~40% / lg:col-span-5) */}
+        {/* Right Column: Authoritative Menu Catalog (Matching Customer & Waiter) (~40% / lg:col-span-5) */}
         <div className="lg:col-span-5 bg-white border border-[#EAE5DF] rounded-xl p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
             <div className="flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4 text-[#9C3D1E]" />
-              <h3 className="font-mono text-xs font-black uppercase text-slate-900">
-                Menu Catalog (Direct Add to Seat #{activeSeat})
+              <h3 className="font-mono text-xs font-black uppercase text-slate-900 truncate">
+                Menu Catalog (Direct Add to {isTakeaway ? 'Takeaway' : `#${activeSeat}`})
               </h3>
             </div>
           </div>
@@ -612,12 +792,19 @@ export function ScreenM4BillingPOS({
                 className="flex items-center justify-between p-2 rounded-lg bg-[#FAF8F5] border border-slate-200 hover:border-orange-400 hover:bg-orange-50/50 transition cursor-pointer select-none text-xs"
               >
                 <div className="pr-2 truncate">
-                  <span className="font-bold text-slate-900 block truncate">{dish.title}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">₹{dish.price}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        dish.isVegetarian ? 'bg-emerald-600' : 'bg-rose-600'
+                      }`}
+                    />
+                    <span className="font-bold text-slate-900 block truncate">{dish.title}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono ml-3.5">₹{dish.price}</span>
                 </div>
                 <button
                   type="button"
-                  className="px-2 py-1 bg-[#9C3D1E] text-white rounded font-bold text-[10px] hover:bg-orange-700 transition cursor-pointer"
+                  className="px-2 py-1 bg-[#9C3D1E] text-white rounded font-bold text-[10px] hover:bg-orange-700 transition cursor-pointer shrink-0"
                 >
                   + Add
                 </button>
@@ -637,20 +824,38 @@ export function ScreenM4BillingPOS({
               <p className="text-[10px]">GSTIN: 29AABCT1234F1Z0</p>
             </div>
             <div className="text-xs flex justify-between">
-              <span>Seat: #{activeSeat}</span>
+              <span>{isTakeaway ? 'Type: TAKEAWAY / PARCEL' : `Seat: #${activeSeat}`}</span>
               <span>Date: {new Date().toLocaleDateString('en-IN')}</span>
             </div>
             <div className="border-t border-b border-black/20 py-2 space-y-1 text-xs">
-              {items.map((it, idx) => (
+              {allCurrentBillItems.map((it, idx) => (
                 <div key={idx} className="flex justify-between">
-                  <span>{it.qty}x {it.name}</span>
+                  <span>
+                    {it.qty}x {it.name}
+                  </span>
                   <span>₹{it.price * it.qty}</span>
                 </div>
               ))}
             </div>
-            <div className="text-xs flex justify-between font-bold">
-              <span>Grand Total:</span>
-              <span>₹{grandTotal}</span>
+            <div className="text-xs space-y-1 pt-1">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span>₹{subtotal}</span>
+              </div>
+              {discountPercent > 0 && (
+                <div className="flex justify-between text-black font-bold">
+                  <span>Discount ({discountPercent}%):</span>
+                  <span>-₹{discountAmount}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>GST (5%):</span>
+                <span>₹{gst}</span>
+              </div>
+              <div className="text-xs flex justify-between font-bold border-t border-black/20 pt-1">
+                <span>Grand Total ({paymentMethod}):</span>
+                <span>₹{grandTotal}</span>
+              </div>
             </div>
             <button
               type="button"
@@ -678,7 +883,7 @@ export function ScreenM4BillingPOS({
                     Select Any Seat &bull; 100-Seat Restaurant Floor
                   </h3>
                   <p className="text-[10px] text-slate-500">
-                    Click any seat (01 - 100) to view, add items, or settle its bill
+                    Click any seat (01 - 100) or Takeaway Parcel to view and settle
                   </p>
                 </div>
               </div>
@@ -693,10 +898,11 @@ export function ScreenM4BillingPOS({
 
             {/* Filter Tabs & Quick Filter */}
             <div className="p-3 bg-white border-b border-[#EAE5DF] flex flex-wrap items-center justify-between gap-2">
-              {/* Zone Filter Tabs */}
+              {/* Zone Filter Tabs + Takeaway Tab */}
               <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
                 {[
                   { id: 'ALL', label: 'All 100' },
+                  { id: 'TAKEAWAY', label: '📦 Takeaway' },
                   { id: 'Z1', label: 'Z1 (01-25)' },
                   { id: 'Z2', label: 'Z2 (26-50)' },
                   { id: 'Z3', label: 'Z3 (51-75)' },
@@ -705,7 +911,14 @@ export function ScreenM4BillingPOS({
                   <button
                     key={z.id}
                     type="button"
-                    onClick={() => setModalZoneFilter(z.id as any)}
+                    onClick={() => {
+                      if (z.id === 'TAKEAWAY') {
+                        handleSwitchSeat('TK-01');
+                        setSeatPickerModalOpen(false);
+                      } else {
+                        setModalZoneFilter(z.id as any);
+                      }
+                    }}
                     className={`px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer ${
                       modalZoneFilter === z.id
                         ? 'bg-[#9C3D1E] text-white shadow-xs'
