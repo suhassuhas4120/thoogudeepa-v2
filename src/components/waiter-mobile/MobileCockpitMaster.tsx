@@ -746,22 +746,8 @@ export const MobileCockpitMaster: React.FC = () => {
 
       setActiveTicketNumber(ticketNum);
 
-      // Mark newly fired items as placed
-      setCartItems(prev => prev.map(c => {
-        if (!c.orderItemId && !c.isFired) {
-          const dishIdFormatted = String(c.menuItem.id).startsWith('dish-')
-            ? String(c.menuItem.id)
-            : `dish-${c.menuItem.id}`;
-          return {
-            ...c,
-            stage: 'PLACED',
-            isFired: true,
-            orderItemId: `item-${padChair}-${dishIdFormatted}-${timestamp}`,
-            ticketNumber: ticketNum,
-          };
-        }
-        return c;
-      }));
+      // Instantly synchronize authoritative items from database
+      syncCartForSeat(cleanChair);
 
       // Update seat status and cumulative running balance
       setSeats(prev => prev.map(s => {
@@ -851,9 +837,18 @@ export const MobileCockpitMaster: React.FC = () => {
     const targetDishName = targetDish?.menuItem?.name || identifier;
     const targetDishId = String(targetDish?.menuItem?.id || identifier);
 
+    // Mark ONLY the specific single dish line item as served
+    let servedOne = false;
     setCartItems(prev => prev.map(i => {
-      const match = i.orderItemId === identifier || String(i.menuItem.id) === targetDishId || i.menuItem.name === targetDishName;
-      return match ? { ...i, stage: 'SERVED' } : i;
+      if (servedOne) return i;
+      const isMatch = Boolean(targetDish?.orderItemId && i.orderItemId === targetDish.orderItemId) ||
+        i.orderItemId === identifier ||
+        (!targetDish?.orderItemId && (String(i.menuItem.id) === targetDishId || i.menuItem.name === targetDishName));
+      if (isMatch && i.stage !== 'SERVED') {
+        servedOne = true;
+        return { ...i, stage: 'SERVED' };
+      }
+      return i;
     }));
 
     const targetKey = targetDish?.orderItemId || identifier;

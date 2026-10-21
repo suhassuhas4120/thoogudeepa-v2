@@ -112,12 +112,12 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
 
   // Separate draft items from fired kitchen items
   const draftItems = useMemo(() => {
-    return cartItems.filter(c => !c.orderItemId && !c.isFired && !['PLACED', 'REC', 'PREP', 'READY', 'SERVED'].includes(c.stage || ''));
+    return cartItems.filter(c => !c.orderItemId && !c.isFired);
   }, [cartItems]);
 
   // Consolidate committed items by dish identity
   const committedDishes = useMemo(() => {
-    const committed = cartItems.filter(c => Boolean(c.orderItemId || c.isFired || ['PLACED', 'REC', 'PREP', 'READY', 'SERVED'].includes(c.stage || '')));
+    const committed = cartItems.filter(c => Boolean(c.orderItemId || c.isFired));
     const map = new Map<string, ConsolidatedCommittedDish>();
 
     committed.forEach(c => {

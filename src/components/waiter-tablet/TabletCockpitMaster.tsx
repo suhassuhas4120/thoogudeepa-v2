@@ -568,9 +568,18 @@ export const TabletCockpitMaster: React.FC = () => {
     const targetDishName = dish?.name || String(itemIdentifier);
     const targetDishId = String(dish?.id || itemIdentifier);
 
+    // Mark ONLY the specific single dish line item as served
+    let servedOne = false;
     setTicketItems(prev => prev.map(item => {
-      const match = item.orderItemId === itemIdentifier || String(item.id) === targetDishId || item.name === targetDishName;
-      return match ? { ...item, status: 'SERVED' } : item;
+      if (servedOne) return item;
+      const match = Boolean(dish?.orderItemId && item.orderItemId === dish.orderItemId) ||
+        item.orderItemId === itemIdentifier ||
+        (!dish?.orderItemId && (String(item.id) === targetDishId || item.name === targetDishName));
+      if (match && item.status !== 'SERVED') {
+        servedOne = true;
+        return { ...item, status: 'SERVED' };
+      }
+      return item;
     }));
 
     const targetKey = dish?.orderItemId || (typeof itemIdentifier === 'string' ? itemIdentifier : `dish-${itemIdentifier}`);

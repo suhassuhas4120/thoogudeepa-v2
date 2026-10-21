@@ -1524,15 +1524,21 @@ export const realtimeBridge = {
       const allItems: OrderItemRecord[] = [];
       sessionOrders.forEach((o) => {
         const hydratedItems = this.hydrateOrderItemStages(o.order, o.items);
-        hydratedItems.forEach((it) => {
-          if (!it.id || !seenItemIds.has(it.id)) {
-            if (it.id) seenItemIds.add(it.id);
-            allItems.push(it);
+        hydratedItems.forEach((it, idx) => {
+          const itemKey = it.id || `${o.order.id || o.order.ticket_number}-${it.dish_id}-${idx}`;
+          if (!seenItemIds.has(itemKey)) {
+            seenItemIds.add(itemKey);
+            allItems.push({
+              ...it,
+              id: it.id || itemKey,
+              order_id: it.order_id || o.order.id,
+            });
           }
         });
       });
       const latestOrder = sessionOrders[0].order;
-      const combinedTotal = allItems.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+      const sub = allItems.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+      const combinedTotal = sub + Math.round(sub * 0.05);
       return {
         order: {
           ...latestOrder,
