@@ -1061,23 +1061,28 @@ export default function KitchenDisplaySystemPage() {
                     key={order.id || `${order.ticket_number}-${orderIdx}`}
                     className="w-full bg-white rounded-xl border-2 border-zinc-950 shadow-xs p-3.5 flex flex-col gap-3"
                   >
-                    {/* Ticket Header: [SEAT 17] KOT: #TK-17-569 */}
+                    {/* Ticket Header: [SEAT 17] KOT: #TK-17-569 (>) */}
                     <div
                       onClick={() => {
                         setSelectedTicketId(order.id || order.ticket_number);
                         setActiveScreenTab(3);
                       }}
                       className="pb-2 border-b-2 border-zinc-200 flex items-center justify-between gap-2 shrink-0 cursor-pointer group"
-                      title="Click to view seat details (next page)"
+                      title="Go to next page (Seat Detail & 86 Inventory)"
                     >
                       <span className="font-black text-xs text-zinc-950 uppercase tracking-wider bg-zinc-100 group-hover:bg-zinc-200 px-2.5 py-1 rounded border-2 border-zinc-950 whitespace-nowrap transition-colors">
                         SEAT {chairId}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
                         <span className="text-xs font-black text-zinc-800 font-mono whitespace-nowrap">
                           KOT: #{order.ticket_number}
                         </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-950 transition-colors" />
+                        <div
+                          className="h-6 w-6 rounded-md border border-zinc-300 group-hover:border-zinc-950 bg-zinc-100 group-hover:bg-zinc-200 flex items-center justify-center text-zinc-800 group-hover:text-zinc-950 transition-all shadow-2xs group-active:scale-95"
+                          title="Go to next page"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5 stroke-[3]" />
+                        </div>
                       </div>
                     </div>
 
@@ -1115,38 +1120,16 @@ export default function KitchenDisplaySystemPage() {
                                 key={dishGroup.key}
                                 className="flex flex-col gap-1.5 pt-0.5"
                               >
-                                {/* Dish Title, Addon Badge, and (>) Next Page Action */}
+                                {/* Dish Title and Addon Badge */}
                                 <div className="flex items-center justify-between gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedTicketId(order.id || order.ticket_number);
-                                      setActiveScreenTab(3);
-                                    }}
-                                    className="flex items-center gap-1.5 text-left font-black text-sm text-zinc-950 leading-snug hover:text-amber-800 transition-colors cursor-pointer group flex-1"
-                                    title="Click to view full detail (next page)"
-                                  >
-                                    <span>{dishGroup.quantity}x {dishGroup.dishName}</span>
-                                  </button>
-
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    {hasAddon && (
-                                      <span className="px-1.5 py-0.5 rounded border border-zinc-900 bg-zinc-100 text-[10px] font-black uppercase text-zinc-900 shrink-0">
-                                        Addon
-                                      </span>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedTicketId(order.id || order.ticket_number);
-                                        setActiveScreenTab(3);
-                                      }}
-                                      className="h-6 w-6 rounded-md border border-zinc-300 hover:border-zinc-950 bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-800 hover:text-zinc-950 transition-all cursor-pointer shadow-2xs active:scale-95"
-                                      title="Go to next page"
-                                    >
-                                      <ChevronRight className="w-3.5 h-3.5 stroke-[3]" />
-                                    </button>
-                                  </div>
+                                  <span className="font-black text-sm text-zinc-950 leading-snug">
+                                    {dishGroup.quantity}x {dishGroup.dishName}
+                                  </span>
+                                  {hasAddon && (
+                                    <span className="px-1.5 py-0.5 rounded border border-zinc-900 bg-zinc-100 text-[10px] font-black uppercase text-zinc-900 shrink-0">
+                                      Addon
+                                    </span>
+                                  )}
                                 </div>
 
                                 {/* Customizations / Notes if present */}
