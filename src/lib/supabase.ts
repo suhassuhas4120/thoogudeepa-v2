@@ -1013,15 +1013,15 @@ export const realtimeBridge = {
             };
           });
 
-          const remoteTickets = new Set(remoteOrders.map((ro) => ro.order.ticket_number));
-          const remoteChairs = new Set(remoteOrders.map((ro) => (ro.order.chair_id || '').replace(/[^0-9]/g, '')));
+          const now = Date.now();
           const validLocalOrders = localOrders.filter((lo) => {
-            if (!lo.order?.ticket_number) return false;
-            if (remoteTickets.has(lo.order.ticket_number)) return false;
+            if (!lo.order?.id || !lo.order?.ticket_number) return false;
             if (lo.order.status === 'completed' || lo.order.status === 'cancelled') return false;
-            // If remote has active orders for this chair, do not keep older local orders for the same chair
-            const loChair = (lo.order.chair_id || '').replace(/[^0-9]/g, '');
-            if (remoteChairs.has(loChair)) return false;
+            // Only preserve unsynced temporary in-flight orders created in the last 20 seconds
+            const isLocalTemp = String(lo.order.id).startsWith('ord-');
+            if (!isLocalTemp) return false;
+            const createdTime = lo.order.created_at ? new Date(lo.order.created_at).getTime() : 0;
+            if (createdTime && now - createdTime > 20000) return false;
             return true;
           });
           const merged = [
@@ -1452,8 +1452,20 @@ export const realtimeBridge = {
       });
 
       const activeBillReq = getLocalBillRequests()[chairId] || getLocalBillRequests()[unpadded];
-      const isBilling = Boolean(activeBillReq) || occ?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
-      const isOccupied = Boolean(occ || currentTicketOrders.length > 0);
+      // If there are no active orders and no active bill request, clear any stale occupancy records for this seat
+      if (currentTicketOrders.length === 0 && !activeBillReq) {
+        if (occupancyMap[chairId] || occupancyMap[unpadded] || occupancyMap[`Seat ${chairId}`] || occupancyMap[`Seat ${unpadded}`]) {
+          delete occupancyMap[chairId];
+          delete occupancyMap[unpadded];
+          delete occupancyMap[`Seat ${chairId}`];
+          delete occupancyMap[`Seat ${unpadded}`];
+          setLocalOccupancyMap(occupancyMap);
+        }
+      }
+
+      const freshOcc = occupancyMap[chairId] || occupancyMap[unpadded] || occupancyMap[`Seat ${chairId}`] || occupancyMap[`Seat ${unpadded}`];
+      const isBilling = Boolean(activeBillReq) || freshOcc?.status === 'billing' || seatAlert?.title?.toLowerCase().includes('bill');
+      const isOccupied = Boolean(currentTicketOrders.length > 0 || (freshOcc && activeBillReq));
 
       let calculatedTotal = 0;
       if (allSeatItems.length > 0) {
@@ -1633,19 +1645,27 @@ export const realtimeBridge = {
           });
         })
         .on('broadcast', { event: 'BILL_SETTLED' }, (msg) => {
+          const targetChair = msg.payload?.chairId || msg.payload?.rawChairId || msg.payload?.normChairId;
+          if (targetChair) {
+            this.releaseSeat(targetChair);
+          }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onBillSettled && msg.payload) {
               cb.onBillSettled(msg.payload);
             }
-            if (cb.onSeatOccupancyChange && msg.payload?.chairId) {
-              cb.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
+            if (cb.onSeatOccupancyChange && targetChair) {
+              cb.onSeatOccupancyChange({ chairId: targetChair, isOccupied: false });
             }
           });
         })
         .on('broadcast', { event: 'SEAT_RELEASED' }, (msg) => {
+          const targetChair = msg.payload?.chairId || msg.payload?.rawChairId || msg.payload?.normChairId;
+          if (targetChair) {
+            this.releaseSeat(targetChair);
+          }
           activeKdsSubscribers.forEach((cb) => {
-            if (cb.onSeatOccupancyChange && msg.payload?.chairId) {
-              cb.onSeatOccupancyChange({ chairId: msg.payload.chairId, isOccupied: false });
+            if (cb.onSeatOccupancyChange && targetChair) {
+              cb.onSeatOccupancyChange({ chairId: targetChair, isOccupied: false });
             }
           });
         })
@@ -1768,8 +1788,12 @@ export const realtimeBridge = {
             if (cb.onSeatOccupancyChange) cb.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: true });
           });
         } else if (data.type === 'SEAT_RELEASED') {
+          const targetChair = data.chairId || data.rawChairId || data.normChairId;
+          if (targetChair) {
+            this.releaseSeat(targetChair);
+          }
           activeKdsSubscribers.forEach((cb) => {
-            if (cb.onSeatOccupancyChange) cb.onSeatOccupancyChange({ chairId: data.chairId, isOccupied: false });
+            if (cb.onSeatOccupancyChange && targetChair) cb.onSeatOccupancyChange({ chairId: targetChair, isOccupied: false });
           });
         } else if (data.type === 'NEW_ALERT') {
           activeKdsSubscribers.forEach((cb) => {
@@ -1809,6 +1833,10 @@ export const realtimeBridge = {
             }
           });
         } else if (data.type === 'BILL_SETTLED') {
+          const targetChair = data.chairId || data.rawChairId || data.normChairId;
+          if (targetChair) {
+            this.releaseSeat(targetChair);
+          }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onBillSettled) {
               cb.onBillSettled({
@@ -1819,6 +1847,9 @@ export const realtimeBridge = {
                 paymentMethod: data.paymentMethod,
                 ticketNumber: data.ticketNumber
               });
+            }
+            if (cb.onSeatOccupancyChange && targetChair) {
+              cb.onSeatOccupancyChange({ chairId: targetChair, isOccupied: false });
             }
           });
         } else if (data.type === 'AVAILABILITY_CHANGE') {

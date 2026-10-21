@@ -258,12 +258,16 @@ export const TabletCockpitMaster: React.FC = () => {
         refreshSeats();
         if (data && !data.isOccupied) {
           const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
-          const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-          const targetChair = (data.chairId || '').replace(/[^0-9]/g, '');
+          const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
+          const targetChair = (data.chairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
           if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
             setTicketItems([]);
             setDishQuantities({});
             setActiveTicketNumber('');
+            setActiveSeatCustomer('Walk-In Guest');
+            setActiveSeatAmount(0);
+            setActiveSeatName(`${curSeat}: Walk-In Guest`);
+            setIsDining(false);
           }
         }
       },
@@ -310,17 +314,22 @@ export const TabletCockpitMaster: React.FC = () => {
         refreshSeats();
         refreshAlerts();
         const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
-        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
-        const targetChair = (data?.chairId || '').replace(/[^0-9]/g, '');
+        const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        const targetChair = (data?.chairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
         if (targetChair && cleanCurSeat && targetChair === cleanCurSeat) {
           setTicketItems([]);
           setDishQuantities({});
           setActiveTicketNumber('');
+          setActiveSeatCustomer('Walk-In Guest');
+          setActiveSeatAmount(0);
+          setActiveSeatName(`${curSeat}: Walk-In Guest`);
+          setIsDining(false);
         }
         if (targetChair) {
           setVerifiedBillSeats(prev => {
             const next = { ...prev };
             delete next[targetChair];
+            delete next[targetChair.padStart(2, '0')];
             delete next[data?.chairId || ''];
             return next;
           });
