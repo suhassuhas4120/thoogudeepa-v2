@@ -15,7 +15,6 @@ import {
   UtensilsCrossed,
   CheckCircle2,
   Receipt,
-  Percent,
   Armchair,
   Grid,
   X,
@@ -64,9 +63,7 @@ export function ScreenM4BillingPOS({
   const [seatPickerModalOpen, setSeatPickerModalOpen] = useState<boolean>(false);
   const [modalZoneFilter, setModalZoneFilter] = useState<'ALL' | 'TAKEAWAY' | 'Z1' | 'Z2' | 'Z3' | 'Z4'>('ALL');
   const [modalSearch, setModalSearch] = useState<string>('');
-  const [jumpInput, setJumpInput] = useState<string>('');
 
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [complimentary, setComplimentary] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CASH' | 'CARD'>('UPI');
   const [settledSuccess, setSettledSuccess] = useState<boolean>(false);
@@ -107,14 +104,6 @@ export function ScreenM4BillingPOS({
     });
     return set;
   }, [liveOrders]);
-
-  // Quick ribbon seats (always includes activeSeat and Takeaway)
-  const quickRibbonSeats = useMemo(() => {
-    const occupied = Array.from(liveOccupiedSeats);
-    const defaults = ['01', '04', '17', '28'];
-    const candidates = [activeSeat, 'TK-01', ...occupied, ...defaults];
-    return Array.from(new Set(candidates)).slice(0, 8);
-  }, [activeSeat, liveOccupiedSeats]);
 
   // Real placed kitchen orders strictly for this seat
   const placedOrders = useMemo<BillItem[]>(() => {
@@ -175,15 +164,6 @@ export function ScreenM4BillingPOS({
     setSettledSuccess(false);
     if (onSelectSeatId) {
       onSelectSeatId(padded);
-    }
-  };
-
-  const handleJumpSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const val = parseInt(jumpInput.trim(), 10);
-    if (!isNaN(val) && val >= 1 && val <= 100) {
-      handleSwitchSeat(val.toString().padStart(2, '0'));
-      setJumpInput('');
     }
   };
 
@@ -275,10 +255,8 @@ export function ScreenM4BillingPOS({
 
   // Pricing math
   const subtotal = allCurrentBillItems.reduce((sum, it) => sum + it.price * it.qty, 0);
-  const discountAmount = Math.round(subtotal * (discountPercent / 100));
-  const taxable = Math.max(0, subtotal - discountAmount);
-  const gst = Math.round(taxable * 0.05);
-  const grandTotal = complimentary ? 0 : taxable + gst;
+  const gst = Math.round(subtotal * 0.05);
+  const grandTotal = complimentary ? 0 : subtotal + gst;
 
   // Settle & Close Seat or Parcel
   const handleSettle = async () => {
@@ -426,29 +404,6 @@ export function ScreenM4BillingPOS({
             </select>
           </div>
 
-          {/* Quick Jump Input */}
-          <form
-            onSubmit={handleJumpSubmit}
-            className="flex items-center gap-1 bg-[#FAF8F5] border border-slate-300 rounded-lg px-2 py-1 shadow-xs"
-          >
-            <span className="text-slate-400 text-xs font-bold font-mono">#</span>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              placeholder="1-100"
-              value={jumpInput}
-              onChange={(e) => setJumpInput(e.target.value)}
-              className="w-12 bg-transparent text-xs font-bold font-mono text-slate-800 outline-none placeholder:text-slate-400"
-            />
-            <button
-              type="submit"
-              className="px-1.5 py-0.5 bg-[#9C3D1E] text-white rounded text-[10px] font-bold hover:bg-orange-700 cursor-pointer"
-            >
-              Go
-            </button>
-          </form>
-
           {/* "All 100 Seats" Interactive Grid Modal Button */}
           <button
             type="button"
@@ -458,30 +413,6 @@ export function ScreenM4BillingPOS({
             <Grid className="h-3.5 w-3.5 text-[#9C3D1E]" />
             <span>All 100 Seats</span>
           </button>
-
-          {/* Quick Ribbon (Dynamic: active seat + takeaway + active seats) */}
-          <div className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {quickRibbonSeats.map((seatNum) => {
-              const isCurrent = activeSeat === seatNum;
-              const isTk = seatNum === 'TK-01';
-              return (
-                <button
-                  key={seatNum}
-                  type="button"
-                  onClick={() => handleSwitchSeat(seatNum)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
-                    isCurrent
-                      ? 'bg-[#9C3D1E] text-white shadow-xs'
-                      : isTk
-                      ? 'bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100'
-                      : 'bg-[#FAF8F5] border border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {isTk ? '📦 Takeaway' : `Seat ${seatNum}`}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -656,35 +587,6 @@ export function ScreenM4BillingPOS({
               <span className="font-mono">₹{subtotal}</span>
             </div>
 
-            {/* Discount selector */}
-            <div className="flex items-center justify-between text-slate-600">
-              <span className="flex items-center gap-1">
-                <Percent className="h-3 w-3 text-orange-600" />
-                <span>Discount:</span>
-              </span>
-              <div className="flex items-center gap-1">
-                {[0, 5, 10, 15, 20].map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDiscountPercent(d)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                      discountPercent === d ? 'bg-[#9C3D1E] text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {d === 0 ? 'None' : `${d}%`}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {discountPercent > 0 && (
-              <div className="flex justify-between text-[#9C3D1E] font-bold">
-                <span>Discount Savings:</span>
-                <span>-₹{discountAmount}</span>
-              </div>
-            )}
-
             <div className="flex justify-between text-slate-600">
               <span>GST (5%):</span>
               <span className="font-mono">₹{gst}</span>
@@ -785,31 +687,81 @@ export function ScreenM4BillingPOS({
 
           {/* Dishes list */}
           <div className="space-y-1.5 max-h-96 overflow-y-auto no-scrollbar pt-1">
-            {filteredDishes.map((dish) => (
-              <div
-                key={dish.id}
-                onClick={() => handleAddDirectItem(dish)}
-                className="flex items-center justify-between p-2 rounded-lg bg-[#FAF8F5] border border-slate-200 hover:border-orange-400 hover:bg-orange-50/50 transition cursor-pointer select-none text-xs"
-              >
-                <div className="pr-2 truncate">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        dish.isVegetarian ? 'bg-emerald-600' : 'bg-rose-600'
-                      }`}
-                    />
-                    <span className="font-bold text-slate-900 block truncate">{dish.title}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-mono ml-3.5">₹{dish.price}</span>
-                </div>
-                <button
-                  type="button"
-                  className="px-2 py-1 bg-[#9C3D1E] text-white rounded font-bold text-[10px] hover:bg-orange-700 transition cursor-pointer shrink-0"
+            {filteredDishes.map((dish) => {
+              const draftItem = draftItems.find((it) => it.name === dish.title);
+              const draftQty = draftItem ? draftItem.qty : 0;
+              const hasDraft = draftQty > 0;
+
+              return (
+                <div
+                  key={dish.id}
+                  className={`flex items-center justify-between p-2 rounded-lg border transition select-none text-xs ${
+                    hasDraft
+                      ? 'bg-orange-50/70 border-[#9C3D1E] shadow-2xs'
+                      : 'bg-[#FAF8F5] border-slate-200 hover:border-orange-400 hover:bg-orange-50/30'
+                  }`}
                 >
-                  + Add
-                </button>
-              </div>
-            ))}
+                  <div
+                    onClick={() => {
+                      if (!hasDraft) handleAddDirectItem(dish);
+                    }}
+                    className="pr-2 truncate flex-1 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          dish.isVegetarian ? 'bg-emerald-600' : 'bg-rose-600'
+                        }`}
+                      />
+                      <span className="font-bold text-slate-900 block truncate">{dish.title}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono ml-3.5">₹{dish.price}</span>
+                  </div>
+
+                  {hasDraft ? (
+                    <div className="flex items-center gap-1 bg-white border border-[#9C3D1E] rounded-lg px-1.5 py-0.5 shadow-2xs shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (draftItem) updateDraftItemQty(draftItem.id, -1);
+                        }}
+                        className="text-[#9C3D1E] hover:bg-orange-100 rounded p-1 font-black cursor-pointer transition"
+                        title="Decrease"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="font-mono font-black text-xs text-[#9C3D1E] px-1.5 min-w-[18px] text-center">
+                        {draftQty}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (draftItem) updateDraftItemQty(draftItem.id, 1);
+                        }}
+                        className="text-[#9C3D1E] hover:bg-orange-100 rounded p-1 font-black cursor-pointer transition"
+                        title="Increase"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddDirectItem(dish);
+                      }}
+                      className="px-2.5 py-1 bg-[#9C3D1E] hover:bg-orange-700 text-white rounded-lg font-bold text-[10px] transition cursor-pointer shrink-0 shadow-2xs flex items-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Add</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -842,12 +794,6 @@ export function ScreenM4BillingPOS({
                 <span>Subtotal:</span>
                 <span>₹{subtotal}</span>
               </div>
-              {discountPercent > 0 && (
-                <div className="flex justify-between text-black font-bold">
-                  <span>Discount ({discountPercent}%):</span>
-                  <span>-₹{discountAmount}</span>
-                </div>
-              )}
               <div className="flex justify-between">
                 <span>GST (5%):</span>
                 <span>₹{gst}</span>
