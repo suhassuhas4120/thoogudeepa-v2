@@ -464,7 +464,7 @@ export const TabletBillSettlement: React.FC<TabletBillSettlementProps> = ({
         {/* Verification banner if awaiting customer request */}
         {!isVerifiedByCustomer && !isPaymentReceived && (
           <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] font-bold text-center">
-            Awaiting customer bill verification from seat
+            Confirm payment received above to finalize & vacate
           </div>
         )}
 

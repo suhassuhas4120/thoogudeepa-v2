@@ -512,20 +512,30 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
           {/* Button 2: Proceed to Bill Checkout */}
           <button
             type="button"
-            disabled={!isBillRequested}
+            disabled={cartItems.length === 0}
             onClick={() => onProceedToBill?.(seatNumber, guestName, grandTotal)}
             className={`w-full h-11 font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press transition-all ${
-              isBillRequested
-                ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs cursor-pointer'
-                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+              cartItems.length === 0
+                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                : isBillRequested
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md cursor-pointer ring-2 ring-amber-400'
+                : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs cursor-pointer'
             }`}
-            title={isBillRequested ? 'Proceed to bill settlement' : 'Awaiting customer to click Pay via Waiter'}
+            title={
+              cartItems.length === 0
+                ? 'No items on table to bill'
+                : isBillRequested
+                ? 'Customer requested bill via app - Click to settle'
+                : 'Proceed to bill settlement'
+            }
           >
-            <Receipt className={`w-4 h-4 ${isBillRequested ? 'text-emerald-400' : 'text-slate-400'}`} />
+            <Receipt className={`w-4 h-4 ${isBillRequested ? 'text-slate-950 stroke-[2.5]' : cartItems.length > 0 ? 'text-emerald-400' : 'text-slate-400'}`} />
             <span>
-              {isBillRequested
-                ? `SETTLE BILL (₹${grandTotal})`
-                : 'AWAITING CUSTOMER BILL REQUEST'}
+              {cartItems.length === 0
+                ? 'NO ACTIVE ORDERS'
+                : isBillRequested
+                ? `★ BILL REQUESTED (₹${grandTotal})`
+                : `SETTLE BILL (₹${grandTotal})`}
             </span>
           </button>
 

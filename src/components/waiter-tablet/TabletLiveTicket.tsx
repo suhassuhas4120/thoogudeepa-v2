@@ -362,23 +362,31 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
           {/* Button 2: Collect Bill */}
           <button
             type="button"
-            disabled={!hasItems || !isBillRequested}
+            disabled={!hasItems}
             onClick={onSwitchToBillMode}
             className={`h-11 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-2xs transition-all ${
-              hasItems && isBillRequested
-                ? 'bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black cursor-pointer shadow-amber-500/20'
-                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+              !hasItems
+                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                : isBillRequested
+                ? 'bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black cursor-pointer shadow-amber-500/20 ring-2 ring-amber-400'
+                : 'bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black cursor-pointer shadow-slate-900/20'
             }`}
             title={
               !hasItems
                 ? "Punch order dishes first before bill collection"
-                : !isBillRequested
-                ? "Awaiting customer 'Pay via Waiter' request"
+                : isBillRequested
+                ? "Customer requested bill via app - Switch to Settle Bill"
                 : "Switch Right Pane to Settle Bill"
             }
           >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>{isBillRequested ? 'Settle Bill' : 'Awaiting Request'}</span>
+            <CreditCard className={`w-3.5 h-3.5 ${isBillRequested ? 'text-slate-950 stroke-[2.5]' : hasItems ? 'text-emerald-400' : 'text-slate-400'}`} />
+            <span>
+              {!hasItems
+                ? 'Awaiting Orders'
+                : isBillRequested
+                ? '★ Settle Bill'
+                : 'Settle Bill'}
+            </span>
           </button>
         </div>
 
