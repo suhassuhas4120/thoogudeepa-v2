@@ -1499,6 +1499,50 @@ export const realtimeBridge = {
         stats.billsSettled += 1;
         stats.guestsServed += 2;
         localStorage.setItem(STORAGE_SHIFT_STATS_KEY, JSON.stringify(stats));
+
+        // 4. Record into settled bills ledger
+        const STORAGE_SETTLED_BILLS = 'thoogudeepa_v2_settled_bills_history';
+        const existingRaw = localStorage.getItem(STORAGE_SETTLED_BILLS);
+        const list = existingRaw ? JSON.parse(existingRaw) : [];
+        const isTk = cleanChair === 'TK-01' || cleanChair.toLowerCase().includes('tk');
+        const billNumber = `INV-${Date.now().toString().slice(-6)}`;
+        const localOrders = getLocalOrdersList();
+        const matchingOrders = localOrders.filter((o) => {
+          const oC = (o.order.chair_id || '').replace(/[^0-9]/g, '');
+          if (isTk) return o.order.chair_id?.toLowerCase().includes('tk') || o.order.chair_id?.toLowerCase().includes('takeaway');
+          return oC === cleanChair || oC === unpadded || o.order.chair_id === chairId;
+        });
+        const items: any[] = [];
+        matchingOrders.forEach((mo) => {
+          if (mo.items) {
+            mo.items.forEach((it) => {
+              items.push({
+                name: it.dish_name,
+                quantity: it.quantity,
+                price: it.price,
+                totalPrice: it.price * it.quantity,
+              });
+            });
+          }
+        });
+        const subtotal = Math.round(amount / 1.05);
+        const tax = amount - subtotal;
+        list.unshift({
+          invoiceNumber: billNumber,
+          tableName: isTk ? 'TK-01' : `T-${padded}`,
+          seatLabel: isTk ? 'Takeaway Parcel' : `Chair ${cleanChair}`,
+          seatNumber: isTk ? 0 : Number(cleanChair) || 1,
+          captainName: 'Captain Ramesh',
+          subtotal,
+          totalTax: tax,
+          cgst: Math.round(tax / 2),
+          sgst: Math.round(tax / 2),
+          grandTotal: amount,
+          method: paymentMethod || 'UPI',
+          formattedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          items,
+        });
+        localStorage.setItem(STORAGE_SETTLED_BILLS, JSON.stringify(list.slice(0, 50)));
       } catch {}
     }
 
@@ -1521,6 +1565,17 @@ export const realtimeBridge = {
         : { totalSales: 14850, billsSettled: 18, tipsEarned: 620, kotsPunched: 28, guestsServed: 42 };
     } catch {
       return { totalSales: 14850, billsSettled: 18, tipsEarned: 620, kotsPunched: 28, guestsServed: 42 };
+    }
+  },
+
+  // Get settled bills history for shift audit
+  getSettledBills(): any[] {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('thoogudeepa_v2_settled_bills_history');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
     }
   },
 

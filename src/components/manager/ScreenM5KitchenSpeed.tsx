@@ -19,18 +19,13 @@ import {
   Activity,
   ShieldCheck,
 } from 'lucide-react';
-import { OrderRecord, OrderItemRecord, ServiceAlertRecord } from '@/lib/supabase';
+import { realtimeBridge, OrderRecord, OrderItemRecord, ServiceAlertRecord } from '@/lib/supabase';
 import {
   SharedKDSTicket,
   SettledBillSnapshot,
   SharedPing,
   OrderStage,
 } from '@/components/manager/types';
-import {
-  INITIAL_PAID_ORDERS,
-  INITIAL_PLACED_ORDERS,
-  INITIAL_CUSTOMER_PINGS,
-} from '@/lib/data/seedOrdersHistory';
 
 interface KitchenItemNotification {
   id: string;
@@ -60,17 +55,36 @@ export function ScreenM5KitchenSpeed({
   const [activeTab, setActiveTab] = useState<'PLACED' | 'PAID'>('PLACED');
   const [placedFilter, setPlacedFilter] = useState<'ALL' | 'READY' | 'PREP' | 'PLACED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [settledBills, setSettledBills] = useState<SettledBillSnapshot[]>(() => {
+    return realtimeBridge.getSettledBills ? realtimeBridge.getSettledBills() : [];
+  });
 
-  // ── 1. Convert live orders into SharedKDSTicket format ──
+  React.useEffect(() => {
+    const updateBills = () => {
+      if (realtimeBridge.getSettledBills) {
+        setSettledBills(realtimeBridge.getSettledBills());
+      }
+    };
+    updateBills();
+    const unsub = realtimeBridge.subscribeKDS({
+      onBillSettled: () => updateBills(),
+      onClearAll: () => setSettledBills([]),
+    });
+    return () => unsub();
+  }, []);
+
+  // ── 1. Convert live orders strictly into SharedKDSTicket format (Zero Dummy Seeds) ──
   const liveTickets: SharedKDSTicket[] = useMemo(() => {
     return (liveOrders || []).map((lo, oIdx) => {
-      const chairNum = parseInt((lo.order.chair_id || '').replace(/[^0-9]/g, ''), 10) || 1;
-      const tNum = `T-${String(chairNum).padStart(2, '0')}`;
+      const chairRaw = (lo.order.chair_id || '').trim();
+      const isTk = chairRaw === 'TK-01' || chairRaw.toLowerCase().includes('takeaway') || chairRaw.toLowerCase().includes('parcel');
+      const chairNum = parseInt(chairRaw.replace(/[^0-9]/g, ''), 10) || 1;
+      const tNum = isTk ? 'TK-01' : `T-${String(chairNum).padStart(2, '0')}`;
       const orderIdPart = lo.order.id ? lo.order.id.slice(0, 4) : `${oIdx + 1}`;
       return {
         id: lo.order.ticket_number || `KOT-${tNum}-${orderIdPart}`,
         tableNumber: tNum,
-        serverName: 'Captain Ramesh',
+        serverName: isTk ? 'Takeaway Desk' : 'Captain Ramesh',
         timestamp: lo.order.created_at
           ? new Date(lo.order.created_at).toLocaleTimeString([], {
               hour: '2-digit',
@@ -79,60 +93,44 @@ export function ScreenM5KitchenSpeed({
           : 'Just now',
         elapsedMinutes: 5,
         status: (lo.order.status as any) || 'NEW',
-        items: lo.items.map((it, iIdx) => ({
+        items: (lo.items || []).map((it, iIdx) => ({
           id: it.id || `live-item-${chairNum}-${iIdx}`,
           name: it.dish_name,
           quantity: it.quantity,
           stage: it.stage || 'PLACED',
           prepMode: 'Standard',
           price: it.price,
-          seatNumber: chairNum,
+          seatNumber: isTk ? 0 : chairNum,
         })),
-        source: 'CUSTOMER',
-        seatNumber: chairNum,
+        source: isTk ? 'WAITER' : 'CUSTOMER',
+        seatNumber: isTk ? 0 : chairNum,
       };
     });
   }, [liveOrders]);
 
-  // ── 2. Combined Placed Orders (Live + Seed to ensure full depth) ──
-  const combinedPlacedOrders: SharedKDSTicket[] = useMemo(() => {
-    const liveMap = new Map<string, SharedKDSTicket>();
-    liveTickets.forEach((tk) => liveMap.set(tk.id, tk));
-    (INITIAL_PLACED_ORDERS || []).forEach((seed) => {
-      if (!liveMap.has(seed.id)) {
-        liveMap.set(seed.id, seed);
-      }
-    });
-    return Array.from(liveMap.values());
-  }, [liveTickets]);
+  // ── 2. Placed Orders: 100% Real Live Tickets ──
+  const combinedPlacedOrders: SharedKDSTicket[] = liveTickets;
 
-  // ── 3. Combined Paid Orders ──
-  const combinedPaidOrders: SettledBillSnapshot[] = useMemo(() => {
-    return INITIAL_PAID_ORDERS || [];
-  }, []);
+  // ── 3. Paid Orders: 100% Real Settled Bills ──
+  const combinedPaidOrders: SettledBillSnapshot[] = settledBills;
 
-  // ── 4. Combined Customer Pings ──
+  // ── 4. Customer Notifications: 100% Real Alerts ──
   const combinedCustomerPings: SharedPing[] = useMemo(() => {
-    const pingMap = new Map<string, SharedPing>();
-    (alerts || []).forEach((al) => {
-      const chairNum = parseInt((al.chairId || al.seatNumber || '').replace(/[^0-9]/g, ''), 10) || 1;
-      pingMap.set(al.id, {
+    return (alerts || []).map((al) => {
+      const chairRaw = (al.chairId || al.seatNumber || '').trim();
+      const isTk = chairRaw === 'TK-01' || chairRaw.toLowerCase().includes('takeaway');
+      const chairNum = parseInt(chairRaw.replace(/[^0-9]/g, ''), 10) || 1;
+      return {
         id: al.id,
-        tableNumber: `T-${String(chairNum).padStart(2, '0')}`,
-        seatNumber: chairNum,
+        tableNumber: isTk ? 'TK-01' : `T-${String(chairNum).padStart(2, '0')}`,
+        seatNumber: isTk ? 0 : chairNum,
         type: al.type || 'WAITER',
         message: al.message || al.title || al.type,
         timestamp: al.timeAgo || (al.createdAt ? new Date(al.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'),
         status: al.isResolved ? 'RESOLVED' : 'PENDING',
-        guestName: al.guestName || `Guest (Seat ${chairNum})`,
-      });
+        guestName: al.guestName || (isTk ? 'Takeaway Guest' : `Guest (Seat ${chairNum})`),
+      };
     });
-    (INITIAL_CUSTOMER_PINGS || []).forEach((seed) => {
-      if (!pingMap.has(seed.id)) {
-        pingMap.set(seed.id, seed);
-      }
-    });
-    return Array.from(pingMap.values());
   }, [alerts]);
 
   // ── 5. Kitchen Item Notifications List ──
@@ -396,7 +394,7 @@ export function ScreenM5KitchenSpeed({
                 <span className="font-bold">
                   Showing {filteredPlaced.length} Placed Orders (Grid: 2 Columns)
                 </span>
-                <span className="text-[10px] text-slate-400">Min 20 orders archived</span>
+                <span className="text-[10px] text-slate-400">Real-time active tickets</span>
               </div>
 
               {filteredPlaced.length > 0 ? (
@@ -484,9 +482,12 @@ export function ScreenM5KitchenSpeed({
                   })}
                 </div>
               ) : (
-                <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
-                  <ChefHat className="h-6 w-6 text-slate-300 mx-auto mb-1" />
-                  <div className="font-bold text-xs">No Placed Orders Matching Search</div>
+                <div className="p-10 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 space-y-1">
+                  <ChefHat className="h-7 w-7 text-slate-300 mx-auto mb-1" />
+                  <div className="font-bold text-xs text-slate-700">No Active Placed Orders in Kitchen</div>
+                  <p className="text-[11px] text-slate-400">
+                    Live orders placed from Customer QR, Waiter Mobile, or Cashier POS will appear here instantly.
+                  </p>
                 </div>
               )}
             </div>
@@ -497,7 +498,7 @@ export function ScreenM5KitchenSpeed({
                 <span className="font-bold">
                   Showing {filteredPaid.length} Paid Orders (Grid: 2 Columns)
                 </span>
-                <span className="text-[10px] text-slate-400">Min 20 settled bills</span>
+                <span className="text-[10px] text-slate-400">Shift settled receipts</span>
               </div>
 
               {filteredPaid.length > 0 ? (
@@ -607,9 +608,12 @@ export function ScreenM5KitchenSpeed({
                   })}
                 </div>
               ) : (
-                <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
-                  <Receipt className="h-6 w-6 text-slate-300 mx-auto mb-1" />
-                  <div className="font-bold text-xs">No Paid Orders Matching Search</div>
+                <div className="p-10 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 space-y-1">
+                  <Receipt className="h-7 w-7 text-slate-300 mx-auto mb-1" />
+                  <div className="font-bold text-xs text-slate-700">No Settled Bills for this Shift Yet</div>
+                  <p className="text-[11px] text-slate-400">
+                    Bills settled from POS Billing or Waiter will be logged here with complete receipts.
+                  </p>
                 </div>
               )}
             </div>
@@ -644,81 +648,92 @@ export function ScreenM5KitchenSpeed({
 
           {/* Kitchen Notifications Scrollable Feed (Clean Overview, No Advance Button) */}
           <div className="space-y-2.5 max-h-[860px] overflow-y-auto pr-1">
-            {kitchenNotificationsList.map((notif) => {
-              const stageBadge = getStageBadge(notif.stage);
-              const isReady = notif.stage === 'PLATED';
-              const isPrep = notif.stage === 'PREP';
-              const isServed = notif.stage === 'SERVED';
-              const isReceived = notif.stage === 'RECEIVED';
+            {kitchenNotificationsList.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 space-y-1">
+                <ChefHat className="h-6 w-6 text-slate-300 mx-auto mb-1" />
+                <div className="font-bold text-xs text-slate-700">No Kitchen Notifications</div>
+                <p className="text-[10px] text-slate-400">
+                  Dishes placed in kitchen will stream their live status here.
+                </p>
+              </div>
+            ) : (
+              kitchenNotificationsList.map((notif) => {
+                const stageBadge = getStageBadge(notif.stage);
+                const isReady = notif.stage === 'PLATED';
+                const isPrep = notif.stage === 'PREP';
+                const isServed = notif.stage === 'SERVED';
+                const isReceived = notif.stage === 'RECEIVED';
+                const isTk = notif.tableNumber === 'TK-01' || String(notif.chairNumber) === '0';
 
-              return (
-                <div
-                  key={notif.id}
-                  className={`p-3 rounded-xl border bg-white shadow-2xs space-y-2 transition-all hover:shadow-xs ${
-                    isReady
-                      ? 'border-emerald-300 bg-emerald-50/20'
-                      : isPrep
-                      ? 'border-amber-300 bg-amber-50/20'
-                      : isServed
-                      ? 'border-slate-200 bg-slate-50/40 opacity-75'
-                      : isReceived
-                      ? 'border-blue-300 bg-blue-50/20'
-                      : 'border-orange-200 bg-orange-50/20'
-                  }`}
-                >
-                  {/* Top row: Table No, Chair No, Time */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-black text-slate-900 text-xs">
-                        Table {notif.tableNumber}
-                      </span>
-                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                        Chair {notif.chairNumber}
+                return (
+                  <div
+                    key={notif.id}
+                    className={`p-3 rounded-xl border bg-white shadow-2xs space-y-2 transition-all hover:shadow-xs ${
+                      isReady
+                        ? 'border-emerald-300 bg-emerald-50/20'
+                        : isPrep
+                        ? 'border-amber-300 bg-amber-50/20'
+                        : isServed
+                        ? 'border-slate-200 bg-slate-50/40 opacity-75'
+                        : isReceived
+                        ? 'border-blue-300 bg-blue-50/20'
+                        : 'border-orange-200 bg-orange-50/20'
+                    }`}
+                  >
+                    {/* Top row: Table No, Chair No, Time */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-slate-900 text-xs">
+                          {isTk ? 'Takeaway Desk' : `Table ${notif.tableNumber}`}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                          {isTk ? 'Parcel' : `Chair ${notif.chairNumber}`}
+                        </span>
+                      </div>
+
+                      <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{notif.timestamp}</span>
                       </span>
                     </div>
 
-                    <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{notif.timestamp}</span>
-                    </span>
-                  </div>
-
-                  {/* Item Details: Quantity & Name */}
-                  <div className="p-2 rounded-lg bg-[#FAF8F5] border border-slate-200/70">
-                    <div className="flex items-start justify-between gap-1.5">
-                      <div className="min-w-0">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="font-black text-orange-600 text-xs shrink-0">
-                            {notif.quantity}x
-                          </span>
-                          <span className="font-black text-slate-900 text-xs">
-                            {notif.itemName}
-                          </span>
-                        </div>
-                        {notif.options && (
-                          <div className="text-[9.5px] text-slate-400 mt-0.5">
-                            ({notif.options})
+                    {/* Item Details: Quantity & Name */}
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-slate-200/70">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-black text-orange-600 text-xs shrink-0">
+                              {notif.quantity}x
+                            </span>
+                            <span className="font-black text-slate-900 text-xs">
+                              {notif.itemName}
+                            </span>
                           </div>
-                        )}
+                          {notif.options && (
+                            <div className="text-[9.5px] text-slate-400 mt-0.5">
+                              ({notif.options})
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Bottom row: Live Status Badge & Server Info */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-black border ${stageBadge.cls}`}
-                    >
-                      {stageBadge.text}
-                    </span>
+                    {/* Bottom row: Live Status Badge & Server Info */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-black border ${stageBadge.cls}`}
+                      >
+                        {stageBadge.text}
+                      </span>
 
-                    <span className="text-[9.5px] font-bold text-slate-400">
-                      Pass: <strong className="text-slate-600">{notif.serverName}</strong>
-                    </span>
+                      <span className="text-[9.5px] font-bold text-slate-400">
+                        Pass: <strong className="text-slate-600">{notif.serverName}</strong>
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -750,80 +765,93 @@ export function ScreenM5KitchenSpeed({
 
           {/* Customer Notifications Scrollable Feed */}
           <div className="space-y-2.5 max-h-[860px] overflow-y-auto pr-1">
-            {combinedCustomerPings.map((ping) => {
-              const isResolved = ping.status === 'RESOLVED';
-              const isPending = ping.status === 'PENDING';
+            {combinedCustomerPings.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 space-y-1">
+                <BellRing className="h-6 w-6 text-slate-300 mx-auto mb-1" />
+                <div className="font-bold text-xs text-slate-700">No Active Customer Notifications</div>
+                <p className="text-[10px] text-slate-400">
+                  Guest service calls (Water, Waiter, Bill) will ping here instantly.
+                </p>
+              </div>
+            ) : (
+              combinedCustomerPings.map((ping) => {
+                const isResolved = ping.status === 'RESOLVED';
+                const isPending = ping.status === 'PENDING';
+                const isTk = ping.tableNumber === 'TK-01' || ping.seatNumber === 0;
 
-              return (
-                <div
-                  key={ping.id}
-                  className={`p-3 rounded-xl border bg-white shadow-2xs space-y-2 transition-all hover:shadow-xs ${
-                    isResolved
-                      ? 'border-slate-200 bg-slate-50/50 opacity-70'
-                      : isPending
-                      ? 'border-red-200 bg-red-50/15'
-                      : 'border-blue-200 bg-blue-50/15'
-                  }`}
-                >
-                  {/* Top row: Icon, Table, Chair, Time */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <div className="p-1 rounded-md bg-[#FAF8F5] border border-slate-200 shrink-0">
-                        {getPingIcon(ping.type)}
+                return (
+                  <div
+                    key={ping.id}
+                    className={`p-3 rounded-xl border bg-white shadow-2xs space-y-2 transition-all hover:shadow-xs ${
+                      isResolved
+                        ? 'border-slate-200 bg-slate-50/50 opacity-70'
+                        : isPending
+                        ? 'border-red-200 bg-red-50/15'
+                        : 'border-blue-200 bg-blue-50/15'
+                    }`}
+                  >
+                    {/* Top row: Icon, Table, Chair, Time */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <div className="p-1 rounded-md bg-[#FAF8F5] border border-slate-200 shrink-0">
+                          {getPingIcon(ping.type)}
+                        </div>
+                        <span className="font-black text-slate-900 text-xs">
+                          {isTk ? 'Takeaway Desk' : `Table ${ping.tableNumber}`}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+                          {isTk
+                            ? 'Parcel'
+                            : typeof ping.seatNumber === 'number'
+                            ? `Chair ${ping.seatNumber}`
+                            : 'Table'}
+                        </span>
                       </div>
-                      <span className="font-black text-slate-900 text-xs">
-                        Table {ping.tableNumber}
-                      </span>
-                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-black bg-slate-100 text-slate-700 border border-slate-200">
-                        {typeof ping.seatNumber === 'number'
-                          ? `Chair ${ping.seatNumber}`
-                          : 'Table'}
+
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        {ping.timestamp}
                       </span>
                     </div>
 
-                    <span className="text-[10px] text-slate-400 font-bold">
-                      {ping.timestamp}
-                    </span>
-                  </div>
+                    {/* Message & Type */}
+                    <div className="p-2 rounded-lg bg-[#FAF8F5] border border-slate-200/70">
+                      <div className="flex items-center justify-between gap-1 text-[11px]">
+                        <span className="font-black text-slate-800 uppercase text-[10px]">
+                          {ping.type} REQUEST
+                        </span>
+                        <span className="text-[9.5px] text-slate-400">
+                          {ping.guestName || 'Guest'}
+                        </span>
+                      </div>
+                      {ping.message && (
+                        <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
+                          {ping.message}
+                        </p>
+                      )}
+                    </div>
 
-                  {/* Message & Type */}
-                  <div className="p-2 rounded-lg bg-[#FAF8F5] border border-slate-200/70">
-                    <div className="flex items-center justify-between gap-1 text-[11px]">
-                      <span className="font-black text-slate-800 uppercase text-[10px]">
-                        {ping.type} REQUEST
+                    {/* Bottom row: Live Status badge */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[9.5px] font-black border ${
+                          isResolved
+                            ? 'bg-slate-100 text-slate-600 border-slate-300'
+                            : isPending
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                        }`}
+                      >
+                        {ping.status}
                       </span>
-                      <span className="text-[9.5px] text-slate-400">
-                        {ping.guestName || 'Guest'}
+
+                      <span className="text-[9.5px] font-bold text-slate-400">
+                        {isResolved ? 'Resolved by Waiter' : 'Awaiting Floor Server'}
                       </span>
                     </div>
-                    {ping.message && (
-                      <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
-                        {ping.message}
-                      </p>
-                    )}
                   </div>
-
-                  {/* Bottom row: Live Status badge */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[9.5px] font-black border ${
-                        isResolved
-                          ? 'bg-slate-100 text-slate-600 border-slate-300'
-                          : isPending
-                          ? 'bg-rose-100 text-rose-800 border-rose-300'
-                          : 'bg-blue-100 text-blue-800 border-blue-300'
-                      }`}
-                    >
-                      {ping.status}
-                    </span>
-
-                    <span className="text-[9.5px] font-bold text-slate-400">
-                      {isResolved ? 'Resolved by Waiter' : 'Awaiting Floor Server'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>
