@@ -69,6 +69,24 @@ export function ScreenM2Floor100({
   const [selectedZone, setSelectedZone] = useState<number | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'VACANT' | 'OCCUPIED' | 'BILLING' | 'ALERT'>('ALL');
   const [printKotNotice, setPrintKotNotice] = useState<string | null>(null);
+  const [vacatedSeats, setVacatedSeats] = useState<Set<string>>(new Set());
+  const [shiftSales, setShiftSales] = useState<number>(() => {
+    return realtimeBridge.getShiftStats().totalSales;
+  });
+
+  React.useEffect(() => {
+    const updateStats = () => {
+      setShiftSales(realtimeBridge.getShiftStats().totalSales);
+    };
+    updateStats();
+    const unsub = realtimeBridge.subscribeKDS({
+      onBillSettled: () => {
+        updateStats();
+        onRefresh();
+      },
+    });
+    return () => unsub();
+  }, [onRefresh]);
 
   // Generate 100 Individual Seats Data
   const seatGrid = useMemo(() => {
@@ -76,6 +94,21 @@ export function ScreenM2Floor100({
     for (let i = 1; i <= 100; i++) {
       const chairId = i < 10 ? `0${i}` : `${i}`;
       const unpadded = String(i);
+
+      if (vacatedSeats.has(chairId) || vacatedSeats.has(unpadded)) {
+        list.push({
+          seatNumber: i,
+          chairId,
+          status: 'vacant' as const,
+          waiterName: i <= 25 ? 'Ramesh Kumar (Zone 1)' : i <= 50 ? 'Suresh M (Zone 2)' : i <= 75 ? 'Anand Kumar (Zone 3)' : 'Deepa Naik (Zone 4)',
+          liveOrders: [],
+          liveItems: [],
+          demoItems: [],
+          alert: undefined,
+          runningTotal: 0,
+        });
+        continue;
+      }
 
       // Match live orders specifically for this seat
       const matchingLiveOrders = liveOrders.filter((o) => {
@@ -210,16 +243,50 @@ export function ScreenM2Floor100({
   }, [particularSeatOrders, activeSelectedSeat]);
 
   // Top KPIs
-  const totalOccupiedSeats = seatGrid.filter((s) => s.status !== 'vacant').length;
-  const guestsSeatedCount = totalOccupiedSeats; // 1 guest per seat
-  const activeKitchenKotCount = Math.max(4, liveOrders.length);
+  const totalOccupiedSeats = useMemo(() => {
+    return seatGrid.filter((s) => s.status !== 'vacant').length;
+  }, [seatGrid]);
+  const guestsSeatedCount = totalOccupiedSeats; // Current active seats occupied
   const occupancyPercentage = Math.round((totalOccupiedSeats / 100) * 100);
+
+  // Active kitchen items count: total items placed order in kitchen
+  const activeKitchenItemsCount = useMemo(() => {
+    let count = 0;
+    liveOrders.forEach((o) => {
+      if (o.items && o.items.length > 0) {
+        o.items.forEach((it) => {
+          if (it.stage !== 'SERVED') {
+            count += it.quantity || 1;
+          }
+        });
+      }
+    });
+    if (count > 0) return count;
+
+    // Check items currently in kitchen pass / cooking
+    const fallbackCount = seatGrid.reduce((sum, s) => {
+      const items = s.liveItems && s.liveItems.length > 0 ? s.liveItems : s.demoItems || [];
+      const kitchenItems = items.filter(
+        (it: any) =>
+          it.stage === 'PLACED' || it.stage === 'REC' || it.stage === 'PREP' || it.stage === 'READY'
+      );
+      return sum + kitchenItems.reduce((iSum: number, it: any) => iSum + (it.quantity || 1), 0);
+    }, 0);
+
+    return fallbackCount;
+  }, [liveOrders, seatGrid]);
 
   // Actions for this seat
   const handleVacateSeat = async () => {
     if (!activeSelectedSeat) return;
     if (confirm(`Confirm vacate Seat #${activeSelectedSeat.chairId}?`)) {
       await realtimeBridge.releaseSeat(activeSelectedSeat.chairId);
+      setVacatedSeats((prev) => {
+        const next = new Set(prev);
+        next.add(activeSelectedSeat.chairId);
+        next.add(String(activeSelectedSeat.seatNumber));
+        return next;
+      });
       onRefresh();
     }
   };
@@ -241,7 +308,7 @@ export function ScreenM2Floor100({
     <div className="w-full mx-auto p-1 space-y-3 font-mono">
       {/* ────────────────────────────────────────────────────────────
           TOP 4 KPI METRICS STRIP
-          Total sales -> | Guests seated 18 | Active kitchen kot 4 | Table occupancy
+          Total sales -> | Guests seated | Active kitchen kot | Table occupancy
          ──────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {/* Box 1: Total sales -> */}
@@ -251,10 +318,10 @@ export function ScreenM2Floor100({
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-xl md:text-2xl font-black text-slate-900 mt-1">
-            ₹ 38,450
+            ₹ {shiftSales.toLocaleString('en-IN')}
           </div>
           <p className="text-[10px] text-emerald-700 font-bold mt-1">
-            ● Real-Time Shift Revenue
+            ● Real-Time Day Collections
           </p>
         </div>
 
@@ -265,7 +332,7 @@ export function ScreenM2Floor100({
             <Users className="h-4 w-4 text-blue-600" />
           </div>
           <div className="text-xl md:text-2xl font-black text-slate-900 mt-1">
-            {guestsSeatedCount || 18} <span className="text-xs text-slate-500 font-bold">Guests</span>
+            {guestsSeatedCount} <span className="text-xs text-slate-500 font-bold">Guests</span>
           </div>
           <p className="text-[10px] text-slate-500 font-bold mt-1">
             Dining in Hall right now
@@ -279,10 +346,10 @@ export function ScreenM2Floor100({
             <Utensils className="h-4 w-4 text-orange-600" />
           </div>
           <div className="text-xl md:text-2xl font-black text-orange-800 mt-1">
-            {activeKitchenKotCount} <span className="text-xs text-slate-500 font-bold">KOTs</span>
+            {activeKitchenItemsCount} <span className="text-xs text-slate-500 font-bold">Items</span>
           </div>
           <p className="text-[10px] text-amber-700 font-bold mt-1">
-            At active cooking stations
+            Dishes placed in kitchen
           </p>
         </div>
 
