@@ -115,61 +115,41 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
     return cartItems.filter(c => !c.orderItemId && !c.isFired);
   }, [cartItems]);
 
-  // Consolidate committed items by dish identity
-  const committedDishes = useMemo(() => {
+  // List committed items individually without 3x/4x grouping to avoid confusion
+  const committedItems = useMemo(() => {
     const committed = cartItems.filter(c => Boolean(c.orderItemId || c.isFired));
-    const map = new Map<string, ConsolidatedCommittedDish>();
+    const list: Array<{
+      item: CartItem;
+      unitKey: string;
+      orderItemId: string;
+      unitPrice: number;
+      stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
+    }> = [];
 
-    committed.forEach(c => {
-      const dishKey = String(c.menuItem.id || c.menuItem.name);
+    committed.forEach((c, cIdx) => {
+      const qty = c.quantity || 1;
       const stage = (c.stage as string) || 'PLACED';
-      const isItemServed = stage === 'SERVED';
-      const isItemReady = stage === 'READY';
-      const isItemPrep = stage === 'PREP' || stage === 'PREPARING';
-      const isItemRec = stage === 'REC' || stage === 'RECEIVED';
+      const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' =
+        stage === 'SERVED' ? 'SERVED' :
+        stage === 'READY' ? 'READY' :
+        (stage === 'PREP' || stage === 'PREPARING') ? 'PREP' :
+        (stage === 'REC' || stage === 'RECEIVED') ? 'REC' : 'PLACED';
 
-      if (!map.has(dishKey)) {
-        map.set(dishKey, {
-          dishId: String(c.menuItem.id),
-          name: c.menuItem.name,
-          menuItem: c.menuItem,
-          totalQuantity: 0,
-          totalAmount: 0,
-          readyCount: 0,
-          servedCount: 0,
-          prepCount: 0,
-          recCount: 0,
-          placedCount: 0,
-          primaryStage: 'PLACED',
-          itemIds: []
+      const unitP = c.menuItem.price || Math.round(c.lineTotal / qty) || 0;
+
+      for (let q = 0; q < qty; q++) {
+        const uKey = c.orderItemId ? String(c.orderItemId) : `cart-${c.menuItem.id}-${cIdx}-${q}`;
+        list.push({
+          item: c,
+          unitKey: uKey,
+          orderItemId: c.orderItemId ? String(c.orderItemId) : String(c.menuItem.id),
+          unitPrice: unitP,
+          stage: effStage,
         });
       }
-
-      const entry = map.get(dishKey)!;
-      entry.totalQuantity += c.quantity;
-      entry.totalAmount += c.lineTotal;
-      if (c.orderItemId) entry.itemIds.push(c.orderItemId);
-      if (isItemServed) entry.servedCount += c.quantity;
-      else if (isItemReady) entry.readyCount += c.quantity;
-      else if (isItemPrep) entry.prepCount += c.quantity;
-      else if (isItemRec) entry.recCount += c.quantity;
-      else entry.placedCount += c.quantity;
     });
 
-    return Array.from(map.values()).map(entry => {
-      if (entry.servedCount >= entry.totalQuantity && entry.totalQuantity > 0) {
-        entry.primaryStage = 'SERVED';
-      } else if (entry.readyCount > 0) {
-        entry.primaryStage = 'READY';
-      } else if (entry.prepCount > 0) {
-        entry.primaryStage = 'PREP';
-      } else if (entry.recCount > 0) {
-        entry.primaryStage = 'REC';
-      } else {
-        entry.primaryStage = 'PLACED';
-      }
-      return entry;
-    });
+    return list;
   }, [cartItems]);
 
   // Compute subtotal from all items
@@ -348,24 +328,25 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
               </div>
             )}
 
-            {/* SECTION 2: ACTIVE KITCHEN ORDERS (CONSOLIDATED COMMITTED DISHES) */}
-            {committedDishes.length > 0 && (
+            {/* SECTION 2: ACTIVE KITCHEN ORDERS (EACH ITEM LISTED SEPARATELY) */}
+            {committedItems.length > 0 && (
               <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-[11px] font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    Active Kitchen Orders ({committedDishes.reduce((acc, curr) => acc + curr.totalQuantity, 0)})
+                    Active Kitchen Orders ({committedItems.length})
                   </span>
                   <span className="text-[10px] font-bold text-slate-500">Live Stage</span>
                 </div>
 
-                {committedDishes.map((dish) => {
-                  const isServed = dish.primaryStage === 'SERVED';
-                  const isNonVeg = dish.menuItem.dietary === 'non_veg';
+                {committedItems.map((unit) => {
+                  const item = unit.item;
+                  const isServed = unit.stage === 'SERVED';
+                  const isNonVeg = item.menuItem.dietary === 'non_veg';
 
                   return (
                     <div
-                      key={`committed-${dish.dishId}`}
+                      key={`committed-${unit.unitKey}`}
                       className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
                         isServed
                           ? 'border-slate-200 bg-slate-100/70 opacity-70'
@@ -375,8 +356,8 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
                           <img
-                            src={dish.menuItem.image || "/images/dishes/chicken-donne-biryani.jpg"}
-                            alt={dish.name}
+                            src={item.menuItem.image || "/images/dishes/chicken-donne-biryani.jpg"}
+                            alt={item.menuItem.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = '/logo.jpg';
@@ -389,31 +370,30 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                             <span className={`text-xs sm:text-sm block truncate ${
                               isServed ? 'font-bold text-slate-400 line-through decoration-2' : 'font-black text-slate-900'
                             }`}>
-                              {dish.name}
+                              {item.menuItem.name}
                             </span>
                           </div>
                           <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
-                            {dish.totalQuantity}x • <span className="text-amber-800 font-black">₹{dish.totalAmount}</span>
-                            {dish.servedCount > 0 && dish.readyCount > 0 && (
-                              <span className="ml-1 text-[10px] text-slate-400 font-medium">
-                                ({dish.servedCount} Served • {dish.readyCount} Ready)
-                              </span>
-                            )}
+                            <span className="text-amber-800 font-black">₹{unit.unitPrice}</span>
                           </span>
                         </div>
                       </div>
 
                       {/* Operational Status Badges & Serve Action */}
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {dish.primaryStage === 'READY' && (
+                        {unit.stage === 'READY' && (
                           <div className="flex items-center gap-1.5">
                             <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>READY {dish.readyCount > 1 ? `(${dish.readyCount})` : ''}</span>
+                              <span>READY</span>
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleServeDish(dish)}
+                              onClick={() => {
+                                if (onServeItem) {
+                                  onServeItem(unit.orderItemId || String(unit.item.menuItem.id));
+                                }
+                              }}
                               className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                               title="Mark as Served to Seat"
                             >
@@ -423,7 +403,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                           </div>
                         )}
 
-                        {dish.primaryStage === 'PREP' && (
+                        {unit.stage === 'PREP' && (
                           <div className="flex items-center gap-1.5">
                             <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
                               <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 animate-pulse" />
@@ -432,7 +412,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                           </div>
                         )}
 
-                        {dish.primaryStage === 'REC' && (
+                        {unit.stage === 'REC' && (
                           <div className="flex items-center gap-1.5">
                             <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
                               <Clock className="w-3.5 h-3.5 text-sky-600" />
@@ -441,7 +421,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                           </div>
                         )}
 
-                        {dish.primaryStage === 'PLACED' && (
+                        {unit.stage === 'PLACED' && (
                           <div className="flex items-center gap-1.5">
                             <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
                               <Clock className="w-3.5 h-3.5 text-slate-500" />
@@ -450,7 +430,7 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                           </div>
                         )}
 
-                        {dish.primaryStage === 'SERVED' && (
+                        {isServed && (
                           <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
                             <Check className="w-3.5 h-3.5 stroke-[3]" />
                             <span>SERVED</span>

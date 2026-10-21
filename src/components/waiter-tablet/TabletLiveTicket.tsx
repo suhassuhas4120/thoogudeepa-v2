@@ -123,59 +123,33 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
     return ticketItems.filter(item => !item.orderItemId && !item.isPunched);
   }, [ticketItems]);
 
-  // Consolidate committed items by dish identity
-  const committedDishes = useMemo(() => {
+  // List committed items individually without 3x/4x grouping to avoid confusion
+  const committedItems = useMemo(() => {
     const committed = ticketItems.filter(item => Boolean(item.orderItemId || item.isPunched));
-    const map = new Map<string, ConsolidatedTabletDish>();
+    const list: Array<{
+      item: TicketItem;
+      unitKey: string;
+      orderItemId: string | number;
+      price: number;
+      status: KitchenStatus;
+    }> = [];
 
-    committed.forEach(item => {
-      const dishKey = String(item.id || item.name);
-      const stage = item.status || 'PLACED';
-
-      if (!map.has(dishKey)) {
-        map.set(dishKey, {
-          dishId: item.id,
-          name: item.name,
-          imageUrl: item.imageUrl,
+    committed.forEach((item, itemIdx) => {
+      const qty = item.quantity || 1;
+      const status = item.status || 'PLACED';
+      for (let q = 0; q < qty; q++) {
+        const uKey = item.orderItemId ? String(item.orderItemId) : `ticket-${item.id}-${itemIdx}-${q}`;
+        list.push({
+          item,
+          unitKey: uKey,
+          orderItemId: item.orderItemId || item.id,
           price: item.price,
-          totalQuantity: 0,
-          totalAmount: 0,
-          readyCount: 0,
-          servedCount: 0,
-          prepCount: 0,
-          recCount: 0,
-          placedCount: 0,
-          primaryStage: 'PLACED',
-          orderItemIds: []
+          status,
         });
       }
-
-      const entry = map.get(dishKey)!;
-      entry.totalQuantity += item.quantity;
-      entry.totalAmount += item.price * item.quantity;
-      if (item.orderItemId) entry.orderItemIds.push(item.orderItemId);
-
-      if (stage === 'SERVED') entry.servedCount += item.quantity;
-      else if (stage === 'READY') entry.readyCount += item.quantity;
-      else if (stage === 'PREPARING') entry.prepCount += item.quantity;
-      else if (stage === 'RECEIVED') entry.recCount += item.quantity;
-      else entry.placedCount += item.quantity;
     });
 
-    return Array.from(map.values()).map(entry => {
-      if (entry.servedCount >= entry.totalQuantity && entry.totalQuantity > 0) {
-        entry.primaryStage = 'SERVED';
-      } else if (entry.readyCount > 0) {
-        entry.primaryStage = 'READY';
-      } else if (entry.prepCount > 0) {
-        entry.primaryStage = 'PREPARING';
-      } else if (entry.recCount > 0) {
-        entry.primaryStage = 'RECEIVED';
-      } else {
-        entry.primaryStage = 'PLACED';
-      }
-      return entry;
-    });
+    return list;
   }, [ticketItems]);
 
   const hasItems = ticketItems.length > 0;
@@ -258,24 +232,24 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                 </div>
               )}
 
-              {/* COMMITTED ITEMS SECTION */}
-              {committedDishes.length > 0 && (
+              {/* COMMITTED ITEMS SECTION - SHOWN SEPARATELY PER PORTION */}
+              {committedItems.length > 0 && (
                 <div className="space-y-1.5">
                   {draftItems.length > 0 && (
                     <div className="flex items-center justify-between px-1 pt-1">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        Kitchen Orders ({committedDishes.reduce((acc, it) => acc + it.totalQuantity, 0)})
+                        Kitchen Orders ({committedItems.length})
                       </span>
                     </div>
                   )}
 
-                  {committedDishes.map((dish) => {
-                    const isServed = dish.primaryStage === 'SERVED';
+                  {committedItems.map((unit) => {
+                    const isServed = unit.status === 'SERVED';
 
                     return (
                       <div
-                        key={`committed-${dish.dishId}`}
+                        key={`committed-${unit.unitKey}`}
                         className={`border rounded-xl p-3 transition-colors ${
                           isServed
                             ? 'border-slate-200 bg-slate-100/70 opacity-70 select-none'
@@ -285,28 +259,23 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                         <div className="flex items-center justify-between gap-2.5">
                           <div className="min-w-0 flex-1">
                             <span className={`font-black block truncate text-xs sm:text-sm ${isServed ? 'text-slate-400 line-through decoration-2' : 'text-slate-900'}`}>
-                              {dish.totalQuantity}x {dish.name}
+                              {unit.item.name}
                             </span>
                             <span className="text-xs text-slate-500 font-bold block mt-0.5">
-                              ₹{dish.totalAmount} (₹{dish.price} each)
-                              {dish.servedCount > 0 && dish.readyCount > 0 && (
-                                <span className="ml-1 text-[10px] text-slate-400 font-medium">
-                                  • {dish.servedCount} Served, {dish.readyCount} Ready
-                                </span>
-                              )}
+                              ₹{unit.price}
                             </span>
                           </div>
 
                           {/* Operational Status Badges */}
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {dish.primaryStage === 'READY' && (
+                            {unit.status === 'READY' && (
                               <div className="flex items-center gap-1.5">
                                 <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
-                                  READY {dish.readyCount > 1 ? `(${dish.readyCount})` : ''}
+                                  READY
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => onServeItem(dish.orderItemIds[0] || dish.dishId)}
+                                  onClick={() => onServeItem(unit.orderItemId || unit.item.id)}
                                   className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
                                   title="Mark as Served to Seat"
                                 >
@@ -316,19 +285,19 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
                               </div>
                             )}
 
-                            {dish.primaryStage === 'PREPARING' && (
+                            {unit.status === 'PREPARING' && (
                               <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
                                 PREPARING
                               </span>
                             )}
 
-                            {dish.primaryStage === 'RECEIVED' && (
+                            {unit.status === 'RECEIVED' && (
                               <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
                                 RECEIVED
                               </span>
                             )}
 
-                            {dish.primaryStage === 'PLACED' && (
+                            {unit.status === 'PLACED' && (
                               <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
                                 PLACED
                               </span>

@@ -481,6 +481,9 @@ export const realtimeBridge = {
       const tNum = meta?.ticketNumber || '';
       const targetItemId = meta?.itemId || itemIdOrKey;
 
+      const cleanTargetId = targetItemId ? targetItemId.replace(/-[0-9]+$/, '') : '';
+      const cleanKey = itemIdOrKey ? itemIdOrKey.replace(/-[0-9]+$/, '') : '';
+
       orders.forEach((o) => {
         const oChair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
         const isTargetChair = !cleanChair || oChair === cleanChair || o.order.chair_id === meta?.chairId;
@@ -489,7 +492,9 @@ export const realtimeBridge = {
           o.items.forEach((it) => {
             const matches =
               Boolean(targetItemId && it.id && it.id === targetItemId) ||
-              Boolean(itemIdOrKey && it.id && it.id === itemIdOrKey);
+              Boolean(itemIdOrKey && it.id && it.id === itemIdOrKey) ||
+              Boolean(cleanTargetId && it.id && it.id === cleanTargetId) ||
+              Boolean(cleanKey && it.id && it.id === cleanKey);
 
             if (matches) {
               it.stage = stage;
@@ -606,15 +611,16 @@ export const realtimeBridge = {
           return !updErr;
         };
 
-        const isUuid = targetItemId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetItemId);
+        const effectiveTargetId = cleanTargetId || targetItemId;
+        const isUuid = effectiveTargetId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveTargetId);
         let updatedInDb = false;
 
         if (isUuid) {
-          const { data: cur } = await supabase.from('order_items').select('id, addons').eq('id', targetItemId).maybeSingle();
+          const { data: cur } = await supabase.from('order_items').select('id, addons').eq('id', effectiveTargetId).maybeSingle();
           if (cur) {
-            updatedInDb = await updateItemInDb(targetItemId, cur.addons);
+            updatedInDb = await updateItemInDb(effectiveTargetId, cur.addons);
           } else {
-            updatedInDb = await updateItemInDb(targetItemId);
+            updatedInDb = await updateItemInDb(effectiveTargetId);
           }
         }
 

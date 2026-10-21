@@ -71,6 +71,55 @@ const getInitialStoredAccount = (): WaiterAuthAccount => {
   return DEFAULT_STAFF_ACCOUNTS[0];
 };
 
+function expandOrderItemsToCart(items: any[], ticketNumber?: string, chairId?: string): CartItem[] {
+  const result: CartItem[] = [];
+  const cleanChair = chairId ? chairId.replace(/[^0-9]/g, '') : '';
+  let cachedStages: Record<string, string> = {};
+  if (typeof window !== 'undefined' && cleanChair) {
+    try {
+      const raw = localStorage.getItem(`thoogudeepa_item_stages_${cleanChair}`);
+      if (raw) cachedStages = JSON.parse(raw);
+    } catch {}
+  }
+
+  items.forEach((it, idx) => {
+    const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(
+      (m) => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()
+    ) || {
+      id: String(it.dish_id || '999'),
+      name: it.dish_name,
+      kannadaName: '',
+      price: it.price,
+      category: 'biryani',
+      dietary: 'non_veg',
+      description: 'Authentic preparation',
+      prepTimeMinutes: 15,
+      isAvailable: true,
+      isBestseller: false,
+    };
+
+    const qty = Math.max(1, it.quantity || 1);
+    for (let q = 0; q < qty; q++) {
+      const unitId = it.id ? `${it.id}-${q}` : `${ticketNumber || 'TKT'}-${it.dish_id}-${idx}-${q}`;
+      const effectiveStage = (cachedStages[unitId] as any) || it.stage || 'PLACED';
+      result.push({
+        menuItem: {
+          ...foundMenu,
+          id: it.dish_id || foundMenu.id,
+          name: it.dish_name || foundMenu.name,
+        },
+        quantity: 1,
+        lineTotal: it.price,
+        stage: effectiveStage,
+        orderItemId: unitId,
+        ticketNumber: ticketNumber,
+        isFired: true,
+      });
+    }
+  });
+  return result;
+}
+
 export const MobileCockpitMaster: React.FC = () => {
   const [hasMounted, setHasMounted] = useState<boolean>(false);
 
@@ -250,33 +299,7 @@ export const MobileCockpitMaster: React.FC = () => {
         setActiveTicketNumber('');
       }
       if (details.items && details.items.length > 0) {
-        setCartItems(details.items.map(it => {
-          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
-            id: String(it.dish_id || '999'),
-            name: it.dish_name,
-            kannadaName: '',
-            price: it.price,
-            category: 'biryani',
-            dietary: 'non_veg',
-            description: 'Authentic preparation',
-            prepTimeMinutes: 15,
-            isAvailable: true,
-            isBestseller: false
-          };
-          return {
-            menuItem: {
-              ...foundMenu,
-              id: it.dish_id || foundMenu.id,
-              name: it.dish_name || foundMenu.name
-            },
-            quantity: it.quantity,
-            lineTotal: it.price * it.quantity,
-            stage: it.stage as any,
-            orderItemId: it.id,
-            ticketNumber: details.order?.ticket_number,
-            isFired: true
-          };
-        }));
+        setCartItems(expandOrderItemsToCart(details.items, details.order?.ticket_number, cleanChair));
       } else {
         setCartItems([]);
       }
@@ -330,7 +353,13 @@ export const MobileCockpitMaster: React.FC = () => {
 
         setCartItems(prev => {
           if (!data.itemId) return prev;
-          return prev.map(item => item.orderItemId === data.itemId ? { ...item, stage: data.stage } : item);
+          const isSpecificUnit = /-[0-9]+$/.test(data.itemId);
+          return prev.map(item => {
+            const matches = isSpecificUnit
+              ? String(item.orderItemId) === String(data.itemId)
+              : (String(item.orderItemId) === String(data.itemId) || String(item.orderItemId || '').replace(/-[0-9]+$/, '') === String(data.itemId));
+            return matches ? { ...item, stage: data.stage } : item;
+          });
         });
       },
       onTicketDispatched: () => { refreshAlerts(); },
@@ -533,32 +562,7 @@ export const MobileCockpitMaster: React.FC = () => {
         setSelectedBillAmount(details.order.total_amount);
       }
       if (details.items && details.items.length > 0) {
-        setCartItems(details.items.map(it => {
-          const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
-            id: String(it.dish_id || '999'),
-            name: it.dish_name,
-            kannadaName: '',
-            price: it.price,
-            category: 'biryani',
-            dietary: 'non_veg',
-            description: 'Authentic preparation',
-            prepTimeMinutes: 15,
-            isAvailable: true,
-            isBestseller: false
-          };
-          return {
-            menuItem: {
-              ...foundMenu,
-              id: it.dish_id || foundMenu.id,
-              name: it.dish_name || foundMenu.name
-            },
-            quantity: it.quantity,
-            lineTotal: it.price * it.quantity,
-            stage: it.stage as any,
-            orderItemId: it.id,
-            ticketNumber: details.order?.ticket_number
-          };
-        }));
+        setCartItems(expandOrderItemsToCart(details.items, details.order?.ticket_number, cleanChair));
       } else {
         setCartItems([]);
       }
@@ -584,33 +588,7 @@ export const MobileCockpitMaster: React.FC = () => {
           setActiveTicketNumber(details.order.ticket_number);
         }
         if (details.items && details.items.length > 0) {
-          setCartItems(details.items.map(it => {
-            const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(m => String(m.id) === it.dish_id || m.name.toLowerCase() === it.dish_name.toLowerCase()) || {
-              id: String(it.dish_id || '999'),
-              name: it.dish_name,
-              kannadaName: '',
-              price: it.price,
-              category: 'biryani',
-              dietary: 'non_veg',
-              description: 'Authentic preparation',
-              prepTimeMinutes: 15,
-              isAvailable: true,
-              isBestseller: false
-            };
-            return {
-              menuItem: {
-                ...foundMenu,
-                id: it.dish_id || foundMenu.id,
-                name: it.dish_name || foundMenu.name
-              },
-              quantity: it.quantity,
-              lineTotal: it.price * it.quantity,
-              stage: it.stage as any,
-              orderItemId: it.id,
-              ticketNumber: details.order?.ticket_number,
-              isFired: true
-            };
-          }));
+          setCartItems(expandOrderItemsToCart(details.items, details.order?.ticket_number, cleanChair));
           const sub = details.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
           const computedTotalWithTax = sub + Math.round(sub * 0.05);
           if (computedTotalWithTax > 0) {

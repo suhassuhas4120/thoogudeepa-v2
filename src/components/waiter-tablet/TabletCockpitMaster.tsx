@@ -185,10 +185,18 @@ export const TabletCockpitMaster: React.FC = () => {
         setActiveTicketNumber('');
       }
       if (details.items && details.items.length > 0) {
+        let cachedStages: Record<string, string> = {};
+        if (typeof window !== 'undefined' && cleanChair) {
+          try {
+            const raw = localStorage.getItem(`thoogudeepa_item_stages_${cleanChair}`);
+            if (raw) cachedStages = JSON.parse(raw);
+          } catch {}
+        }
+
         const qtyMap: Record<number, number> = {};
-        const items: TicketItem[] = details.items.map((it, idx) => {
+        const items: TicketItem[] = [];
+        details.items.forEach((it, idx) => {
           const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
-          qtyMap[numId] = (qtyMap[numId] || 0) + it.quantity;
           const dish = MENU_DISHES.find(d => d.id === numId);
           const itStage = it.stage as string;
           const currentItemStage: KitchenStatus =
@@ -196,16 +204,31 @@ export const TabletCockpitMaster: React.FC = () => {
             itStage === 'PREP' ? 'PREPARING' :
             itStage === 'REC' ? 'RECEIVED' :
             itStage === 'SERVED' ? 'SERVED' : 'PLACED';
-          return {
-            id: numId,
-            orderItemId: it.id,
-            ticketNumber: details.order?.ticket_number,
-            name: it.dish_name,
-            quantity: it.quantity,
-            price: it.price,
-            imageUrl: dish?.imageUrl || '/logo.jpg',
-            status: currentItemStage
-          };
+
+          const qty = it.quantity || 1;
+          for (let q = 0; q < qty; q++) {
+            qtyMap[numId] = (qtyMap[numId] || 0) + 1;
+            const unitKey = it.id ? `${it.id}-${q}` : `${details.order?.ticket_number}-${numId}-${idx}-${q}`;
+            let effectiveStatus = currentItemStage;
+            if (cachedStages[unitKey]) {
+              const cs = cachedStages[unitKey];
+              effectiveStatus =
+                cs === 'READY' ? 'READY' :
+                cs === 'PREP' ? 'PREPARING' :
+                cs === 'REC' ? 'RECEIVED' :
+                cs === 'SERVED' ? 'SERVED' : effectiveStatus;
+            }
+            items.push({
+              id: numId,
+              orderItemId: unitKey,
+              ticketNumber: details.order?.ticket_number,
+              name: it.dish_name,
+              quantity: 1,
+              price: it.price,
+              imageUrl: dish?.imageUrl || '/logo.jpg',
+              status: effectiveStatus
+            });
+          }
         });
         setDishQuantities({});
         setTicketItems(items.map(it => ({ ...it, isPunched: true })));
@@ -263,7 +286,13 @@ export const TabletCockpitMaster: React.FC = () => {
 
         setTicketItems(prev => {
           if (!data.itemId) return prev;
-          return prev.map(item => item.orderItemId === data.itemId ? { ...item, status: nextStatus } : item);
+          const isSpecificUnit = /-[0-9]+$/.test(data.itemId);
+          return prev.map(item => {
+            const matches = isSpecificUnit
+              ? String(item.orderItemId) === String(data.itemId)
+              : (String(item.orderItemId) === String(data.itemId) || String(item.orderItemId || '').replace(/-[0-9]+$/, '') === String(data.itemId));
+            return matches ? { ...item, status: nextStatus } : item;
+          });
         });
       },
       onTicketDispatched: () => { refreshAlerts(); },
