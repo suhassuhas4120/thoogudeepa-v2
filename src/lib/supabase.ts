@@ -767,6 +767,32 @@ export const realtimeBridge = {
         }).catch(() => {});
       }
 
+      // 6. If marked SERVED, automatically resolve and vanish all matching ready alerts for this dish/seat
+      if (stage === 'SERVED') {
+        const chairClean = (meta?.chairId || '').replace(/[^0-9]/g, '');
+        const normChair = chairClean.replace(/^0+/, '');
+        const targetDishName = meta?.dishName?.toLowerCase().trim();
+        const targetDishId = meta?.dishId ? String(meta.dishId).replace(/^dish-/, '') : '';
+
+        const alerts = getLocalAlertsList();
+        const alertsToResolve = alerts.filter((a) => {
+          if (a.isResolved) return false;
+          if (a.type !== 'kitchen_ready') return false;
+          const aNormChair = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+          if (normChair && aNormChair && normChair !== aNormChair) return false;
+          if (targetItemId && (a.itemId === targetItemId || a.id === targetItemId)) return true;
+          if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId) return true;
+          if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName) return true;
+          if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName) return true;
+          if (normChair && aNormChair === normChair && !a.dishId && !a.itemId) return true;
+          return false;
+        });
+
+        alertsToResolve.forEach((al) => {
+          this.resolveServiceAlert(al.id);
+        });
+      }
+
       return true;
     } catch (err) {
       console.error('Error updating stage:', err);

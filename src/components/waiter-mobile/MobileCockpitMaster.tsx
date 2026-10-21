@@ -304,6 +304,19 @@ export const MobileCockpitMaster: React.FC = () => {
         }
       },
       onStageChange: (data) => {
+        if (data.stage === 'SERVED') {
+          const normTarget = (data.chairId || data.normChairId || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+          setAlerts(prev => prev.filter(a => {
+            if (a.type !== 'kitchen_ready') return true;
+            const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+            if (normTarget && aNorm && normTarget !== aNorm) return true;
+            if (data.itemId && (a.itemId === data.itemId || a.id === data.itemId)) return false;
+            if (data.dishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === String(data.dishId).replace(/^dish-/, '')) return false;
+            if (data.dishName && a.dishName && a.dishName.toLowerCase().trim() === data.dishName.toLowerCase().trim()) return false;
+            if (data.dishName && a.title && a.title.toLowerCase().trim() === data.dishName.toLowerCase().trim()) return false;
+            return true;
+          }));
+        }
         refreshAlerts();
         const curSeat = selectedSeatRef.current || '';
         const cleanCurSeat = curSeat.replace(/[^0-9]/g, '').replace(/^0+/, '');
@@ -747,11 +760,25 @@ export const MobileCockpitMaster: React.FC = () => {
       itemId: dish?.orderItemId
     });
 
-    const matchingAlert = alerts.find(a => (a.seatNumber.includes(cleanChair) || a.seatNumber === selectedSeatNumber) && a.type === 'kitchen_ready');
-    if (matchingAlert) {
-      realtimeBridge.resolveServiceAlert(matchingAlert.id);
-      setAlerts(prev => prev.filter(a => a.id !== matchingAlert.id));
-    }
+    const normChair = cleanChair.replace(/^0+/, '');
+    const targetDishName = dish?.menuItem?.name?.toLowerCase().trim();
+    const targetDishId = String(dish?.menuItem?.id || identifier).replace(/^dish-/, '');
+    const matchingAlerts = alerts.filter(a => {
+      const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+      if (normChair && aNorm && normChair !== aNorm) return false;
+      if (a.type !== 'kitchen_ready') return false;
+      if (dish?.orderItemId && a.itemId === dish.orderItemId) return true;
+      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId) return true;
+      if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName) return true;
+      if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName) return true;
+      if (normChair && aNorm === normChair && !a.dishId && !a.itemId) return true;
+      return false;
+    });
+
+    matchingAlerts.forEach(al => {
+      realtimeBridge.resolveServiceAlert(al.id);
+    });
+    setAlerts(prev => prev.filter(a => !matchingAlerts.some(m => m.id === a.id)));
 
     showToast(`Marked ${dish?.menuItem?.name || 'dish'} as served!`);
   }, [selectedSeatNumber, cartItems, alerts, activeTicketNumber, showToast]);
