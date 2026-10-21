@@ -44,6 +44,10 @@ export default function LiveOrderTrackingPage() {
       setIsSyncing(true);
       const cleanChair = chairId.replace(/[^0-9]/g, '');
       const res = await realtimeBridge.getOrderForSeat(cleanChair || chairId);
+      if (res.order?.status === 'completed') {
+        router.replace(`/seat/${chairId}/receipt`);
+        return;
+      }
       if (res.items && res.items.length > 0) {
         const tNum = res.order?.ticket_number || '';
         // 1. Sync session dishes with latest items from database
@@ -210,8 +214,13 @@ export default function LiveOrderTrackingPage() {
           const stage = data.stage;
           if (data.itemId) {
             nextStages[data.itemId] = stage;
+            const cleanId = data.itemId.replace(/-[0-9]+$/, '');
+            nextStages[cleanId] = stage;
             const tNum = data.ticketNumber || '';
-            if (tNum) nextStages[`${tNum}-${data.itemId}`] = stage;
+            if (tNum) {
+              nextStages[`${tNum}-${data.itemId}`] = stage;
+              nextStages[`${tNum}-${cleanId}`] = stage;
+            }
           }
           return nextStages;
         });
@@ -220,8 +229,9 @@ export default function LiveOrderTrackingPage() {
         setSession((prev) => {
           if (!prev || !prev.items) return prev;
           if (!data.itemId) return prev;
+          const cleanTargetId = data.itemId.replace(/-[0-9]+$/, '');
           const updatedItems = prev.items.map((it) => {
-            if (it.id === data.itemId) {
+            if (it.id === data.itemId || it.id === cleanTargetId) {
               const addons = Array.isArray(it.addons) ? [...it.addons] : [];
               if (data.stage === 'SERVED' && !addons.includes('SERVED')) {
                 addons.push('SERVED');
@@ -239,6 +249,20 @@ export default function LiveOrderTrackingPage() {
       onTicketDispatched: (data) => {
         if (!data.chairId || data.chairId === chairId || data.chairId.replace(/[^0-9]/g, '') === cleanCurrentChair) {
           setIsDispatched(true);
+        }
+      },
+      onSeatOccupancyChange: (data) => {
+        if (!data.isOccupied) {
+          const cleanTarget = (data.chairId || '').replace(/[^0-9]/g, '');
+          if (cleanTarget === cleanCurrentChair) {
+            router.replace(`/seat/${chairId}`);
+          }
+        }
+      },
+      onBillSettled: (data) => {
+        const cleanTarget = (data.chairId || '').replace(/[^0-9]/g, '');
+        if (cleanTarget === cleanCurrentChair) {
+          router.replace(`/seat/${chairId}/receipt`);
         }
       },
       onClearAll: () => {

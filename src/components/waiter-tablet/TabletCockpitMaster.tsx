@@ -87,6 +87,8 @@ export const TabletCockpitMaster: React.FC = () => {
   const [activeSeatCustomer, setActiveSeatCustomer] = useState<string>('Walk-In Guest');
   const [activeSeatAmount, setActiveSeatAmount] = useState<number>(0);
   const [isDining, setIsDining] = useState<boolean>(false);
+  const isDiningRef = useRef<boolean>(isDining);
+  isDiningRef.current = isDining;
   const [rightPaneMode, setRightPaneMode] = useState<'ticket' | 'bill'>('ticket');
 
   // Menu Dish Steppers State (dishId -> quantity)
@@ -384,7 +386,20 @@ export const TabletCockpitMaster: React.FC = () => {
       }
     });
 
-    return () => unsub();
+    const pollInterval = setInterval(() => {
+      refreshSeats();
+      refreshAlerts();
+      const curSeat = (activeSeatNameRef.current || '').split(':')[0].trim();
+      const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+      if (cleanCurSeat && isDiningRef.current) {
+        syncTicketForSeat(cleanCurSeat);
+      }
+    }, 2500);
+
+    return () => {
+      clearInterval(pollInterval);
+      unsub();
+    };
   }, [refreshSeats, refreshAlerts]);
 
   // Persist tablet navigation and seat state across browser reloads

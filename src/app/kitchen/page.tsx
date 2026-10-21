@@ -77,7 +77,14 @@ export default function KitchenDisplaySystemPage() {
     async function loadOrders() {
       const orders = await realtimeBridge.getActiveOrders();
       if (!isCancelled) {
-        setActiveOrders(orders || []);
+        setActiveOrders((prev) => {
+          const prevIds = new Set(prev.map((o) => o.order.id));
+          const hasNew = (orders || []).some((o) => o.order.id && !prevIds.has(o.order.id));
+          if (hasNew && prev.length > 0) {
+            playKitchenChime();
+          }
+          return orders || [];
+        });
         const stages: Record<string, 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED'> = {};
         (orders || []).forEach((o) => {
           const chair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
@@ -142,6 +149,10 @@ export default function KitchenDisplaySystemPage() {
     }
 
     loadOrders();
+
+    const pollInterval = setInterval(() => {
+      loadOrders();
+    }, 2500);
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onNewOrder: (newOrder) => {
@@ -341,6 +352,7 @@ export default function KitchenDisplaySystemPage() {
 
     return () => {
       isCancelled = true;
+      clearInterval(pollInterval);
       screenWakeLock.deactivate();
       unsubscribe();
     };

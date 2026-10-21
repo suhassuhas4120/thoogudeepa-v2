@@ -139,6 +139,8 @@ export const MobileCockpitMaster: React.FC = () => {
   });
   const selectedSeatRef = useRef<string>(selectedSeatNumber);
   selectedSeatRef.current = selectedSeatNumber;
+  const activeScreenRef = useRef<MobileScreenId>(activeScreen);
+  activeScreenRef.current = activeScreen;
 
   // Restore navigation and auth state on initial client mount
   useEffect(() => {
@@ -441,7 +443,20 @@ export const MobileCockpitMaster: React.FC = () => {
       }
     });
 
-    return () => unsub();
+    const pollInterval = setInterval(() => {
+      refreshSeats();
+      refreshAlerts();
+      const curSeat = selectedSeatRef.current || '';
+      const cleanCurSeat = curSeat.replace(/[^0-9]/g, '');
+      if (cleanCurSeat && activeScreenRef.current === 'cart') {
+        syncCartForSeat(cleanCurSeat);
+      }
+    }, 2500);
+
+    return () => {
+      clearInterval(pollInterval);
+      unsub();
+    };
   }, [refreshSeats, refreshAlerts]);
 
   // Persist navigation and auth state to survive browser refresh
