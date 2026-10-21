@@ -271,6 +271,32 @@ export default function LiveOrderTrackingPage() {
       : 'Just now';
   }, [session]);
 
+  // Compute whether all items in the active order have been served at table
+  const allDishesServed = useMemo(() => {
+    if (!trackingDishes || trackingDishes.length === 0) return false;
+    const tNum = session?.ticketNumber || '';
+
+    return trackingDishes.every((dish) => {
+      const candList: string[] = [];
+      if ((dish as any).stage) candList.push((dish as any).stage);
+      if (Array.isArray((dish as any).addons) && (dish as any).addons.includes('SERVED')) {
+        candList.push('SERVED');
+      }
+
+      const lookupKeys = [
+        dish.id,
+        tNum && dish.id && `${tNum}-${dish.id}`,
+        chairId && dish.id && `${chairId}-${dish.id}`,
+      ].filter(Boolean) as string[];
+
+      for (const k of lookupKeys) {
+        if (itemStages[k]) candList.push(itemStages[k]);
+      }
+
+      return candList.includes('SERVED');
+    });
+  }, [trackingDishes, itemStages, session?.ticketNumber, chairId]);
+
   return (
     <div className="min-h-screen w-full flex flex-col justify-between max-w-md mx-auto relative px-4 pt-4 pb-28 text-[#1A2621]">
       {/* Scrollable Content Container */}
@@ -572,12 +598,23 @@ export default function LiveOrderTrackingPage() {
             </div>
           </div>
 
-          <Link
-            href={`/seat/${chairId}/bill`}
-            className="px-6 py-2.5 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white text-xs font-bold uppercase tracking-wider rounded-xl active:opacity-90 cursor-pointer text-center shadow-md hover:shadow-lg"
-          >
-            Pay Bill
-          </Link>
+          {allDishesServed ? (
+            <Link
+              href={`/seat/${chairId}/bill`}
+              className="px-6 py-2.5 bg-gradient-to-r from-[#244436] to-[#DD6B28] text-white text-xs font-bold uppercase tracking-wider rounded-xl active:opacity-90 cursor-pointer text-center shadow-md hover:shadow-lg transition-all"
+            >
+              Pay Bill
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="px-6 py-2.5 bg-zinc-200 text-zinc-400 border border-zinc-300 text-xs font-bold uppercase tracking-wider rounded-xl cursor-not-allowed select-none text-center shadow-none opacity-80"
+              title="Pay Bill will be enabled once all dishes are served at your table"
+            >
+              Pay Bill
+            </button>
+          )}
         </div>
       )}
 
