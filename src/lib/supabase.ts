@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseClient } from './supabaseClient';
 
 export interface OrderItemRecord {
   id?: string;
@@ -97,9 +98,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || proc
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+export const supabase: SupabaseClient | null = getSupabaseClient();
 
 // Local BroadcastChannel for real-time synchronization across browser tabs
 const localChannel = typeof window !== 'undefined' ? new BroadcastChannel('thoogudeepa_kds_sync') : null;
@@ -333,13 +332,33 @@ export const realtimeBridge = {
     placedAt?: number;
   }> {
     try {
+      const cleanChair = chairId.replace(/[^0-9]/g, '');
+      const paddedChair = cleanChair.padStart(2, '0');
+      const unpaddedChair = cleanChair.replace(/^0+/, '');
+
+      // Check active dining session in browser storage for instant ownership
+      let localSessionTicket = '';
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('thoogudeepa_v2_active_dining_session');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const sessChair = (parsed.seatId || '').replace(/[^0-9]/g, '');
+            if (sessChair === cleanChair && parsed.paymentStatus === 'unpaid') {
+              localSessionTicket = parsed.ticketNumber || '';
+            }
+          }
+        } catch {}
+      }
+
       // 1. Check local registry first
       const map = getLocalOccupancyMap();
-      const localRecord = map[chairId];
+      const localRecord = map[chairId] || map[paddedChair] || map[unpaddedChair] || map[cleanChair];
 
       if (localRecord && localRecord.status !== 'completed' && localRecord.status !== 'cancelled') {
         const isOwner = Boolean(
-          currentDeviceToken && localRecord.deviceToken && currentDeviceToken === localRecord.deviceToken
+          (currentDeviceToken && localRecord.deviceToken && currentDeviceToken === localRecord.deviceToken) ||
+          (localSessionTicket && localRecord.ticketNumber && localSessionTicket === localRecord.ticketNumber)
         );
         return {
           isOccupied: true,
@@ -355,7 +374,7 @@ export const realtimeBridge = {
         const { data: activeOrder, error } = await supabase
           .from('orders')
           .select('*')
-          .eq('chair_id', chairId)
+          .in('chair_id', [chairId, paddedChair, unpaddedChair, cleanChair])
           .in('status', ['pending', 'in_progress', 'ready'])
           .order('created_at', { ascending: false })
           .limit(1)
@@ -363,7 +382,8 @@ export const realtimeBridge = {
 
         if (!error && activeOrder) {
           const isOwner = Boolean(
-            localRecord && localRecord.ticketNumber === activeOrder.ticket_number && localRecord.deviceToken === currentDeviceToken
+            (localSessionTicket && localSessionTicket === activeOrder.ticket_number) ||
+            (localRecord && (localRecord.ticketNumber === activeOrder.ticket_number || localRecord.deviceToken === currentDeviceToken))
           );
           return {
             isOccupied: true,

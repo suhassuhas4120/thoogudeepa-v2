@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { ticket_number, chair_id, seat_label, items, total_amount } = body;
+    const { ticket_number, chair_id, seat_label, items, total_amount, idempotency_key } = body;
 
     if (!chair_id || !items || !Array.isArray(items)) {
       return NextResponse.json({ success: false, error: 'Invalid order payload' }, { status: 400 });
@@ -37,6 +37,23 @@ export async function POST(request: Request) {
     const ticket = ticket_number || `TK-${Math.floor(1000 + Math.random() * 9000)}`;
 
     if (supabase) {
+      // Idempotency check: Return existing order if duplicate submission
+      if (idempotency_key || ticket_number) {
+        const { data: existing } = await supabase
+          .from('orders')
+          .select('id, ticket_number')
+          .eq('ticket_number', ticket)
+          .maybeSingle();
+
+        if (existing) {
+          return NextResponse.json({
+            success: true,
+            orderId: existing.id,
+            ticketNumber: existing.ticket_number,
+            deduplicated: true,
+          });
+        }
+      }
       const { data: orderData, error: orderErr } = await supabase
         .from('orders')
         .insert({
@@ -68,7 +85,11 @@ export async function POST(request: Request) {
         price: item.price,
         stage: 'REC',
         notes: item.notes || '',
-        addons: item.addons || [],
+        addons: Array.isArray(item.addons)
+          ? item.addons.includes('PLACED')
+            ? item.addons
+            : [...item.addons, 'PLACED']
+          : ['PLACED'],
       }));
 
       const { error: itemsErr } = await supabase.from('order_items').insert(orderItemsToInsert);
@@ -97,6 +118,10 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     if (supabase) {
+      await supabase
+        .from('orders')
+        .update({ status: 'completed' })
+        .in('status', ['pending', 'in_progress', 'ready']);
       await supabase.from('order_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       await supabase.from('orders').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     }

@@ -1,5 +1,7 @@
 'use client';
 
+import { asyncStorage } from '../storage/indexedDB';
+
 export interface ActiveDiningSession {
   seatId: string;
   ticketNumber: string;
@@ -62,6 +64,7 @@ export function setActiveDiningSession(session: ActiveDiningSession): void {
     const token = session.deviceToken || getDeviceToken();
     const payload = { ...session, deviceToken: token };
     localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(payload));
+    asyncStorage.set(STORAGE_SESSION_KEY, payload).catch(() => {});
   } catch (err) {
     console.error('Failed to store active dining session:', err);
   }
@@ -74,6 +77,7 @@ export function updateActiveDiningSession(updates: Partial<ActiveDiningSession>)
     if (!current) return null;
     const updated = { ...current, ...updates };
     localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(updated));
+    asyncStorage.set(STORAGE_SESSION_KEY, updated).catch(() => {});
     return updated;
   } catch {
     return null;
@@ -84,6 +88,7 @@ export function clearActiveDiningSession(): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.removeItem(STORAGE_SESSION_KEY);
+    asyncStorage.remove(STORAGE_SESSION_KEY).catch(() => {});
   } catch (err) {
     console.error('Failed to clear dining session:', err);
   }

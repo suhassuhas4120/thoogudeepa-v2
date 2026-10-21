@@ -112,8 +112,28 @@ export default function LiveOrderTrackingPage() {
   }, [chairId]);
 
   useEffect(() => {
-    // Verify occupancy: if occupied by someone else, redirect to seat entrance
+    const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
+    const paddedChair = cleanCurrentChair.padStart(2, '0');
+
+    const s = getActiveDiningSession();
+    if (s && s.paymentStatus === 'unpaid') {
+      const cleanSessionChair = (s.seatId || '').replace(/[^0-9]/g, '');
+      if (cleanSessionChair && cleanSessionChair !== cleanCurrentChair) {
+        router.replace(`/seat/${s.seatId}/tracking`);
+        return;
+      }
+      setSession(s);
+    }
+
+    // Verify occupancy: if occupied by someone else AND this device does not own this seat session
     async function checkAccess() {
+      const currentSession = getActiveDiningSession();
+      const currentSessChair = (currentSession?.seatId || '').replace(/[^0-9]/g, '');
+      if (currentSession && currentSession.paymentStatus === 'unpaid' && currentSessChair === cleanCurrentChair) {
+        // Confirmed active owner of this seat's order
+        return;
+      }
+
       const token = getDeviceToken();
       const occ = await realtimeBridge.getSeatOccupancy(chairId, token);
       if (occ.isOccupied && !occ.isOwner) {
@@ -121,18 +141,6 @@ export default function LiveOrderTrackingPage() {
       }
     }
     checkAccess();
-
-    const s = getActiveDiningSession();
-    if (s && s.paymentStatus === 'unpaid') {
-      if (s.seatId !== chairId) {
-        router.replace(`/seat/${s.seatId}/tracking`);
-        return;
-      }
-      setSession(s);
-    }
-
-    const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
-    const paddedChair = cleanCurrentChair.padStart(2, '0');
 
     // Restore cached stage progress for this seat if available
     try {

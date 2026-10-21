@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { realtimeBridge, OrderRecord, OrderItemRecord } from '@/lib/supabase';
+import { playKitchenChime } from '@/lib/hardware/audioSynthesizer';
+import { screenWakeLock } from '@/lib/hardware/wakeLockManager';
 import { MENU_ITEMS } from '@/lib/data/menuData';
 import { 
   ShieldCheck, 
@@ -65,36 +67,12 @@ export default function KitchenDisplaySystemPage() {
   const [isStockLocked, setIsStockLocked] = useState<boolean>(true);
   const [stockNotice, setStockNotice] = useState<string>('');
 
-  // Auditory chime notification on incoming kitchen ticket
-  const playKitchenChime = () => {
-    if (typeof window === 'undefined') return;
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
-
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.6);
-    } catch {
-      // Ignore audio policy before user interaction
-    }
-  };
-
   // Fetch active orders and subscribe to real-time updates
   useEffect(() => {
     let isCancelled = false;
+
+    // Keep tablet screen awake throughout service hours
+    screenWakeLock.activate();
 
     async function loadOrders() {
       const orders = await realtimeBridge.getActiveOrders();
@@ -113,8 +91,8 @@ export default function KitchenDisplaySystemPage() {
 
           o.items.forEach((it, idx) => {
             const itemKey = it.id || `${tNum}-${it.dish_id}-${idx}`;
+            const isUntouchedPlaced = it.stage === 'PLACED' || (Array.isArray(it.addons) && it.addons.includes('PLACED'));
             const candList: string[] = [];
-            if (it.stage) candList.push(it.stage);
 
             const lookupKeys = [
               it.id,
@@ -130,6 +108,10 @@ export default function KitchenDisplaySystemPage() {
               if (cachedStages[k]) candList.push(cachedStages[k]);
             }
 
+            if (it.stage && (!isUntouchedPlaced || it.stage !== 'REC')) {
+              candList.push(it.stage);
+            }
+
             let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
             if (candList.includes('SERVED')) {
               effStage = 'SERVED';
@@ -138,7 +120,12 @@ export default function KitchenDisplaySystemPage() {
             } else if (candList.includes('PREP')) {
               effStage = 'PREP';
             } else if (candList.includes('REC')) {
-              effStage = 'REC';
+              const userTappedRec = lookupKeys.some((k) => cachedStages[k] === 'REC');
+              if (userTappedRec || !isUntouchedPlaced) {
+                effStage = 'REC';
+              } else {
+                effStage = 'PLACED';
+              }
             } else {
               effStage = 'PLACED';
             }
@@ -216,12 +203,15 @@ export default function KitchenDisplaySystemPage() {
               ? [...currentOrderIds, newOrder.order.id]
               : currentOrderIds;
 
-            const taggedNewItems = trulyNewItems.map((it, idx) => ({
-              ...it,
-              id: it.id || `${newOrder.order.id || newOrder.order.ticket_number}-${it.dish_id}-${idx}`,
-              order_id: it.order_id || newOrder.order.id || current.order.id,
-              stage: it.stage || 'PLACED',
-            }));
+            const taggedNewItems = trulyNewItems.map((it, idx) => {
+              const isUntouched = it.stage === 'PLACED' || (Array.isArray(it.addons) && it.addons.includes('PLACED'));
+              return {
+                ...it,
+                id: it.id || `${newOrder.order.id || newOrder.order.ticket_number}-${it.dish_id}-${idx}`,
+                order_id: it.order_id || newOrder.order.id || current.order.id,
+                stage: isUntouched ? ('PLACED' as const) : (it.stage || 'PLACED'),
+              };
+            });
 
             updated[matchByTicket] = {
               ...current,
@@ -238,12 +228,15 @@ export default function KitchenDisplaySystemPage() {
 
           // 3. Brand new ticket
           const initialOrderIds = newOrder.order.id ? [newOrder.order.id] : [];
-          const taggedItems = (newOrder.items || []).map((it, idx) => ({
-            ...it,
-            id: it.id || `${newOrder.order.id || newOrder.order.ticket_number}-${it.dish_id}-${idx}`,
-            order_id: it.order_id || newOrder.order.id,
-            stage: it.stage || 'PLACED',
-          }));
+          const taggedItems = (newOrder.items || []).map((it, idx) => {
+            const isUntouched = it.stage === 'PLACED' || (Array.isArray(it.addons) && it.addons.includes('PLACED'));
+            return {
+              ...it,
+              id: it.id || `${newOrder.order.id || newOrder.order.ticket_number}-${it.dish_id}-${idx}`,
+              order_id: it.order_id || newOrder.order.id,
+              stage: isUntouched ? ('PLACED' as const) : (it.stage || 'PLACED'),
+            };
+          });
 
           const ticketWithOrderIds = {
             ...newOrder,
@@ -348,6 +341,7 @@ export default function KitchenDisplaySystemPage() {
 
     return () => {
       isCancelled = true;
+      screenWakeLock.deactivate();
       unsubscribe();
     };
   }, []);
@@ -412,7 +406,10 @@ export default function KitchenDisplaySystemPage() {
             Boolean(itemKey && it.id && it.id === itemKey);
 
           if (matches) {
-            return { ...it, stage };
+            const nextAddons = Array.isArray(it.addons)
+              ? it.addons.filter((a) => a !== 'PLACED')
+              : [];
+            return { ...it, stage, addons: nextAddons };
           }
           return it;
         });
@@ -864,9 +861,7 @@ export default function KitchenDisplaySystemPage() {
             rawBatchItems.forEach((it, idx) => {
               const dKey = String(it.dish_name || it.dish_id).toLowerCase().trim();
               const itemKey = it.id || `${order.ticket_number}-${bKey}-${it.dish_id}-${idx}`;
-
-              const candStages: string[] = [];
-              if (it.stage) candStages.push(it.stage);
+              const isUntouched = it.stage === 'PLACED' || (Array.isArray(it.addons) && it.addons.includes('PLACED'));
 
               const renderKeys = [
                 it.id,
@@ -877,15 +872,27 @@ export default function KitchenDisplaySystemPage() {
                 cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
               ].filter(Boolean) as string[];
 
+              const candStages: string[] = [];
               for (const k of renderKeys) {
                 if (stagesMap[k]) candStages.push(stagesMap[k]);
+              }
+
+              if (it.stage && (!isUntouched || it.stage !== 'REC')) {
+                candStages.push(it.stage);
               }
 
               let itStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
               if (candStages.includes('SERVED')) itStage = 'SERVED';
               else if (candStages.includes('READY')) itStage = 'READY';
               else if (candStages.includes('PREP')) itStage = 'PREP';
-              else if (candStages.includes('REC')) itStage = 'REC';
+              else if (candStages.includes('REC')) {
+                const userTappedRec = renderKeys.some((k) => stagesMap[k] === 'REC');
+                if (userTappedRec || !isUntouched) {
+                  itStage = 'REC';
+                } else {
+                  itStage = 'PLACED';
+                }
+              }
 
               if (!dishMap.has(dKey)) {
                 dishMap.set(dKey, {
@@ -1216,9 +1223,7 @@ export default function KitchenDisplaySystemPage() {
                     const cleanChair = (currentActiveTicket.order.chair_id || '').replace(/[^0-9]/g, '');
                     const tNum = currentActiveTicket.order.ticket_number || '';
 
-                    const candStages: string[] = [];
-                    if (it.stage) candStages.push(it.stage);
-
+                    const isUntouched = it.stage === 'PLACED' || (Array.isArray(it.addons) && it.addons.includes('PLACED'));
                     const renderKeys = [
                       it.id,
                       itemKey,
@@ -1228,8 +1233,13 @@ export default function KitchenDisplaySystemPage() {
                       cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
                     ].filter(Boolean) as string[];
 
+                    const candStages: string[] = [];
                     for (const k of renderKeys) {
                       if (itemStages[k]) candStages.push(itemStages[k]);
+                    }
+
+                    if (it.stage && (!isUntouched || it.stage !== 'REC')) {
+                      candStages.push(it.stage);
                     }
 
                     let currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
@@ -1240,7 +1250,12 @@ export default function KitchenDisplaySystemPage() {
                     } else if (candStages.includes('PREP')) {
                       currentStage = 'PREP';
                     } else if (candStages.includes('REC')) {
-                      currentStage = 'REC';
+                      const userTappedRec = renderKeys.some((k) => itemStages[k] === 'REC');
+                      if (userTappedRec || !isUntouched) {
+                        currentStage = 'REC';
+                      } else {
+                        currentStage = 'PLACED';
+                      }
                     } else {
                       currentStage = 'PLACED';
                     }

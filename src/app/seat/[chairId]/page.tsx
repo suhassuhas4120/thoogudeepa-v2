@@ -50,8 +50,11 @@ export default function CustomerSeatPage() {
       const session = getActiveDiningSession();
       // If customer has an active unpaid order (on this seat or any other seat),
       // scanning ANY QR immediately opens their active unpaid order tracking screen.
+      const cleanCurrentChair = chairId.replace(/[^0-9]/g, '');
+      const cleanSessionChair = (session?.seatId || '').replace(/[^0-9]/g, '');
       if (session && session.paymentStatus === 'unpaid') {
-        router.replace(`/seat/${session.seatId}/tracking`);
+        const targetSeat = cleanSessionChair === cleanCurrentChair ? chairId : (session.seatId || chairId);
+        router.replace(`/seat/${targetSeat}/tracking`);
         return;
       }
 
