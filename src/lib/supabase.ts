@@ -996,7 +996,7 @@ export const realtimeBridge = {
                 effStage = 'READY';
               } else if (it.stage === 'PREP') {
                 effStage = 'PREP';
-              } else if (it.stage === 'REC' && !addons.includes('PLACED') && o.status !== 'pending') {
+              } else if (it.stage === 'REC' && !addons.includes('PLACED')) {
                 effStage = 'REC';
               } else {
                 effStage = 'PLACED';
