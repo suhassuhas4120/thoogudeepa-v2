@@ -37,35 +37,13 @@ interface SeatOrderItem {
   stage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
 }
 
-// Realistic default items for demo seats matching authentic Donne Biryani Mane menu
-const DEMO_SEAT_ITEMS: Record<string, SeatOrderItem[]> = {
-  '17': [
-    { id: 'it-1', name: 'Chicken Pepper Dry', quantity: 1, prepTag: '[D]', price: 160, stage: 'SERVED' },
-    { id: 'it-2', name: 'Dosa (2pcs)', quantity: 1, prepTag: '[D]', price: 50, stage: 'SERVED' },
-    { id: 'it-3', name: 'Mutton Liver', quantity: 1, prepTag: '[D]', price: 240, stage: 'SERVED' },
-    { id: 'it-4', name: 'Chilli Chicken', quantity: 1, prepTag: '[D]', price: 160, stage: 'SERVED' },
-  ],
-  '04': [
-    { id: 'it-6', name: 'Chicken Biryani', quantity: 2, prepTag: '[D]', price: 170, stage: 'SERVED' },
-    { id: 'it-7', name: 'Chicken Pepper Dry', quantity: 1, prepTag: '[D]', price: 180, stage: 'SERVED' },
-  ],
-  '02': [
-    { id: 'it-8', name: 'Mutton Biryani', quantity: 1, prepTag: '[D]', price: 280, stage: 'PREP' },
-    { id: 'it-9', name: 'Chilli Chicken Donne', quantity: 1, prepTag: '[D]', price: 180, stage: 'PREP' },
-  ],
-  '01': [
-    { id: 'it-10', name: 'Chicken Biryani', quantity: 2, prepTag: '[D]', price: 170, stage: 'READY' },
-    { id: 'it-11', name: 'Guntur Chicken Fry', quantity: 1, prepTag: '[D]', price: 190, stage: 'READY' },
-  ],
-};
-
 export function ScreenM2Floor100({
   liveOrders,
   alerts,
   onRefresh,
   onSelectTableForBilling,
 }: ScreenM2Floor100Props) {
-  const [selectedSeatNum, setSelectedSeatNum] = useState<number>(17); // Default to Seat 17
+  const [selectedSeatNum, setSelectedSeatNum] = useState<number>(1); // Default to Seat 01
   const [selectedZone, setSelectedZone] = useState<number | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'VACANT' | 'OCCUPIED' | 'BILLING' | 'ALERT'>('ALL');
   const [printKotNotice, setPrintKotNotice] = useState<string | null>(null);
@@ -103,7 +81,6 @@ export function ScreenM2Floor100({
           waiterName: i <= 25 ? 'Ramesh Kumar (Zone 1)' : i <= 50 ? 'Suresh M (Zone 2)' : i <= 75 ? 'Anand Kumar (Zone 3)' : 'Deepa Naik (Zone 4)',
           liveOrders: [],
           liveItems: [],
-          demoItems: [],
           alert: undefined,
           runningTotal: 0,
         });
@@ -127,30 +104,25 @@ export function ScreenM2Floor100({
         return clean === chairId || clean === unpadded || Number(clean) === i;
       });
 
-      const activeBill = realtimeBridge.getActiveBillRequest(chairId);
-
-      // Check demo items fallback
-      const demoItems = DEMO_SEAT_ITEMS[chairId] || DEMO_SEAT_ITEMS[unpadded] || [];
-      const hasOrders = allLiveItems.length > 0 || demoItems.length > 0;
-      const isBilling = Boolean(activeBill) || activeAlert?.title?.toLowerCase().includes('bill') || i === 4;
+      const activeBill = realtimeBridge.getActiveBillRequest(chairId) || realtimeBridge.getActiveBillRequest(unpadded);
+      const isBilling = Boolean(activeBill) || activeAlert?.title?.toLowerCase().includes('bill');
 
       let status: 'vacant' | 'seated' | 'cooking' | 'ready_pass' | 'dining' | 'billing' | 'alert' = 'vacant';
       if (activeAlert) {
         status = 'alert';
       } else if (isBilling) {
         status = 'billing';
-      } else if (hasOrders) {
-        const itemsToCheck = allLiveItems.length > 0 ? allLiveItems : demoItems;
-        const hasReady = itemsToCheck.some((it) => it.stage === 'READY');
-        const hasPrep = itemsToCheck.some((it) => it.stage === 'PREP' || it.stage === 'REC');
-        const allServed = itemsToCheck.every((it) => it.stage === 'SERVED');
+      } else if (allLiveItems.length > 0) {
+        const hasReady = allLiveItems.some((it) => it.stage === 'READY');
+        const hasPrep = allLiveItems.some((it) => it.stage === 'PREP' || it.stage === 'REC');
+        const allServed = allLiveItems.every((it) => it.stage === 'SERVED');
 
         if (hasReady) status = 'ready_pass';
         else if (hasPrep) status = 'cooking';
         else if (allServed) status = 'dining';
         else status = 'seated';
-      } else if (i === 1 || i === 2 || i === 3 || i === 5 || i === 7 || i === 8 || i === 11 || i === 12 || i === 17 || i === 28 || i === 32 || i === 33 || i === 36 || i === 38) {
-        status = 'dining';
+      } else {
+        status = 'vacant';
       }
 
       let waiterName = 'Ramesh Kumar (Zone 1)';
@@ -160,32 +132,12 @@ export function ScreenM2Floor100({
 
       let total = 0;
       if (allLiveItems.length > 0) {
-        const sub = allLiveItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
+        const sub = allLiveItems.reduce((acc, it) => acc + (it.price || 0) * (it.quantity || 1), 0);
         total = sub + Math.round(sub * 0.05);
-      } else if (demoItems.length > 0) {
-        const sub = demoItems.reduce((acc, it) => acc + it.price * it.quantity, 0);
-        total = sub + Math.round(sub * 0.05);
-      } else if (status !== 'vacant') {
-        const presetTotals: Record<number, number> = {
-          1: 840,
-          2: 53,
-          3: 404,
-          4: 641,
-          5: 735,
-          6: 840,
-          7: 735,
-          8: 336,
-          11: 1113,
-          12: 451,
-          17: 641,
-          28: 840,
-          32: 1649,
-          33: 651,
-          35: 809,
-          36: 1250,
-          38: 641,
-        };
-        total = presetTotals[i] || 641;
+      } else if (matchingLiveOrders.length > 0) {
+        total = matchingLiveOrders.reduce((acc, o) => acc + (o.order?.total_amount || 0), 0);
+      } else if (activeBill && activeBill.amount) {
+        total = activeBill.amount;
       }
 
       list.push({
@@ -195,51 +147,41 @@ export function ScreenM2Floor100({
         waiterName,
         liveOrders: matchingLiveOrders,
         liveItems: allLiveItems,
-        demoItems,
         alert: activeAlert,
         runningTotal: total,
       });
     }
     return list;
-  }, [liveOrders, alerts]);
+  }, [liveOrders, alerts, vacatedSeats]);
 
   // Selected Seat Data
   const activeSelectedSeat = useMemo(() => {
-    return seatGrid.find((s) => s.seatNumber === selectedSeatNum) || seatGrid[16];
+    return seatGrid.find((s) => s.seatNumber === selectedSeatNum) || seatGrid[0];
   }, [selectedSeatNum, seatGrid]);
 
   // Unified items list strictly for this particular seat
   const particularSeatOrders: SeatOrderItem[] = useMemo(() => {
-    if (!activeSelectedSeat) return [];
-
-    if (activeSelectedSeat.liveItems && activeSelectedSeat.liveItems.length > 0) {
-      return activeSelectedSeat.liveItems.map((it, idx) => ({
-        id: it.id || `live-${idx}`,
-        name: it.dish_name,
-        quantity: it.quantity,
-        prepTag: '[D]',
-        price: it.price,
-        stage: it.stage || 'PLACED',
-      }));
+    if (!activeSelectedSeat || !activeSelectedSeat.liveItems || activeSelectedSeat.liveItems.length === 0) {
+      return [];
     }
 
-    if (activeSelectedSeat.demoItems && activeSelectedSeat.demoItems.length > 0) {
-      return activeSelectedSeat.demoItems;
-    }
-
-    // Default matching user's screenshot for Seat 17
-    return [
-      { id: 'it-s1', name: 'Chicken Pepper Dry', quantity: 1, prepTag: '[D]', price: 160, stage: 'SERVED' },
-      { id: 'it-s2', name: 'Dosa (2pcs)', quantity: 1, prepTag: '[D]', price: 50, stage: 'SERVED' },
-      { id: 'it-s3', name: 'Mutton Liver', quantity: 1, prepTag: '[D]', price: 240, stage: 'SERVED' },
-      { id: 'it-s4', name: 'Chilli Chicken', quantity: 1, prepTag: '[D]', price: 160, stage: 'SERVED' },
-    ];
+    return activeSelectedSeat.liveItems.map((it, idx) => ({
+      id: it.id || `live-${idx}`,
+      name: it.dish_name,
+      quantity: it.quantity,
+      prepTag: '[D]',
+      price: it.price,
+      stage: it.stage || 'PLACED',
+    }));
   }, [activeSelectedSeat]);
 
   // Calculate bill total strictly for this seat
   const calculatedBill = useMemo(() => {
-    const sum = particularSeatOrders.reduce((acc, it) => acc + it.price * it.quantity, 0);
-    return sum > 0 ? sum + Math.round(sum * 0.05) : activeSelectedSeat?.runningTotal || 641;
+    if (particularSeatOrders.length > 0) {
+      const sum = particularSeatOrders.reduce((acc, it) => acc + it.price * it.quantity, 0);
+      return sum + Math.round(sum * 0.05);
+    }
+    return activeSelectedSeat?.runningTotal || 0;
   }, [particularSeatOrders, activeSelectedSeat]);
 
   // Top KPIs
@@ -261,20 +203,8 @@ export function ScreenM2Floor100({
         });
       }
     });
-    if (count > 0) return count;
-
-    // Check items currently in kitchen pass / cooking
-    const fallbackCount = seatGrid.reduce((sum, s) => {
-      const items = s.liveItems && s.liveItems.length > 0 ? s.liveItems : s.demoItems || [];
-      const kitchenItems = items.filter(
-        (it: any) =>
-          it.stage === 'PLACED' || it.stage === 'REC' || it.stage === 'PREP' || it.stage === 'READY'
-      );
-      return sum + kitchenItems.reduce((iSum: number, it: any) => iSum + (it.quantity || 1), 0);
-    }, 0);
-
-    return fallbackCount;
-  }, [liveOrders, seatGrid]);
+    return count;
+  }, [liveOrders]);
 
   // Actions for this seat
   const handleVacateSeat = async () => {
@@ -293,6 +223,11 @@ export function ScreenM2Floor100({
 
   const handlePrintKOT = () => {
     if (!activeSelectedSeat) return;
+    if (particularSeatOrders.length === 0) {
+      setPrintKotNotice(`No active orders to print KOT for Seat #${activeSelectedSeat.chairId}`);
+      setTimeout(() => setPrintKotNotice(null), 3000);
+      return;
+    }
     setPrintKotNotice(`Thermal KOT dispatched for Seat #${activeSelectedSeat.chairId}`);
     setTimeout(() => setPrintKotNotice(null), 3000);
   };
@@ -552,12 +487,12 @@ export function ScreenM2Floor100({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#9C3D1E] text-white font-black text-base flex items-center justify-center shadow-xs">
-                  #{activeSelectedSeat?.chairId || '17'}
+                  #{activeSelectedSeat?.chairId || '01'}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-black text-base text-slate-900">
-                      Seat #{activeSelectedSeat?.chairId || '17'}
+                      Seat #{activeSelectedSeat?.chairId || '01'}
                     </h3>
                   </div>
                   <p className="text-[11px] text-slate-500 font-medium">
@@ -567,7 +502,7 @@ export function ScreenM2Floor100({
               </div>
 
               <span className="text-[10px] font-black px-2.5 py-1 rounded-md bg-orange-100 text-[#9C3D1E] uppercase tracking-wider">
-                {activeSelectedSeat?.status || 'DINING'}
+                {activeSelectedSeat?.status || 'VACANT'}
               </span>
             </div>
           </div>
@@ -585,7 +520,7 @@ export function ScreenM2Floor100({
 
             {particularSeatOrders.length === 0 ? (
               <div className="text-center py-10 text-slate-400 text-xs font-mono bg-[#FAF8F5] rounded-xl border border-dashed border-slate-300">
-                No orders punched for Seat #{activeSelectedSeat?.chairId || '17'}.
+                No active orders for Seat #{activeSelectedSeat?.chairId || '01'}. Seat is currently available.
               </div>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
@@ -681,7 +616,7 @@ export function ScreenM2Floor100({
               </div>
             ) : (
               <div className="p-2 bg-[#FAF8F5] border border-slate-200 rounded-lg text-[10px] text-slate-500">
-                No active service calls or water refill pings for Seat #{activeSelectedSeat?.chairId || '17'}.
+                No active service calls or water refill pings for Seat #{activeSelectedSeat?.chairId || '01'}.
               </div>
             )}
           </div>
