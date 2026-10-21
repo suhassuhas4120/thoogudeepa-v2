@@ -300,7 +300,7 @@ export const MobileCockpitMaster: React.FC = () => {
     }
   }, []);
 
-  const syncCartForSeat = useCallback((chairId: string) => {
+  const syncCartForSeat = useCallback((chairId: string, clearDrafts: boolean = false) => {
     const cleanChair = chairId.replace(/[^0-9]/g, '');
     if (!cleanChair) return;
 
@@ -311,7 +311,7 @@ export const MobileCockpitMaster: React.FC = () => {
         setActiveTicketNumber('');
       }
       setCartItems((prev) => {
-        const unplacedDrafts = prev.filter((c) => !c.orderItemId && !c.isFired);
+        const unplacedDrafts = clearDrafts ? [] : prev.filter((c) => !c.orderItemId && !c.isFired);
         const serverFiredItems =
           details.items && details.items.length > 0
             ? expandOrderItemsToCart(details.items, details.order?.ticket_number, cleanChair)
@@ -747,8 +747,30 @@ export const MobileCockpitMaster: React.FC = () => {
 
       setActiveTicketNumber(ticketNum);
 
-      // Instantly synchronize authoritative items from database
-      syncCartForSeat(cleanChair);
+      // Immediately mark all newly fired draft items as fired with orderItemId
+      setCartItems((prev) =>
+        prev.map((c) => {
+          if (!c.orderItemId && !c.isFired) {
+            const matchingOrderItem = orderItems.find(
+              (o) =>
+                String(o.dish_id) === String(c.menuItem.id) ||
+                String(o.dish_id).replace(/^dish-/, '') === String(c.menuItem.id).replace(/^dish-/, '') ||
+                o.dish_name.toLowerCase() === c.menuItem.name.toLowerCase()
+            );
+            return {
+              ...c,
+              isFired: true,
+              stage: 'PLACED' as const,
+              orderItemId: matchingOrderItem?.id || `item-${padChair}-${c.menuItem.id}-${timestamp}`,
+              ticketNumber: ticketNum,
+            };
+          }
+          return c;
+        })
+      );
+
+      // Instantly synchronize authoritative items from database and clear draft status
+      syncCartForSeat(cleanChair, true);
 
       // Update seat status and cumulative running balance
       setSeats(prev => prev.map(s => {
