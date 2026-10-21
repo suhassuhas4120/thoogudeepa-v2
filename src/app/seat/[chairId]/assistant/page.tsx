@@ -32,7 +32,8 @@ interface QuickOption {
 interface SubmittedRequest {
   id: string;
   timestamp: string;
-  status: 'Pending' | 'Served';
+  label?: string;
+  status: 'Pending' | 'Resolved';
 }
 
 function AssistantPageContent() {
@@ -44,9 +45,8 @@ function AssistantPageContent() {
   const seatNumber = chairId.replace(/[^0-9]/g, '') || chairId;
   const fromParam = searchParams.get('from');
 
-  const [activeRequests, setActiveRequests] = useState<SubmittedRequest[]>([
-    { id: '1', timestamp: '2 mins ago', status: 'Pending' },
-  ]);
+  const [activeRequests, setActiveRequests] = useState<SubmittedRequest[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [specialNote, setSpecialNote] = useState('');
   const [selectedService, setSelectedService] = useState<string | null>(null);
 
@@ -61,13 +61,61 @@ function AssistantPageContent() {
   // Device hardware back button & swipe back: return to the originating screen
   useHardwareBack(null, handleBack);
 
+  // Load persisted requests for this seat from localStorage on mount
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(`thoogudeepa_assistant_requests_${seatNumber}`);
+      if (stored) {
+        const parsed: SubmittedRequest[] = JSON.parse(stored);
+        const normalized = parsed.map((item) => ({
+          ...item,
+          status: (item.status as string) === 'Served' ? ('Resolved' as const) : item.status,
+        }));
+        setActiveRequests(normalized);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+    setIsHydrated(true);
+  }, [seatNumber]);
+
+  // Sync active requests to localStorage whenever updated
+  React.useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(
+        `thoogudeepa_assistant_requests_${seatNumber}`,
+        JSON.stringify(activeRequests)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [activeRequests, seatNumber, isHydrated]);
+
   // Subscribe to real-time bridge updates for alert resolutions
   React.useEffect(() => {
     const unsub = realtimeBridge.subscribeKDS({
-      onResolveAlert: () => {
-        setActiveRequests((prev) =>
-          prev.map((r) => ({ ...r, status: 'Served' }))
-        );
+      onResolveAlert: (resolvedAlertId?: string) => {
+        setActiveRequests((prev) => {
+          let matched = false;
+          const updated = prev.map((r) => {
+            if (!matched && (r.id === resolvedAlertId || (!resolvedAlertId && r.status === 'Pending'))) {
+              matched = true;
+              return { ...r, status: 'Resolved' as const };
+            }
+            return r;
+          });
+          // If alertId didn't match directly by ID, resolve the oldest pending request
+          if (!matched && prev.some((r) => r.status === 'Pending')) {
+            const oldestPendingIndex = [...prev].reverse().findIndex((r) => r.status === 'Pending');
+            if (oldestPendingIndex !== -1) {
+              const actualIdx = prev.length - 1 - oldestPendingIndex;
+              return prev.map((r, i) => (i === actualIdx ? { ...r, status: 'Resolved' as const } : r));
+            }
+          }
+          return updated;
+        });
       },
     });
     return () => unsub();
@@ -86,9 +134,11 @@ function AssistantPageContent() {
 
   const handleCallWaiter = () => {
     const serviceLabel = specialNote.trim() || (selectedService ? quickOptionLabels[selectedService] || 'Service Assistance' : 'Waiter Assistance Requested');
+    const alertId = `call-${seatNumber}-${Date.now()}`;
     const newReq: SubmittedRequest = {
-      id: String(Date.now()),
+      id: alertId,
       timestamp: 'Just now',
+      label: serviceLabel,
       status: 'Pending',
     };
     setActiveRequests((prev) => [newReq, ...prev]);
@@ -96,6 +146,7 @@ function AssistantPageContent() {
 
     // Send real-time service alert to floor waitstaff
     realtimeBridge.sendServiceAlert({
+      id: alertId,
       seatNumber: `Seat ${seatNumber.padStart(2, '0')}`,
       title: serviceLabel,
       message: specialNote.trim() ? `Note: ${specialNote.trim()}` : `Guest requested: ${serviceLabel}`,
@@ -243,41 +294,58 @@ function AssistantPageContent() {
               </div>
               <h2 className="text-sm font-black uppercase tracking-wider text-[#1A2621]">Your Requests</h2>
             </div>
-            {/* Counter pill */}
-            <div className="border border-[#DD6B28]/30 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#DD6B28]/10 text-[#DD6B28] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#DD6B28] animate-pulse" />
-              <span>{activeRequests.length} Pending</span>
-            </div>
+            {/* Dynamic Counter pill */}
+            {activeRequests.filter(r => r.status === 'Pending').length > 0 ? (
+              <div className="border border-[#DD6B28]/30 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#DD6B28]/10 text-[#DD6B28] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#DD6B28] animate-pulse" />
+                <span>{activeRequests.filter(r => r.status === 'Pending').length} Pending</span>
+              </div>
+            ) : (
+              <div className="border border-[#244436]/30 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#244436]/10 text-[#244436] flex items-center gap-1">
+                <Check className="w-3 h-3 text-[#244436]" />
+                <span>No Pending</span>
+              </div>
+            )}
           </div>
 
           {/* Dynamic List of Active Requests */}
           <div className="w-full flex flex-col gap-2">
-            {activeRequests.map((req, idx) => (
-              <div
-                key={req.id || idx}
-                className="w-full border border-[#DCE2DE] rounded-2xl p-2.5 flex items-center justify-between bg-white shadow-xs"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-full border border-[#DCE2DE] flex items-center justify-center shrink-0 bg-[#F4F1EA] text-[#244436]">
-                    <Droplets className="w-4 h-4 text-[#244436]" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#1A2621]">Service Alert</span>
-                    <span className="text-[10px] text-[#5A6860]">{req.timestamp}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    req.status === 'Served'
-                      ? 'bg-[#244436]/10 text-[#244436] border border-[#244436]/30'
-                      : 'bg-[#DD6B28]/10 text-[#DD6B28] border border-[#DD6B28]/30'
-                  }`}>
-                    {req.status}
-                  </span>
-                </div>
+            {activeRequests.length === 0 ? (
+              <div className="w-full py-3 text-center border border-dashed border-[#DCE2DE] rounded-2xl bg-white/50">
+                <span className="text-[11px] text-[#5A6860] font-medium">No recent requests</span>
               </div>
-            ))}
+            ) : (
+              activeRequests.map((req, idx) => (
+                <div
+                  key={req.id || idx}
+                  className="w-full border border-[#DCE2DE] rounded-2xl p-2.5 flex items-center justify-between bg-white shadow-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                    <div className="w-9 h-9 rounded-full border border-[#DCE2DE] flex items-center justify-center shrink-0 bg-[#F4F1EA] text-[#244436]">
+                      {req.status === 'Resolved' ? (
+                        <Check className="w-4 h-4 text-[#244436]" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-[#DD6B28]" />
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold text-[#1A2621] truncate">{req.label || 'Service Alert'}</span>
+                      <span className="text-[10px] text-[#5A6860]">{req.timestamp}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center shrink-0">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      req.status === 'Resolved'
+                        ? 'bg-[#244436]/10 text-[#244436] border border-[#244436]/30'
+                        : 'bg-[#DD6B28]/10 text-[#DD6B28] border border-[#DD6B28]/30'
+                    }`}>
+                      {req.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Special Request Input Row */}
