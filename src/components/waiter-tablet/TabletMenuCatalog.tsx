@@ -37,6 +37,8 @@ export interface TabletMenuCatalogProps {
   isDining: boolean;
   /** Map of dish ID to quantity currently selected in the cart/order */
   dishQuantities: Record<number, number>;
+  /** Map of dish ID to already cooked/in-kitchen quantity */
+  kitchenQuantities?: Record<number, number>;
   /** Total count of items added in current ticket */
   cartCount: number;
   /** Callback to navigate back to the Floor Board matrix */
@@ -56,6 +58,7 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
   seats,
   isDining,
   dishQuantities,
+  kitchenQuantities,
   cartCount,
   onBackToFloor,
   onQuickSeatSwitch,
@@ -298,10 +301,17 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
 
                   {/* Bottom Action Row: Price on LEFT, Add Button / Stepper on RIGHT (NO "Selected: 1") */}
                   <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                    {/* Price on Left Side (Highlighted Badge as requested) */}
-                    <span className="text-xs font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs tracking-tight">
-                      ₹{dish.price}
-                    </span>
+                    {/* Price on Left Side with Kitchen Badge */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs tracking-tight">
+                        ₹{dish.price}
+                      </span>
+                      {kitchenQuantities && (kitchenQuantities[dish.id] || 0) > 0 && (
+                        <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs">
+                          {kitchenQuantities[dish.id]} in kitchen
+                        </span>
+                      )}
+                    </div>
 
                     {/* Add Button or Stepper on Right Side */}
                     {qty === 0 ? (

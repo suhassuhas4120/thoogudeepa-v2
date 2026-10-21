@@ -214,67 +214,9 @@ export const realtimeBridge = {
         localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC.padStart(2, '0')}`);
       }
 
-      const currentOrders = getLocalOrdersList();
       const cleanChair = order.chair_id.replace(/[^0-9]/g, '');
-      const existingSameTicket = currentOrders.find(
-        (x) =>
-          x.order.ticket_number === order.ticket_number &&
-          x.order.chair_id.replace(/[^0-9]/g, '') === cleanChair
-      );
 
-      const newEntryItems = items.map((it, idx) => ({
-        ...it,
-        id: it.id || `item-${order.chair_id}-${order.ticket_number}-${it.dish_id}-${Date.now()}-${idx}`,
-        stage: it.stage || 'PLACED',
-      }));
-
-      const newEntry = {
-        order: { ...order, id: generatedId },
-        items: newEntryItems,
-      };
-
-      let updatedOrders: typeof currentOrders;
-      if (existingSameTicket) {
-        const mergedItems = [
-          ...existingSameTicket.items,
-          ...newEntryItems.filter((it) => !existingSameTicket.items.some((e) => e.id === it.id)),
-        ];
-        updatedOrders = currentOrders.map((x) =>
-          x.order.id === existingSameTicket.order.id
-            ? {
-                ...x,
-                order: {
-                  ...x.order,
-                  total_amount: (x.order.total_amount || 0) + (order.total_amount || 0),
-                  status: 'pending',
-                },
-                items: mergedItems,
-              }
-            : x
-        );
-      } else {
-        updatedOrders = [
-          newEntry,
-          ...currentOrders.filter((x) => x.order.id !== generatedId && x.order.id !== order.id),
-        ];
-      }
-      setLocalOrdersList(updatedOrders);
-
-      // 3. Broadcast to all open tabs immediately
-      if (localChannel) {
-        localChannel.postMessage({
-          type: 'SEAT_OCCUPIED',
-          chairId: order.chair_id,
-          occupancy: occupancyMap[order.chair_id],
-        });
-        localChannel.postMessage({
-          type: 'NEW_ORDER',
-          order: { ...order, id: generatedId },
-          items: newEntry.items,
-        });
-      }
-
-      // 4. Remote Supabase insertion if connected
+      // 3. Remote Supabase insertion if connected (authoritative database transaction)
       if (supabase) {
         const { data: orderData, error: orderErr } = await supabase
           .from('orders')
@@ -291,6 +233,13 @@ export const realtimeBridge = {
         if (orderErr) throw orderErr;
 
         const orderId = orderData.id;
+        processedOrderIds.add(orderId);
+
+        // Update occupancy map with confirmed orderId
+        if (occupancyMap[order.chair_id]) {
+          occupancyMap[order.chair_id].orderId = orderId;
+          setLocalOccupancyMap(occupancyMap);
+        }
 
         const itemsToInsert = items.map((it) => {
           const isPlaced = it.stage === 'PLACED' || !it.stage;
@@ -323,21 +272,33 @@ export const realtimeBridge = {
             ? insertedItemsData.map((it, idx) => ({
                 ...it,
                 stage: 'PLACED' as const,
-                notes: newEntry.items[idx]?.notes || it.notes,
-                addons: newEntry.items[idx]?.addons || it.addons,
+                notes: items[idx]?.notes || it.notes,
+                addons: items[idx]?.addons || it.addons,
               }))
-            : newEntry.items;
+            : items.map(it => ({ ...it, stage: 'PLACED' as const }));
 
-        // Synchronize local orders entry with confirmed database ID and items
+        // Synchronize local orders entry strictly with confirmed database ID and items
         const currentLocals = getLocalOrdersList();
-        const updatedWithDbId = currentLocals.map((x) =>
-          x.order.id === generatedId || x.order.id === orderId
-            ? { ...x, order: { ...x.order, id: orderId }, items: broadcastItems }
-            : x
-        );
-        setLocalOrdersList(updatedWithDbId);
+        const updatedOrders = [
+          { order: { ...order, id: orderId }, items: broadcastItems },
+          ...currentLocals.filter((x) => x.order.id !== orderId && !String(x.order.id).startsWith('ord-')),
+        ];
+        setLocalOrdersList(updatedOrders);
 
-        // Broadcast cross-device via Supabase Realtime channel
+        // Broadcast ONCE across tabs and cross-device
+        if (localChannel) {
+          localChannel.postMessage({
+            type: 'SEAT_OCCUPIED',
+            chairId: order.chair_id,
+            occupancy: occupancyMap[order.chair_id],
+          });
+          localChannel.postMessage({
+            type: 'NEW_ORDER',
+            order: { ...order, id: orderId },
+            items: broadcastItems,
+          });
+        }
+
         const liveChannel = supabase.channel('kitchen_realtime_feed');
         liveChannel.send({
           type: 'broadcast',
@@ -1039,16 +1000,15 @@ export const realtimeBridge = {
             };
           });
 
-          const now = Date.now();
+          const remoteTickets = new Set(remoteOrders.map((ro) => ro.order.ticket_number));
+          const remoteOrderIds = new Set(remoteOrders.map((ro) => ro.order.id));
           const validLocalOrders = localOrders.filter((lo) => {
             if (!lo.order?.id || !lo.order?.ticket_number) return false;
             if (lo.order.status === 'completed' || lo.order.status === 'cancelled') return false;
-            // Only preserve unsynced temporary in-flight orders created in the last 20 seconds
-            const isLocalTemp = String(lo.order.id).startsWith('ord-');
-            if (!isLocalTemp) return false;
-            const createdTime = lo.order.created_at ? new Date(lo.order.created_at).getTime() : 0;
-            if (createdTime && now - createdTime > 20000) return false;
-            return true;
+            // Do not merge if remote database already contains this ticket or order
+            if (remoteTickets.has(lo.order.ticket_number) || remoteOrderIds.has(lo.order.id)) return false;
+            const isLocalTemp = String(lo.order.id).startsWith('local-');
+            return isLocalTemp;
           });
           const merged = [
             ...remoteOrders,
@@ -1594,8 +1554,10 @@ export const realtimeBridge = {
         .channel('kitchen_realtime_feed')
         // Cross-device broadcast listeners (instant sub-50ms latency)
         .on('broadcast', { event: 'NEW_ORDER' }, (msg) => {
-          if (msg.payload?.order?.id) {
-            processedOrderIds.add(msg.payload.order.id);
+          const ordId = msg.payload?.order?.id;
+          if (ordId) {
+            if (processedOrderIds.has(ordId)) return;
+            processedOrderIds.add(ordId);
           }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onNewOrder && msg.payload) {
@@ -1784,8 +1746,10 @@ export const realtimeBridge = {
         if (!data) return;
 
         if (data.type === 'NEW_ORDER') {
-          if (data.order?.id) {
-            processedOrderIds.add(data.order.id);
+          const ordId = data.order?.id;
+          if (ordId) {
+            if (processedOrderIds.has(ordId)) return;
+            processedOrderIds.add(ordId);
           }
           activeKdsSubscribers.forEach((cb) => {
             if (cb.onNewOrder) cb.onNewOrder({ order: data.order, items: data.items });

@@ -5,29 +5,30 @@
  * Real-world enterprise Live Order Ticket (40% split screen column):
  * - Balanced In-Between Theme: Soft slate canvas (#F1F5F9), crisp white cards (#FFFFFF),
  *   subtle borders (#E2E8F0), slate-900 typography, and vibrant accents
- * - Target seat header with order timer
- * - STRICTLY NO CLEAR BUTTON (Removed accidental clear button as requested)
- * - NOTE OPTION COMPLETELY REMOVED as requested by user
+ * - Target seat header with live order timer
+ * - Multi-Round Consolidated Food Display:
+ *   * Distinct DRAFT additions section
+ *   * Consolidated ACTIVE ORDERS by dish identity with stage breakdown and Serve action
  * - Itemized dish rows with standardized kitchen status badges:
  *   * PLACED: Order queued at POS
  *   * RECEIVED: Acknowledged by Kitchen Display System (KDS)
  *   * PREPARING: Master chef actively preparing in donne biryani pots
- *   * READY: Placed on pass counter with urgent emerald badge + [ Served ] button
- *   * SERVED: Food delivered to dining seat — COMPLETELY DISABLED & NON-CLICKABLE
+ *   * READY: Placed on pass counter with urgent emerald badge + [ Serve ] button
+ *   * SERVED: Food delivered to dining seat — Non-clickable completed status
  * - Financial summary breakdown: Subtotal, GST (5%), and Grand Total
- * - Single clean icon per action button:
- *   * [ Punch KOT ] (Send icon, Disabled when ticket has 0 items)
- *   * [ Collect Bill ] (CreditCard icon, Disabled when 0 items)
- * - Standardized badge tokens (uniform 24px height, 10px bold uppercase font)
- * - Strict line count maintained between 270 and 350 lines.
+ * - Clean action buttons:
+ *   * [ Send to Kitchen ] (Send icon, Disabled when no unplaced draft items)
+ *   * [ Settle Bill ] (CreditCard icon, Disabled when 0 items or awaiting bill request)
+ *   * [ Vacate Table ] (RotateCcw icon, releases table cleanly)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Timer,
   Send,
   CreditCard,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { TicketItem, KitchenStatus } from './types';
 
@@ -46,12 +47,32 @@ export interface TabletLiveTicketProps {
   onServeItem: (itemId: number | string) => void;
   /** Callback to fire KOT directly to kitchen pass counter */
   onPunchKot: () => void;
-  /** Callback to switch right-pane mode from ticket to Bill Settlement (NO POPUP) */
+  /** Callback to switch right-pane mode from ticket to Bill Settlement */
   onSwitchToBillMode: () => void;
   /** Callback to clear ticket items for a new guest */
   onClearTicket?: () => void;
+  /** Callback to cleanly vacate table */
+  onVacateTicket?: (seatNumber?: string) => void;
+  /** Whether there are unplaced draft items on ticket ready to fire */
+  hasUnplacedItems?: boolean;
   /** Whether the customer on this seat has actively requested the bill */
   isBillRequested?: boolean;
+}
+
+interface ConsolidatedTabletDish {
+  dishId: number;
+  name: string;
+  imageUrl?: string;
+  price: number;
+  totalQuantity: number;
+  totalAmount: number;
+  readyCount: number;
+  servedCount: number;
+  prepCount: number;
+  recCount: number;
+  placedCount: number;
+  primaryStage: KitchenStatus;
+  orderItemIds: string[];
 }
 
 export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
@@ -64,11 +85,14 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
   onPunchKot,
   onSwitchToBillMode,
   onClearTicket,
+  onVacateTicket,
+  hasUnplacedItems = false,
   isBillRequested = true
 }) => {
   const [kotSentSuccess, setKotSentSuccess] = useState<boolean>(false);
   const [kotOrderSerial, setKotOrderSerial] = useState<number>(104);
   const [ticketElapsedSeconds, setTicketElapsedSeconds] = useState<number>(340);
+  const [showVacateConfirm, setShowVacateConfirm] = useState<boolean>(false);
 
   // Live order timer simulation
   useEffect(() => {
@@ -94,6 +118,66 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
     }, 2000);
   };
 
+  // Separate draft items from already punched kitchen items
+  const draftItems = useMemo(() => {
+    return ticketItems.filter(item => !item.orderItemId && !item.isPunched);
+  }, [ticketItems]);
+
+  // Consolidate committed items by dish identity
+  const committedDishes = useMemo(() => {
+    const committed = ticketItems.filter(item => Boolean(item.orderItemId || item.isPunched));
+    const map = new Map<string, ConsolidatedTabletDish>();
+
+    committed.forEach(item => {
+      const dishKey = String(item.id || item.name);
+      const stage = item.status || 'PLACED';
+
+      if (!map.has(dishKey)) {
+        map.set(dishKey, {
+          dishId: item.id,
+          name: item.name,
+          imageUrl: item.imageUrl,
+          price: item.price,
+          totalQuantity: 0,
+          totalAmount: 0,
+          readyCount: 0,
+          servedCount: 0,
+          prepCount: 0,
+          recCount: 0,
+          placedCount: 0,
+          primaryStage: 'PLACED',
+          orderItemIds: []
+        });
+      }
+
+      const entry = map.get(dishKey)!;
+      entry.totalQuantity += item.quantity;
+      entry.totalAmount += item.price * item.quantity;
+      if (item.orderItemId) entry.orderItemIds.push(item.orderItemId);
+
+      if (stage === 'SERVED') entry.servedCount += item.quantity;
+      else if (stage === 'READY') entry.readyCount += item.quantity;
+      else if (stage === 'PREPARING') entry.prepCount += item.quantity;
+      else if (stage === 'RECEIVED') entry.recCount += item.quantity;
+      else entry.placedCount += item.quantity;
+    });
+
+    return Array.from(map.values()).map(entry => {
+      if (entry.servedCount >= entry.totalQuantity && entry.totalQuantity > 0) {
+        entry.primaryStage = 'SERVED';
+      } else if (entry.readyCount > 0) {
+        entry.primaryStage = 'READY';
+      } else if (entry.prepCount > 0) {
+        entry.primaryStage = 'PREPARING';
+      } else if (entry.recCount > 0) {
+        entry.primaryStage = 'RECEIVED';
+      } else {
+        entry.primaryStage = 'PLACED';
+      }
+      return entry;
+    });
+  }, [ticketItems]);
+
   const hasItems = ticketItems.length > 0;
 
   return (
@@ -103,17 +187,14 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
       role="region"
       aria-label="Live Seat Ticket and KOT Management"
     >
-      <div className="flex flex-col h-[calc(100%-140px)]">
-        {/* ======================================================== */}
-        {/* 1. TICKET HEADER: ACTIVE SEAT & TIMER (NO NOTE / CLEAR)  */}
-        {/* ======================================================== */}
+      <div className="flex flex-col h-[calc(100%-150px)]">
+        {/* 1. TICKET HEADER: ACTIVE SEAT & TIMER */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-2.5">
           <div>
             <div className="flex items-center gap-1.5">
               <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
                 Live Seat Ticket
               </h3>
-              {/* Standardized Uniform Badge Size: h-6 px-2.5 text-[10px] */}
               <span className="h-6 px-2.5 inline-flex items-center justify-center text-[10px] font-extrabold uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
                 KOT #{kotOrderSerial}
               </span>
@@ -135,129 +216,146 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
           <span>Kitchen Status</span>
         </div>
 
-        {/* ======================================================== */}
-        {/* 2. TICKET ITEMS LIST WITH COMPLETELY DISABLED SERVED     */}
-        {/* ======================================================== */}
+        {/* 2. TICKET ITEMS LIST WITH MULTI-ROUND CONSOLIDATION */}
         <div className="space-y-2 overflow-y-auto no-scrollbar flex-1 pr-0.5 py-1">
-          {ticketItems.length === 0 ? (
+          {!hasItems ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 py-10">
               <p className="text-sm font-extrabold text-slate-700">No dishes on ticket</p>
               <p className="text-xs text-slate-400 mt-0.5">Select dishes from the menu to punch</p>
             </div>
           ) : (
-            ticketItems.map((item, idx) => {
-              const isServed = item.status === 'SERVED';
-
-              return (
-                <div
-                  key={item.orderItemId || `${item.id}-${idx}`}
-                  className={`border rounded-xl p-3 transition-colors ${
-                    isServed
-                      ? 'border-slate-200 bg-slate-100/70 opacity-70 select-none'
-                      : 'border-slate-200 bg-slate-50/70 shadow-2xs hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2.5">
-                    <div className="min-w-0 flex-1">
-                      <span className={`font-black block truncate text-xs sm:text-sm ${isServed ? 'text-slate-400 line-through decoration-2' : 'text-slate-900'}`}>
-                        {item.quantity}x {item.name}
-                      </span>
-                      <span className="text-xs text-slate-500 font-bold block mt-0.5">
-                        ₹{item.price * item.quantity} (₹{item.price} each)
-                      </span>
-                    </div>
-
-                    {/* STANDARDIZED KITCHEN BADGES WITH ACTIONS */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {item.status === 'READY' && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
-                            READY
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => onServeItem(item.orderItemId || item.id)}
-                            className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
-                            title="Mark as Served to Seat"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Serve</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {item.status === 'PREPARING' && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
-                            PREPARING
-                          </span>
-                          <button
-                            type="button"
-                            disabled
-                            className="h-6 px-2.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
-                            title="Waiting for kitchen to mark Ready"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
-                            <span>Serve</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {item.status === 'RECEIVED' && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
-                            RECEIVED
-                          </span>
-                          <button
-                            type="button"
-                            disabled
-                            className="h-6 px-2.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
-                            title="Waiting for kitchen to mark Ready"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
-                            <span>Serve</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {item.status === 'PLACED' && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
-                            PLACED
-                          </span>
-                          <button
-                            type="button"
-                            disabled
-                            className="h-6 px-2.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
-                            title="Waiting for kitchen to mark Ready"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
-                            <span>Serve</span>
-                          </button>
-                        </div>
-                      )}
-
-                      {isServed && (
-                        <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
-                          <Check className="w-3 h-3 stroke-[3]" />
-                          <span>SERVED</span>
-                        </span>
-                      )}
-                    </div>
+            <>
+              {/* DRAFT ITEMS SECTION */}
+              {draftItems.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      Draft Additions ({draftItems.reduce((acc, it) => acc + it.quantity, 0)})
+                    </span>
                   </div>
+
+                  {draftItems.map((item, idx) => (
+                    <div
+                      key={`draft-${item.id}-${idx}`}
+                      className="border border-amber-300/80 bg-amber-50/50 rounded-xl p-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between gap-2.5">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-black block truncate text-xs sm:text-sm text-slate-900">
+                            {item.quantity}x {item.name}
+                          </span>
+                          <span className="text-xs text-slate-500 font-bold block mt-0.5">
+                            ₹{item.price * item.quantity} (₹{item.price} each)
+                          </span>
+                        </div>
+                        <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                          DRAFT
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              );
-            })
+              )}
+
+              {/* COMMITTED ITEMS SECTION */}
+              {committedDishes.length > 0 && (
+                <div className="space-y-1.5">
+                  {draftItems.length > 0 && (
+                    <div className="flex items-center justify-between px-1 pt-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Kitchen Orders ({committedDishes.reduce((acc, it) => acc + it.totalQuantity, 0)})
+                      </span>
+                    </div>
+                  )}
+
+                  {committedDishes.map((dish) => {
+                    const isServed = dish.primaryStage === 'SERVED';
+
+                    return (
+                      <div
+                        key={`committed-${dish.dishId}`}
+                        className={`border rounded-xl p-3 transition-colors ${
+                          isServed
+                            ? 'border-slate-200 bg-slate-100/70 opacity-70 select-none'
+                            : 'border-slate-200 bg-slate-50/70 shadow-2xs hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2.5">
+                          <div className="min-w-0 flex-1">
+                            <span className={`font-black block truncate text-xs sm:text-sm ${isServed ? 'text-slate-400 line-through decoration-2' : 'text-slate-900'}`}>
+                              {dish.totalQuantity}x {dish.name}
+                            </span>
+                            <span className="text-xs text-slate-500 font-bold block mt-0.5">
+                              ₹{dish.totalAmount} (₹{dish.price} each)
+                              {dish.servedCount > 0 && dish.readyCount > 0 && (
+                                <span className="ml-1 text-[10px] text-slate-400 font-medium">
+                                  • {dish.servedCount} Served, {dish.readyCount} Ready
+                                </span>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Operational Status Badges */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {dish.primaryStage === 'READY' && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                  READY {dish.readyCount > 1 ? `(${dish.readyCount})` : ''}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => onServeItem(dish.orderItemIds[0] || dish.dishId)}
+                                  className="h-6 px-2.5 rounded-lg text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
+                                  title="Mark as Served to Seat"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  <span>Serve</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {dish.primaryStage === 'PREPARING' && (
+                              <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
+                                PREPARING
+                              </span>
+                            )}
+
+                            {dish.primaryStage === 'RECEIVED' && (
+                              <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
+                                RECEIVED
+                              </span>
+                            )}
+
+                            {dish.primaryStage === 'PLACED' && (
+                              <span className="h-6 px-2.5 inline-flex items-center justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs">
+                                PLACED
+                              </span>
+                            )}
+
+                            {isServed && (
+                              <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-xs font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                                <span>SERVED</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 3. TICKET TOTALS & CONDITIONAL ACTION BUTTONS             */}
-      {/* ======================================================== */}
-      <div className="pt-3 border-t border-slate-200 mt-2">
+      {/* 3. TICKET TOTALS & ACTION BUTTONS */}
+      <div className="pt-3 border-t border-slate-200 mt-2 space-y-2">
         {/* Pricing Summary */}
-        <div className="space-y-1 mb-3 text-xs">
+        <div className="space-y-1 text-xs">
           <div className="flex justify-between text-slate-500 font-semibold text-[11px]">
             <span>Subtotal:</span>
             <span>₹{subtotal.toLocaleString('en-IN')}</span>
@@ -274,22 +372,22 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
           </div>
         </div>
 
-        {/* 2 Primary Action Buttons: Exactly One Icon per Button (Send, CreditCard) */}
+        {/* Primary Action Buttons */}
         <div className="grid grid-cols-2 gap-2">
           {/* Button 1: Punch KOT to Kitchen */}
           <button
             type="button"
-            disabled={!hasItems}
+            disabled={!hasUnplacedItems}
             onClick={handleFireKot}
             className={`h-11 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-2xs transition-all ${
-              hasItems
+              hasUnplacedItems
                 ? 'bg-slate-900 hover:bg-slate-800 active:scale-95 text-white cursor-pointer'
                 : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
             }`}
-            title={hasItems ? "Fire KOT to Kitchen" : "Add dishes before firing KOT"}
+            title={hasUnplacedItems ? "Fire KOT to Kitchen" : "All items on ticket already fired to kitchen"}
           >
             <Send className="w-3.5 h-3.5" />
-            <span>{kotSentSuccess ? 'Sent to Kitchen' : 'Send to Kitchen'}</span>
+            <span>{kotSentSuccess ? 'Sent to Kitchen' : hasUnplacedItems ? 'Send to Kitchen' : 'All in Kitchen'}</span>
           </button>
 
           {/* Button 2: Collect Bill */}
@@ -314,6 +412,45 @@ export const TabletLiveTicket: React.FC<TabletLiveTicketProps> = ({
             <span>{isBillRequested ? 'Settle Bill' : 'Awaiting Request'}</span>
           </button>
         </div>
+
+        {/* Vacate Table Action */}
+        {onVacateTicket && (
+          <div className="pt-0.5">
+            {!showVacateConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowVacateConfirm(true)}
+                className="w-full h-8 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-bold text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Vacate / Reset Seat</span>
+              </button>
+            ) : (
+              <div className="p-2 rounded-lg border border-rose-200 bg-rose-50 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-rose-900">Vacate {activeSeatName.split(':')[0]}?</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowVacateConfirm(false)}
+                    className="px-2 py-0.5 rounded border border-slate-200 bg-white text-slate-700 text-[10px] font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowVacateConfirm(false);
+                      onVacateTicket();
+                    }}
+                    className="px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

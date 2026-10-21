@@ -241,7 +241,7 @@ function PaymentSuccessContent() {
       {/* Fixed Bottom Navigation Bar - Home, likes, cart disabled; Profile enabled */}
       <CustomerBottomNav
         chairId={chairId}
-        disabledTabs={['home', 'likes', 'cart']}
+        disabledTabs={['home', 'likes', 'tracking', 'cart']}
       />
     </div>
   );

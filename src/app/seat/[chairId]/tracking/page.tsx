@@ -619,7 +619,7 @@ export default function LiveOrderTrackingPage() {
       )}
 
       {/* Fixed Bottom Navigation Bar */}
-      <CustomerBottomNav chairId={chairId} />
+      <CustomerBottomNav chairId={chairId} activeTab="tracking" />
     </div>
   );
 }

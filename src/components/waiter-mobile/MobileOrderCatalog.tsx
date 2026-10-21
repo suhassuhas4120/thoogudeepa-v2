@@ -92,14 +92,34 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
     return cartItems.reduce((acc, curr) => acc + curr.lineTotal, 0);
   }, [cartItems]);
 
-  // Map item IDs to cart quantity for quick lookups
-  const cartQuantities = useMemo(() => {
+  // Separate new draft items from already cooking items
+  const draftItems = useMemo(() => {
+    return cartItems.filter(c => !c.orderItemId && !c.isFired && c.stage !== 'REC' && c.stage !== 'PREP' && c.stage !== 'READY' && c.stage !== 'SERVED');
+  }, [cartItems]);
+
+  const draftQuantities = useMemo(() => {
     const map = new Map<string, number>();
-    cartItems.forEach(item => {
-      map.set(item.menuItem.id, item.quantity);
+    draftItems.forEach(item => {
+      map.set(item.menuItem.id, (map.get(item.menuItem.id) || 0) + item.quantity);
+    });
+    return map;
+  }, [draftItems]);
+
+  const firedQuantities = useMemo(() => {
+    const map = new Map<string, number>();
+    cartItems.filter(c => c.isFired || Boolean(c.orderItemId) || c.stage === 'REC' || c.stage === 'PREP' || c.stage === 'READY' || c.stage === 'SERVED').forEach(item => {
+      map.set(item.menuItem.id, (map.get(item.menuItem.id) || 0) + item.quantity);
     });
     return map;
   }, [cartItems]);
+
+  const draftCount = useMemo(() => {
+    return draftItems.reduce((acc, curr) => acc + curr.quantity, 0);
+  }, [draftItems]);
+
+  const draftSubtotal = useMemo(() => {
+    return draftItems.reduce((acc, curr) => acc + curr.lineTotal, 0);
+  }, [draftItems]);
 
   // Filtered menu items by category and query
   const filteredMenuItems = useMemo(() => {
@@ -248,7 +268,8 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
           </div>
         ) : (
           filteredMenuItems.map(dish => {
-            const currentQty = cartQuantities.get(dish.id) || 0;
+            const currentDraftQty = draftQuantities.get(dish.id) || 0;
+            const inKitchenQty = firedQuantities.get(dish.id) || 0;
             const isNonVeg = dish.dietary === 'non_veg';
 
             return (
@@ -298,16 +319,21 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                   </p>
 
                   {/* PROMINENT HIGH-VISIBILITY PRICE BADGE */}
-                  <div className="mt-1.5">
+                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                     <span className="text-sm sm:text-base font-black text-amber-950 font-mono bg-amber-100 border border-amber-300 px-3 py-0.5 rounded-lg shadow-2xs inline-block">
                       ₹{dish.price}
                     </span>
+                    {inKitchenQty > 0 && (
+                      <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs">
+                        {inKitchenQty} in kitchen
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Add / Stepper Controls with generous touch target */}
                 <div className="flex items-center shrink-0">
-                  {currentQty > 0 ? (
+                  {currentDraftQty > 0 ? (
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button
                         type="button"
@@ -317,7 +343,7 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                         <Minus className="w-3.5 h-3.5" />
                       </button>
                       <span className="w-6 text-center text-xs sm:text-sm font-black text-slate-900">
-                        {currentQty}
+                        {currentDraftQty}
                       </span>
                       <button
                         type="button"
@@ -345,15 +371,15 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
         )}
       </div>
 
-      {/* DOCKED SOLID BOTTOM KOT BAR: Physical flex child firmly docked at bottom of screen with 100% solid white background */}
-      {totalCartCount > 0 && (
+      {/* DOCKED SOLID BOTTOM KOT BAR: Physical flex child firmly docked at bottom of screen */}
+      {draftCount > 0 ? (
         <div className="shrink-0 p-3 bg-white border-t-2 border-slate-200 flex items-center justify-between shadow-[0_-8px_24px_rgba(0,0,0,0.12)] z-30 animate-in slide-in-from-bottom-2 duration-150">
           <div>
             <span className="text-sm sm:text-base font-black text-slate-900 block leading-tight">
-              {totalCartCount} Items Added • ₹{cartSubtotal}
+              {draftCount} New Items • ₹{draftSubtotal}
             </span>
-            <span className="text-[10px] sm:text-xs text-emerald-600 font-bold block mt-0.5">
-              Ready for Kitchen Pass
+            <span className="text-[10px] sm:text-xs text-amber-600 font-bold block mt-0.5">
+              Draft - Ready for Kitchen Pass
             </span>
           </div>
 
@@ -367,7 +393,27 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
             <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
           </button>
         </div>
-      )}
+      ) : totalCartCount > 0 ? (
+        <div className="shrink-0 p-3 bg-white border-t-2 border-slate-200 flex items-center justify-between shadow-[0_-8px_24px_rgba(0,0,0,0.12)] z-30 animate-in slide-in-from-bottom-2 duration-150">
+          <div>
+            <span className="text-sm sm:text-base font-black text-slate-900 block leading-tight">
+              {totalCartCount} Items in Kitchen • ₹{cartSubtotal}
+            </span>
+            <span className="text-[10px] sm:text-xs text-emerald-600 font-bold block mt-0.5">
+              Active Dining Session
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenCartSheet}
+            className="h-11 px-5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-900 font-black text-xs sm:text-sm rounded-xl flex items-center gap-2 border border-slate-300 shadow-2xs transition-all cursor-pointer"
+          >
+            <ShoppingBag className="w-4 h-4 text-slate-700" />
+            <span>View Live KOT</span>
+          </button>
+        </div>
+      ) : null}
 
     </div>
   );

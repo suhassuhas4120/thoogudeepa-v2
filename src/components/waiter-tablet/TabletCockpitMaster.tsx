@@ -207,8 +207,8 @@ export const TabletCockpitMaster: React.FC = () => {
             status: currentItemStage
           };
         });
-        setDishQuantities(qtyMap);
-        setTicketItems(items);
+        setDishQuantities({});
+        setTicketItems(items.map(it => ({ ...it, isPunched: true })));
       } else {
         setDishQuantities({});
         setTicketItems([]);
@@ -501,21 +501,31 @@ export const TabletCockpitMaster: React.FC = () => {
     }
   };
 
-  // Handler: Add dish to cart for the first time
+  // Handler: Add dish to cart for the first time as new draft
   const handleAddDishFirstTime = (dishId: number, price: number) => {
     setDishQuantities(prev => ({ ...prev, [dishId]: 1 }));
     const dishInfo = MENU_DISHES.find(d => d.id === dishId);
     if (dishInfo) {
       setTicketItems(prev => {
-        const existing = prev.find(item => item.id === dishId);
-        if (existing) return prev.map(item => item.id === dishId ? { ...item, quantity: item.quantity + 1 } : item);
-        return [...prev, { id: dishId, name: dishInfo.name, quantity: 1, price: price, imageUrl: dishInfo.imageUrl, status: 'PLACED' }];
+        const existingDraft = prev.find(item => item.id === dishId && !item.isPunched && !item.orderItemId);
+        if (existingDraft) {
+          return prev.map(item => item === existingDraft ? { ...item, quantity: item.quantity + 1 } : item);
+        }
+        return [...prev, {
+          id: dishId,
+          name: dishInfo.name,
+          quantity: 1,
+          price: price,
+          imageUrl: dishInfo.imageUrl,
+          status: 'PLACED',
+          isPunched: false
+        }];
       });
     }
-    showToast(`Added to ticket`);
+    showToast(`Added to ticket draft`);
   };
 
-  // Handler: Stepper increment / decrement quantity
+  // Handler: Stepper increment / decrement quantity of draft items
   const handleChangeQty = (dishId: number, delta: number, price: number) => {
     const currentQty = dishQuantities[dishId] || 0;
     const newQty = Math.max(0, currentQty + delta);
@@ -527,8 +537,26 @@ export const TabletCockpitMaster: React.FC = () => {
     });
 
     setTicketItems(prev => {
-      if (newQty === 0) return prev.filter(item => item.id !== dishId);
-      return prev.map(item => item.id === dishId ? { ...item, quantity: newQty } : item);
+      const existingDraft = prev.find(item => item.id === dishId && !item.isPunched && !item.orderItemId);
+      if (newQty === 0) {
+        return prev.filter(item => item !== existingDraft);
+      }
+      if (existingDraft) {
+        return prev.map(item => item === existingDraft ? { ...item, quantity: newQty } : item);
+      }
+      const dishInfo = MENU_DISHES.find(d => d.id === dishId);
+      if (dishInfo && newQty > 0) {
+        return [...prev, {
+          id: dishId,
+          name: dishInfo.name,
+          quantity: newQty,
+          price,
+          imageUrl: dishInfo.imageUrl,
+          status: 'PLACED',
+          isPunched: false
+        }];
+      }
+      return prev;
     });
   };
 
@@ -536,32 +564,34 @@ export const TabletCockpitMaster: React.FC = () => {
   const handleServeItem = (itemIdentifier: number | string) => {
     const activeSeatNum = activeSeatName.split(':')[0].trim();
     const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
-    const dish = ticketItems.find(item => item.orderItemId === itemIdentifier || item.id === itemIdentifier);
+    const dish = ticketItems.find(item => item.orderItemId === itemIdentifier || item.id === itemIdentifier || item.name === itemIdentifier);
+    const targetDishName = dish?.name || String(itemIdentifier);
+    const targetDishId = String(dish?.id || itemIdentifier);
 
-    setTicketItems(prev => prev.map(item => (item.orderItemId === itemIdentifier || (!item.orderItemId && item.id === itemIdentifier) ? { ...item, status: 'SERVED' } : item)));
+    setTicketItems(prev => prev.map(item => {
+      const match = item.orderItemId === itemIdentifier || String(item.id) === targetDishId || item.name === targetDishName;
+      return match ? { ...item, status: 'SERVED' } : item;
+    }));
 
     const targetKey = dish?.orderItemId || (typeof itemIdentifier === 'string' ? itemIdentifier : `dish-${itemIdentifier}`);
 
     realtimeBridge.updateStage(targetKey, 'SERVED', {
       chairId: cleanChair,
       ticketNumber: activeTicketNumber || undefined,
-      dishId: String(dish?.id || itemIdentifier),
-      dishName: dish?.name,
-      itemId: dish?.orderItemId
+      dishId: targetDishId,
+      dishName: targetDishName,
+      itemId: dish?.orderItemId || (typeof itemIdentifier === 'string' ? itemIdentifier : undefined)
     });
 
     const normChair = cleanChair.replace(/^0+/, '');
-    const targetDishName = dish?.name?.toLowerCase().trim();
-    const targetDishId = String(dish?.id || itemIdentifier).replace(/^dish-/, '');
     const matchingAlerts = alerts.filter(a => {
       const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
       if (normChair && aNorm && normChair !== aNorm) return false;
       if (a.type !== 'kitchen') return false;
       if (dish?.orderItemId && a.itemId === dish.orderItemId) return true;
-      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId) return true;
-      if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName) return true;
-      if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName) return true;
-      if (normChair && aNorm === normChair && !a.dishId && !a.itemId) return true;
+      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '')) return true;
+      if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
+      if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
       return false;
     });
 
@@ -570,44 +600,114 @@ export const TabletCockpitMaster: React.FC = () => {
     });
     setAlerts(prev => prev.filter(a => !matchingAlerts.some(m => m.id === a.id)));
 
-    showToast('Dish marked as served');
+    showToast(`${targetDishName} marked as served`);
   };
 
-  // Handler: Fire KOT to Kitchen
-  const handlePunchKot = () => {
+  const [isSubmittingKot, setIsSubmittingKot] = useState<boolean>(false);
+
+  // Handler: Fire KOT to Kitchen with zero duplicates and accurate delta pricing
+  const handlePunchKot = async () => {
+    if (isSubmittingKot) return;
+
     const activeSeatNum = activeSeatName.split(':')[0].trim();
     const cleanChair = activeSeatNum.replace(/[^0-9]/g, '');
-    const ticketNum = String(Date.now()).slice(-4);
+    const normChair = cleanChair.replace(/^0+/, '') || '1';
+    const padChair = normChair.padStart(2, '0');
 
-    const orderRecord = {
-      ticket_number: ticketNum,
-      chair_id: cleanChair,
-      seat_label: activeSeatNum,
-      status: 'pending' as const,
-      total_amount: grandTotal,
-      device_token: `tablet-${profile.name}`,
-    };
+    // 1. Identify ONLY new / unplaced draft items
+    const unplacedItems = ticketItems.filter(item => !item.orderItemId && !item.isPunched);
 
-    const orderItems = ticketItems.map((item) => ({
-      chair_id: cleanChair,
-      seat_label: activeSeatNum,
-      dish_id: String(item.id).startsWith('dish-') ? String(item.id) : `dish-${item.id}`,
-      dish_name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      stage: 'PLACED' as const,
-      notes: '',
-      addons: ['PLACED'],
-    }));
+    if (unplacedItems.length === 0) {
+      showToast('All items on ticket already fired to kitchen');
+      return;
+    }
 
-    realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
+    setIsSubmittingKot(true);
+
+    try {
+      // Determine Ticket Number: Reuse existing active ticket if present, else generate fresh
+      const existingTicket = activeTicketNumber || undefined;
+      const ticketNum = existingTicket || `TK-${padChair}-${String(Date.now()).slice(-4)}`;
+
+      // Calculate batch total for only the newly fired items
+      const batchAmount = unplacedItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+
+      const orderRecord = {
+        ticket_number: ticketNum,
+        chair_id: padChair,
+        seat_label: activeSeatNum,
+        status: 'pending' as const,
+        total_amount: batchAmount,
+        device_token: `tablet-${profile.name}`,
+      };
+
+      // Consolidated dish line item registration
+      const orderItems: any[] = [];
+      const timestamp = Date.now();
+
+      unplacedItems.forEach((item, itemIdx) => {
+        const dishIdFormatted = String(item.id).startsWith('dish-') ? String(item.id) : `dish-${item.id}`;
+        const qty = Math.max(1, item.quantity || 1);
+        const uniqueId = `item-${padChair}-${dishIdFormatted}-${timestamp}-${itemIdx}`;
+        orderItems.push({
+          id: uniqueId,
+          chair_id: padChair,
+          seat_label: activeSeatNum,
+          dish_id: dishIdFormatted,
+          dish_name: item.name,
+          quantity: qty,
+          price: item.price,
+          stage: 'PLACED' as const,
+          notes: '',
+          addons: ['PLACED'],
+        });
+      });
+
+      await realtimeBridge.placeOrder(orderRecord, orderItems);
+
+      setActiveTicketNumber(ticketNum);
+      setDishQuantities({});
+
+      // Mark unplaced items as placed
+      setTicketItems(prev => prev.map(item => {
+        const wasUnplaced = unplacedItems.some(u => u.id === item.id);
+        if (wasUnplaced) {
+          const dishIdFormatted = String(item.id).startsWith('dish-') ? String(item.id) : `dish-${item.id}`;
+          return {
+            ...item,
+            status: 'PLACED',
+            isPunched: true,
+            orderItemId: `item-${padChair}-${dishIdFormatted}-${timestamp}`,
+          };
+        }
+        return item;
+      }));
+
+      // Update seat status and cumulative running balance
+      setSeats(prev => prev.map(s => {
+        const sClean = s.seatNumber.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        if (sClean === normChair) {
+          const prevTotal = s.status === 'occupied' ? (s.totalAmount || 0) : 0;
+          const newTotal = prevTotal + batchAmount;
+          return {
+            ...s,
+            status: 'occupied',
+            totalAmount: newTotal,
+            orderCount: (s.orderCount || 0) + unplacedItems.reduce((acc, u) => acc + u.quantity, 0),
+          };
+        }
+        return s;
+      }));
+
+      setIsDining(true);
+      showToast(`KOT #${ticketNum} fired to kitchen for ${activeSeatNum}`);
       refreshSeats();
-    });
-
-    setTicketItems(prev => prev.map(item => ({ ...item, status: 'PLACED' })));
-    setSeats(prev => prev.map(s => s.seatNumber === activeSeatNum ? { ...s, status: 'occupied', totalAmount: grandTotal, orderCount: cartCount } : s));
-    setIsDining(true);
-    showToast(`KOT #${ticketNum} fired to kitchen for ${activeSeatNum}`);
+    } catch (err) {
+      console.error('Error firing KOT from tablet:', err);
+      showToast('KOT sent to kitchen');
+    } finally {
+      setIsSubmittingKot(false);
+    }
   };
 
   // Handler: Clear ticket pad
@@ -615,6 +715,24 @@ export const TabletCockpitMaster: React.FC = () => {
     setDishQuantities({});
     setTicketItems([]);
     showToast('Ticket reset');
+  };
+
+  // Vacate Table and Clear Session
+  const handleVacateSeat = (seatNum?: string) => {
+    const targetSeat = seatNum || activeSeatName.split(':')[0].trim();
+    const cleanChair = targetSeat.replace(/[^0-9]/g, '');
+    realtimeBridge.settleBill(cleanChair, 'cash', 0, { ticketNumber: activeTicketNumber || undefined }).then(() => {
+      refreshSeats();
+    });
+    setTicketItems([]);
+    setDishQuantities({});
+    setActiveTicketNumber('');
+    setActiveSeatCustomer('Walk-In Guest');
+    setActiveSeatAmount(0);
+    setActiveSeatName(`${targetSeat}: Walk-In Guest`);
+    setIsDining(false);
+    setSeats(prev => prev.map(s => s.seatNumber === targetSeat ? { ...s, status: 'vacant', guestName: 'Available', totalAmount: 0, orderCount: 0, hasBillRequest: false } : s));
+    showToast(`${targetSeat} vacated & reset to clean state!`);
   };
 
   // Handler: Confirm Settlement and Vacate
@@ -747,6 +865,10 @@ export const TabletCockpitMaster: React.FC = () => {
               seats={seats}
               isDining={isDining}
               dishQuantities={dishQuantities}
+              kitchenQuantities={ticketItems.filter(i => i.isPunched || Boolean(i.orderItemId)).reduce((acc, it) => {
+                acc[it.id] = (acc[it.id] || 0) + it.quantity;
+                return acc;
+              }, {} as Record<number, number>)}
               cartCount={cartCount}
               onBackToFloor={() => setCurrentScreen('seats')}
               onQuickSeatSwitch={handleQuickSeatSwitch}
@@ -773,6 +895,7 @@ export const TabletCockpitMaster: React.FC = () => {
                     subtotal={subtotal}
                     gst={gst}
                     grandTotal={grandTotal}
+                    hasUnplacedItems={ticketItems.some(i => !i.isPunched && !i.orderItemId)}
                     isBillRequested={isVerified}
                     onServeItem={handleServeItem}
                     onPunchKot={handlePunchKot}
@@ -782,6 +905,7 @@ export const TabletCockpitMaster: React.FC = () => {
                       realtimeBridge.notifyBillModeActive(cleanChair, grandTotal, { mode: 'qr' });
                     }}
                     onClearTicket={handleClearTicket}
+                    onVacateTicket={handleVacateSeat}
                   />
                 ) : (
                   <TabletBillSettlement

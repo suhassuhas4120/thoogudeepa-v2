@@ -73,6 +73,7 @@ export interface CartItem {
   stage?: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
   orderItemId?: string;
   ticketNumber?: string;
+  isFired?: boolean;
 }
 
 /**

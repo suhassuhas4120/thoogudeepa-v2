@@ -57,6 +57,7 @@ export interface TicketItem {
   price: number;
   imageUrl: string;
   status: KitchenStatus;
+  isPunched?: boolean;
 }
 
 export interface ServiceAlert {

@@ -168,53 +168,18 @@ export default function KitchenDisplaySystemPage() {
           );
 
           if (matchById !== -1) {
-            const current = prev[matchById];
-            const updated = [...prev];
-
-            // Harmonize item IDs with database UUIDs if matching items, while preserving local stages
-            let harmonizedItems = current.items;
-            if (
-              newOrder.items &&
-              newOrder.items.length === current.items.length &&
-              newOrder.items.length > 0
-            ) {
-              harmonizedItems = current.items.map((it, idx) => {
-                const incoming = newOrder.items[idx];
-                if (incoming && (incoming.dish_id === it.dish_id || incoming.dish_name === it.dish_name)) {
-                  return {
-                    ...incoming,
-                    id: incoming.id || it.id,
-                    stage: it.stage || incoming.stage || 'PLACED',
-                  };
-                }
-                return it;
-              });
-            }
-
-            const currentOrderIds: string[] = (current.order as any).order_ids || (current.order.id ? [current.order.id] : []);
-            const updatedOrderIds = newOrder.order.id && !currentOrderIds.includes(newOrder.order.id)
-              ? [...currentOrderIds, newOrder.order.id]
-              : currentOrderIds;
-
-            updated[matchById] = {
-              ...current,
-              order: {
-                ...current.order,
-                id: newOrder.order.id || current.order.id,
-                order_ids: updatedOrderIds,
-              } as any,
-              items: harmonizedItems,
-            };
-            return updated;
+            // Order is already present and tracked on KDS screen
+            return prev;
           }
 
           // 2. Match by ticket_number and chair_id
+          const cleanNewChair = (newOrder.order.chair_id || '').replace(/[^0-9]/g, '');
           const matchByTicket = prev.findIndex(
             (o) =>
               o.order.ticket_number &&
               newOrder.order.ticket_number &&
               o.order.ticket_number === newOrder.order.ticket_number &&
-              (!o.order.chair_id || !newOrder.order.chair_id || o.order.chair_id.replace(/[^0-9]/g, '') === newOrder.order.chair_id.replace(/[^0-9]/g, ''))
+              (!cleanNewChair || (o.order.chair_id || '').replace(/[^0-9]/g, '') === cleanNewChair)
           );
 
           if (matchByTicket !== -1) {
@@ -227,13 +192,12 @@ export default function KitchenDisplaySystemPage() {
               return prev;
             }
 
-            // B. Check if replacing an optimistic local order with confirmed database order
-            const isLocalReplacement =
-              Boolean(current.order.id && current.order.id.startsWith('local-')) &&
-              Boolean(newOrder.order.id && !newOrder.order.id.startsWith('local-')) &&
-              current.items.length === newOrder.items.length;
+            // B. Check if this incoming payload represents the same item set (confirmation / duplicate broadcast)
+            const currentDishCount = current.items.reduce((acc, it) => acc + (it.quantity || 1), 0);
+            const incomingDishCount = newOrder.items.reduce((acc, it) => acc + (it.quantity || 1), 0);
 
-            if (isLocalReplacement) {
+            if (currentDishCount === incomingDishCount && current.items.length === newOrder.items.length) {
+              // Same dish count: harmonize items and order IDs without duplicate item rows
               let harmonizedItems = current.items;
               if (newOrder.items && newOrder.items.length === current.items.length) {
                 harmonizedItems = current.items.map((it, idx) => {
@@ -265,10 +229,10 @@ export default function KitchenDisplaySystemPage() {
               return updated;
             }
 
-            // D. Additional items placed for the same ticket:
+            // C. Additional items placed for the same ticket (Round 2 add-on round):
             // Filter out any items that already exist in current items
-            const currentItemIds = new Set(current.items.map((it) => it.id));
-            const trulyNewItems = newOrder.items.filter((it) => !currentItemIds.has(it.id));
+            const currentItemIds = new Set(current.items.map((it) => String(it.id)));
+            const trulyNewItems = newOrder.items.filter((it) => !currentItemIds.has(String(it.id)));
 
             if (trulyNewItems.length === 0) {
               return prev;
@@ -826,6 +790,84 @@ export default function KitchenDisplaySystemPage() {
           deduplicatedActiveOrders.push({ ...active, items: [...active.items] });
         }
 
+        
+interface ConsolidatedKitchenGroup {
+  key: string;
+  dishId: string;
+  dishName: string;
+  totalQuantity: number;
+  notes: string[];
+  addons: string[];
+  items: OrderItemRecord[];
+  currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
+}
+
+function consolidateKitchenItems(
+  items: OrderItemRecord[],
+  order: OrderRecord,
+  stagesMap: Record<string, string>
+): ConsolidatedKitchenGroup[] {
+  const map = new Map<string, ConsolidatedKitchenGroup>();
+
+  items.forEach((it, idx) => {
+    const dKey = String(it.dish_name || it.dish_id).toLowerCase().trim();
+    const itemKey = it.id || `${order.ticket_number}-${it.dish_id}-${idx}`;
+    const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
+    const tNum = order.ticket_number || '';
+
+    const candStages: string[] = [];
+    if (it.stage) candStages.push(it.stage);
+
+    const renderKeys = [
+      it.id,
+      itemKey,
+      cleanChair && it.id && `${cleanChair}-${it.id}`,
+      cleanChair && tNum && it.id && `${cleanChair}-${tNum}-${it.id}`,
+      cleanChair && `${cleanChair}-${itemKey}`,
+      cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
+    ].filter(Boolean) as string[];
+
+    for (const k of renderKeys) {
+      if (stagesMap[k]) candStages.push(stagesMap[k]);
+    }
+
+    let itStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
+    if (candStages.includes('SERVED')) itStage = 'SERVED';
+    else if (candStages.includes('READY')) itStage = 'READY';
+    else if (candStages.includes('PREP')) itStage = 'PREP';
+    else if (candStages.includes('REC')) itStage = 'REC';
+
+    if (!map.has(dKey)) {
+      map.set(dKey, {
+        key: itemKey,
+        dishId: it.dish_id,
+        dishName: it.dish_name,
+        totalQuantity: 0,
+        notes: [],
+        addons: [],
+        items: [],
+        currentStage: itStage,
+      });
+    }
+
+    const entry = map.get(dKey)!;
+    entry.totalQuantity += it.quantity;
+    entry.items.push(it);
+    if (it.notes && !entry.notes.includes(it.notes)) entry.notes.push(it.notes);
+    if (Array.isArray(it.addons)) {
+      it.addons.forEach((a) => {
+        if (a !== 'PLACED' && !entry.addons.includes(a)) entry.addons.push(a);
+      });
+    }
+    const stagePriority: Record<string, number> = { 'PLACED': 1, 'REC': 2, 'PREP': 3, 'READY': 4, 'SERVED': 5 };
+    if ((stagePriority[itStage] || 1) > (stagePriority[entry.currentStage] || 1)) {
+      entry.currentStage = itStage;
+    }
+  });
+
+  return Array.from(map.values());
+}
+
         const activeTicketsToDisplay = deduplicatedActiveOrders
           .map((active) => {
             const order = active.order;
@@ -950,55 +992,21 @@ export default function KitchenDisplaySystemPage() {
                       </span>
                     </div>
 
-                    {/* Items List */}
+                    {/* Items List (Consolidated multi-round dishes) */}
                     <div className="flex flex-col gap-3 py-0.5">
-                      {active.unservedItems.map((it, idx) => {
-                        const itemKey = it.id || `${order.ticket_number}-${it.dish_id}-${idx}`;
-                        const cleanChair = (order.chair_id || '').replace(/[^0-9]/g, '');
-                        const tNum = order.ticket_number || '';
-
-                        const candStages: string[] = [];
-                        if (it.stage) candStages.push(it.stage);
-
-                        const renderKeys = [
-                          it.id,
-                          itemKey,
-                          cleanChair && it.id && `${cleanChair}-${it.id}`,
-                          cleanChair && tNum && it.id && `${cleanChair}-${tNum}-${it.id}`,
-                          cleanChair && `${cleanChair}-${itemKey}`,
-                          cleanChair && tNum && `${cleanChair}-${tNum}-${itemKey}`,
-                        ].filter(Boolean) as string[];
-
-                        for (const k of renderKeys) {
-                          if (itemStages[k]) candStages.push(itemStages[k]);
-                        }
-
-                        let currentStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
-                        if (candStages.includes('SERVED')) {
-                          currentStage = 'SERVED';
-                        } else if (candStages.includes('READY')) {
-                          currentStage = 'READY';
-                        } else if (candStages.includes('PREP')) {
-                          currentStage = 'PREP';
-                        } else if (candStages.includes('REC')) {
-                          currentStage = 'REC';
-                        } else {
-                          currentStage = 'PLACED';
-                        }
-
-                        const hasAddon =
-                          (it.notes && it.notes.trim().length > 0) ||
-                          (it.addons && it.addons.length > 0 && !it.addons.every((a) => a === 'PLACED'));
+                      {consolidateKitchenItems(active.unservedItems, order, itemStages).map((dishGroup) => {
+                        const currentStage = dishGroup.currentStage;
+                        const hasAddon = dishGroup.notes.length > 0 || dishGroup.addons.length > 0;
 
                         return (
                           <div
-                            key={itemKey}
+                            key={dishGroup.key}
                             className="border-b border-zinc-200 pb-2.5 last:border-b-0 last:pb-0 flex flex-col gap-1.5"
                           >
                             {/* Dish Title and Addon Badge */}
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-black text-sm text-zinc-950 leading-snug">
-                                {it.quantity}x {it.dish_name}
+                                {dishGroup.totalQuantity}x {dishGroup.dishName}
                               </span>
                               {hasAddon && (
                                 <span className="px-1.5 py-0.5 rounded border border-zinc-900 bg-zinc-100 text-[10px] font-black uppercase text-zinc-900 shrink-0">
@@ -1008,20 +1016,15 @@ export default function KitchenDisplaySystemPage() {
                             </div>
 
                             {/* Customizations / Notes if present */}
-                            {hasAddon && (it.notes || it.addons) && (
+                            {hasAddon && (
                               <div className="text-[10px] font-bold text-amber-950 bg-amber-50 border border-amber-300 rounded px-2 py-0.5 leading-snug">
-                                <span>{(it.notes || it.addons?.filter((a) => a !== 'PLACED').join(', '))}</span>
+                                <span>{[...dishGroup.notes, ...dishGroup.addons].join(' • ')}</span>
                               </div>
                             )}
 
                             {/* 3 Buttons: [REC] [PREP] [READY] as in sketch */}
                             <div className="grid grid-cols-3 gap-1.5 pt-0.5">
                               {(['REC', 'PREP', 'READY'] as const).map((stage) => {
-                                // Dynamic color progression:
-                                // 1. PLACED: All three no color
-                                // 2. REC clicked: REC is orange, PREP/READY no color
-                                // 3. PREP clicked: REC has traffic green border, PREP is orange, READY no color
-                                // 4. READY clicked: REC & PREP have traffic green border, READY is solid full traffic green
                                 const trafficGreenBorder = 'bg-white text-[#008f39] border-[#00c853] shadow-xs';
                                 const trafficGreenFilled = 'bg-[#00c853] text-white border-[#00b048] shadow-xs font-black';
                                 let btnStyle = 'bg-white hover:bg-zinc-100 text-zinc-800 border-zinc-300';
@@ -1048,15 +1051,17 @@ export default function KitchenDisplaySystemPage() {
                                   <button
                                     key={stage}
                                     type="button"
-                                    onClick={() =>
-                                      updateItemStage(itemKey, stage, {
-                                        chairId: order.chair_id,
-                                        dishId: it.dish_id,
-                                        ticketNumber: order.ticket_number,
-                                        dishName: it.dish_name,
-                                        itemId: it.id || itemKey,
-                                      })
-                                    }
+                                    onClick={() => {
+                                      dishGroup.items.forEach((it) => {
+                                        updateItemStage(it.id || dishGroup.key, stage, {
+                                          chairId: order.chair_id,
+                                          dishId: it.dish_id,
+                                          ticketNumber: order.ticket_number,
+                                          dishName: it.dish_name,
+                                          itemId: it.id || dishGroup.key,
+                                        });
+                                      });
+                                    }}
                                     className={`h-9 rounded-md text-xs font-black tracking-wider uppercase transition-all border-2 cursor-pointer flex items-center justify-center select-none active:scale-95 ${btnStyle}`}
                                   >
                                     {stage}

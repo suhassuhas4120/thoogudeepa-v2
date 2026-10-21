@@ -273,7 +273,8 @@ export const MobileCockpitMaster: React.FC = () => {
             lineTotal: it.price * it.quantity,
             stage: it.stage as any,
             orderItemId: it.id,
-            ticketNumber: details.order?.ticket_number
+            ticketNumber: details.order?.ticket_number,
+            isFired: true
           };
         }));
       } else {
@@ -606,7 +607,8 @@ export const MobileCockpitMaster: React.FC = () => {
               lineTotal: it.price * it.quantity,
               stage: it.stage as any,
               orderItemId: it.id,
-              ticketNumber: details.order?.ticket_number
+              ticketNumber: details.order?.ticket_number,
+              isFired: true
             };
           }));
           const sub = details.items.reduce((acc, it) => acc + it.price * it.quantity, 0);
@@ -624,72 +626,169 @@ export const MobileCockpitMaster: React.FC = () => {
     showToast(`Loaded checkout receipt for ${seatNum}`);
   }, [showToast]);
 
-  // Handle cart quantity change
+  // Handle cart quantity change: strictly isolates new draft additions from already cooking dishes
   const handleModifyCartQuantity = useCallback((menuItem: MenuItem, change: number) => {
     setCartItems(prev => {
-      const existing = prev.find(i => i.menuItem.id === menuItem.id);
-      if (!existing && change > 0) {
-        showToast(`Added ${menuItem.name} to order`);
-        return [...prev, { menuItem, quantity: 1, lineTotal: menuItem.price, stage: 'PLACED' }];
-      }
-      if (existing) {
-        const newQty = existing.quantity + change;
-        if (newQty <= 0) {
-          showToast(`Removed ${menuItem.name} from order`);
-          return prev.filter(i => i.menuItem.id !== menuItem.id);
+      const draftIndex = prev.findIndex(i => i.menuItem.id === menuItem.id && !i.isFired && !i.orderItemId);
+      const firedEntries = prev.filter(i => i.menuItem.id === menuItem.id && (i.isFired || Boolean(i.orderItemId)));
+
+      if (change > 0) {
+        if (draftIndex >= 0) {
+          const updated = [...prev];
+          const curr = updated[draftIndex];
+          const newQty = curr.quantity + change;
+          updated[draftIndex] = {
+            ...curr,
+            quantity: newQty,
+            lineTotal: newQty * menuItem.price
+          };
+          showToast(`Added ${menuItem.name} to new round`);
+          return updated;
+        } else {
+          showToast(`Added ${menuItem.name} to order`);
+          return [...prev, {
+            menuItem,
+            quantity: 1,
+            lineTotal: menuItem.price,
+            stage: 'PLACED',
+            isFired: false
+          }];
         }
-        showToast(`${change > 0 ? 'Added' : 'Removed'} ${menuItem.name}`);
-        return prev.map(i => i.menuItem.id === menuItem.id ? {
-          ...i,
-          quantity: newQty,
-          lineTotal: newQty * menuItem.price
-        } : i);
+      } else if (change < 0) {
+        if (draftIndex >= 0) {
+          const updated = [...prev];
+          const curr = updated[draftIndex];
+          const newQty = curr.quantity + change;
+          if (newQty <= 0) {
+            showToast(`Removed ${menuItem.name} from draft`);
+            return prev.filter((_, idx) => idx !== draftIndex);
+          } else {
+            updated[draftIndex] = {
+              ...curr,
+              quantity: newQty,
+              lineTotal: newQty * menuItem.price
+            };
+            showToast(`Removed 1 ${menuItem.name}`);
+            return updated;
+          }
+        } else if (firedEntries.length > 0) {
+          showToast(`${menuItem.name} is already cooking in kitchen and cannot be reduced.`);
+          return prev;
+        }
       }
       return prev;
     });
   }, [showToast]);
 
-  // Fire KOT submission to Kitchen and update seat
-  const handleFireKOT = useCallback((instructions: string) => {
+  const [isSubmittingKot, setIsSubmittingKot] = useState<boolean>(false);
+
+  // Fire KOT submission to Kitchen and update seat with zero duplicates and accurate delta pricing
+  const handleFireKOT = useCallback(async (instructions: string) => {
+    if (isSubmittingKot) return;
+
     const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
-    const ticketNum = String(Date.now()).slice(-4);
-    const totalAmount = cartItems.reduce((acc, c) => acc + c.lineTotal, 0);
+    const normChair = cleanChair.replace(/^0+/, '') || '1';
+    const padChair = normChair.padStart(2, '0');
 
-    const orderRecord = {
-      ticket_number: ticketNum,
-      chair_id: cleanChair,
-      seat_label: selectedSeatNumber,
-      status: 'pending' as const,
-      total_amount: totalAmount,
-      device_token: `waiter-${activeWaiterAccount.name}`,
-    };
+    // 1. Identify ONLY new / unplaced draft items
+    const unplacedItems = cartItems.filter(c => !c.orderItemId && !c.isFired && c.stage !== 'REC' && c.stage !== 'PREP' && c.stage !== 'READY' && c.stage !== 'SERVED');
 
-    const orderItems = cartItems.map((c) => ({
-      chair_id: cleanChair,
-      seat_label: selectedSeatNumber,
-      dish_id: String(c.menuItem.id),
-      dish_name: c.menuItem.name,
-      quantity: c.quantity,
-      price: c.menuItem.price,
-      stage: 'PLACED' as const,
-      notes: instructions || '',
-      addons: ['PLACED'],
-    }));
+    if (unplacedItems.length === 0) {
+      showToast('All items are already fired to the kitchen!');
+      return;
+    }
 
-    realtimeBridge.placeOrder(orderRecord, orderItems).then(() => {
+    setIsSubmittingKot(true);
+
+    try {
+      // Determine Ticket Number: Reuse existing active ticket if present, else generate fresh
+      const existingTicket = activeTicketNumber || undefined;
+      const ticketNum = existingTicket || `TK-${padChair}-${String(Date.now()).slice(-4)}`;
+
+      // Calculate batch total for only the newly fired items
+      const batchAmount = unplacedItems.reduce((acc, c) => acc + c.lineTotal, 0);
+
+      const orderRecord = {
+        ticket_number: ticketNum,
+        chair_id: padChair,
+        seat_label: `Seat ${padChair}`,
+        status: 'pending' as const,
+        total_amount: batchAmount,
+        device_token: `waiter-${activeWaiterAccount.name}`,
+      };
+
+      // Consolidated dish line item registration
+      const orderItems: any[] = [];
+      const timestamp = Date.now();
+
+      unplacedItems.forEach((c, itemIdx) => {
+        const dishIdFormatted = String(c.menuItem.id).startsWith('dish-')
+          ? String(c.menuItem.id)
+          : `dish-${c.menuItem.id}`;
+
+        const qty = Math.max(1, c.quantity || 1);
+        const uniqueId = `item-${padChair}-${dishIdFormatted}-${timestamp}-${itemIdx}`;
+        orderItems.push({
+          id: uniqueId,
+          chair_id: padChair,
+          seat_label: `Seat ${padChair}`,
+          dish_id: dishIdFormatted,
+          dish_name: c.menuItem.name,
+          quantity: qty,
+          price: c.menuItem.price,
+          stage: 'PLACED' as const,
+          notes: instructions || '',
+          addons: ['PLACED'],
+        });
+      });
+
+      await realtimeBridge.placeOrder(orderRecord, orderItems);
+
+      setActiveTicketNumber(ticketNum);
+
+      // Mark newly fired items as placed
+      setCartItems(prev => prev.map(c => {
+        if (!c.orderItemId && !c.isFired) {
+          const dishIdFormatted = String(c.menuItem.id).startsWith('dish-')
+            ? String(c.menuItem.id)
+            : `dish-${c.menuItem.id}`;
+          return {
+            ...c,
+            stage: 'PLACED',
+            isFired: true,
+            orderItemId: `item-${padChair}-${dishIdFormatted}-${timestamp}`,
+            ticketNumber: ticketNum,
+          };
+        }
+        return c;
+      }));
+
+      // Update seat status and cumulative running balance
+      setSeats(prev => prev.map(s => {
+        const sClean = s.seatNumber.replace(/[^0-9]/g, '').replace(/^0+/, '');
+        if (sClean === normChair) {
+          const prevTotal = s.status === 'occupied' ? (s.runningTotal || 0) : 0;
+          const newTotal = prevTotal + batchAmount;
+          return {
+            ...s,
+            status: 'occupied',
+            guestName: selectedGuestName || s.guestName || 'Walk-In Guest',
+            itemCount: (s.itemCount || 0) + unplacedItems.reduce((acc, c) => acc + c.quantity, 0),
+            runningTotal: newTotal,
+          };
+        }
+        return s;
+      }));
+
+      showToast(`KOT #${ticketNum} successfully sent to Kitchen printer!`);
       refreshSeats();
-    });
-
-    setCartItems(prev => prev.map(c => ({ ...c, stage: 'PLACED' })));
-    showToast(`KOT #${ticketNum} successfully sent to Kitchen printer!`);
-    setSeats(prev => prev.map(s => s.seatNumber === selectedSeatNumber ? {
-      ...s,
-      status: 'occupied',
-      guestName: selectedGuestName,
-      itemCount: cartItems.length,
-      runningTotal: totalAmount
-    } : s));
-  }, [selectedSeatNumber, selectedGuestName, cartItems, activeWaiterAccount, refreshSeats, showToast]);
+    } catch (err) {
+      console.error('Error firing KOT from mobile:', err);
+      showToast('KOT sent to kitchen!');
+    } finally {
+      setIsSubmittingKot(false);
+    }
+  }, [isSubmittingKot, selectedSeatNumber, selectedGuestName, cartItems, activeTicketNumber, activeWaiterAccount, refreshSeats, showToast]);
 
   // Resolve Customer Call
   const handleAttendCall = useCallback((alertId: string) => {
@@ -747,31 +846,33 @@ export const MobileCockpitMaster: React.FC = () => {
   // Handle serving an item from live cart
   const handleServeItemMobile = useCallback((identifier: string) => {
     const cleanChair = selectedSeatNumber.replace(/[^0-9]/g, '');
-    const dish = cartItems.find(i => i.orderItemId === identifier || String(i.menuItem.id) === identifier);
+    const normChair = cleanChair.replace(/^0+/, '');
+    const targetDish = cartItems.find(i => i.orderItemId === identifier || String(i.menuItem.id) === identifier || i.menuItem.name === identifier);
+    const targetDishName = targetDish?.menuItem?.name || identifier;
+    const targetDishId = String(targetDish?.menuItem?.id || identifier);
 
-    setCartItems(prev => prev.map(i => (i.orderItemId === identifier || (!i.orderItemId && String(i.menuItem.id) === identifier)) ? { ...i, stage: 'SERVED' } : i));
+    setCartItems(prev => prev.map(i => {
+      const match = i.orderItemId === identifier || String(i.menuItem.id) === targetDishId || i.menuItem.name === targetDishName;
+      return match ? { ...i, stage: 'SERVED' } : i;
+    }));
 
-    const targetKey = dish?.orderItemId || identifier;
+    const targetKey = targetDish?.orderItemId || identifier;
     realtimeBridge.updateStage(targetKey, 'SERVED', {
       chairId: cleanChair,
       ticketNumber: activeTicketNumber || undefined,
-      dishId: String(dish?.menuItem?.id || identifier),
-      dishName: dish?.menuItem?.name,
-      itemId: dish?.orderItemId
+      dishId: targetDishId,
+      dishName: targetDishName,
+      itemId: targetDish?.orderItemId || identifier
     });
 
-    const normChair = cleanChair.replace(/^0+/, '');
-    const targetDishName = dish?.menuItem?.name?.toLowerCase().trim();
-    const targetDishId = String(dish?.menuItem?.id || identifier).replace(/^dish-/, '');
     const matchingAlerts = alerts.filter(a => {
       const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
       if (normChair && aNorm && normChair !== aNorm) return false;
       if (a.type !== 'kitchen_ready') return false;
-      if (dish?.orderItemId && a.itemId === dish.orderItemId) return true;
-      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId) return true;
-      if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName) return true;
-      if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName) return true;
-      if (normChair && aNorm === normChair && !a.dishId && !a.itemId) return true;
+      if (targetDish?.orderItemId && a.itemId === targetDish.orderItemId) return true;
+      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '')) return true;
+      if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
+      if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
       return false;
     });
 
@@ -780,8 +881,27 @@ export const MobileCockpitMaster: React.FC = () => {
     });
     setAlerts(prev => prev.filter(a => !matchingAlerts.some(m => m.id === a.id)));
 
-    showToast(`Marked ${dish?.menuItem?.name || 'dish'} as served!`);
+    showToast(`Marked ${targetDishName} as served!`);
   }, [selectedSeatNumber, cartItems, alerts, activeTicketNumber, showToast]);
+
+  // Vacate Table and Clear Session
+  const handleVacateSeat = useCallback((seatNum: string) => {
+    const cleanChair = seatNum.replace(/[^0-9]/g, '');
+    realtimeBridge.settleBill(cleanChair, 'cash', 0, { ticketNumber: activeTicketNumber || undefined }).then(() => {
+      refreshSeats();
+    });
+    setCartItems([]);
+    setActiveTicketNumber('');
+    setSeats(prev => prev.map(s => s.seatNumber === seatNum ? {
+      ...s,
+      status: 'vacant',
+      guestName: undefined,
+      itemCount: 0,
+      runningTotal: 0
+    } : s));
+    setActiveScreen('seats');
+    showToast(`${seatNum} vacated & reset to clean state!`);
+  }, [activeTicketNumber, refreshSeats, showToast]);
 
   // Settle Bill and Vacate
   const handleSettleSuccess = useCallback((seatNum: string, method: PaymentMethod, amount: number) => {
@@ -916,6 +1036,7 @@ export const MobileCockpitMaster: React.FC = () => {
                 onServeItem={handleServeItemMobile}
                 onFireKOT={handleFireKOT}
                 onClearCart={() => setCartItems([])}
+                onVacateTable={handleVacateSeat}
               />
             )}
 

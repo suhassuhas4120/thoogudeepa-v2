@@ -10,25 +10,27 @@
  *   * Hotel Name FIRST: 'ತೂಗುದೀಪ ದೊನ್ನೆ ಬಿರಿಯಾನಿ' [LIVE CART badge]
  *   * Waiter Name BELOW: 'Ramesh Kumar • {seatNumber}: {guestName}'
  *   * Alert Notification Bell ALWAYS at top right with live badge counter
- * - UNWANTED TICKET CONTAINER CARD REMOVED (No Dining In + 4 status pills container)
- * - Ordered Food Items with Dynamic Operational Mode Badges:
+ * - Multi-Round Consolidated Food Display:
+ *   * Distinct NEW DRAFT ADDITIONS section with steppers and KOT Punch
+ *   * Consolidated ACTIVE KITCHEN ORDERS with stage breakdown and Serve action
+ * - Standardized Operational Badges:
  *   * PREPARING (Flame icon, Amber badge)
- *   * READY (CheckCircle icon, Emerald badge)
- *   * PLACED (Clock icon, Sky badge)
+ *   * READY (CheckCircle icon, Emerald badge with Serve action)
+ *   * PLACED (Clock icon, Slate badge)
  *   * SERVED (Check icon, Slate badge)
  * - Transparent Financial Computation: Subtotal, CGST + SGST (5%), Current Ticket Total
  * - Dedicated Action Buttons:
  *   * '+ ADD MORE ITEMS (OPEN MENU)' -> Redirects to Menu Catalog
  *   * 'PROCEED TO BILL SETTLEMENT' -> Redirects to Billing Checkout
- * - Strict Line Count: Maintained strictly between 300 and 400 lines
+ *   * 'VACATE / RESET TABLE' -> Quickly releases table cleanly
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  ArrowLeft, ShoppingBag, Plus, Minus, Trash2, Flame, MessageSquare,
-  Receipt, Clock, Sparkles, Send, CheckCircle, CheckCircle2, Check, PlusCircle, Bell, X
+  ArrowLeft, ShoppingBag, Plus, Minus, Flame, MessageSquare,
+  Receipt, Clock, CheckCircle2, Check, PlusCircle, Bell, Trash2, RotateCcw
 } from 'lucide-react';
-import { CartItem, MenuItem, RESTAURANT_CONSTANTS, LiveOrderDishMode } from './types';
+import { CartItem, MenuItem, RESTAURANT_CONSTANTS } from './types';
 
 export interface MobileLiveCartKOTProps {
   /** Target seat label (e.g., 'Seat 01') */
@@ -61,10 +63,27 @@ export interface MobileLiveCartKOTProps {
   readonly onServeItem?: (itemId: string) => void;
   /** Optional callback to clear entire cart */
   readonly onClearCart?: () => void;
+  /** Optional callback to cleanly vacate table */
+  readonly onVacateTable?: (seatNumber: string) => void;
   /** Active KOT ticket number */
   readonly activeTicketNumber?: string;
   /** Optional flag: whether to render as full screen (Screen 4) */
   readonly isFullScreen?: boolean;
+}
+
+interface ConsolidatedCommittedDish {
+  dishId: string;
+  name: string;
+  menuItem: MenuItem;
+  totalQuantity: number;
+  totalAmount: number;
+  readyCount: number;
+  servedCount: number;
+  prepCount: number;
+  recCount: number;
+  placedCount: number;
+  primaryStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED';
+  itemIds: string[];
 }
 
 export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
@@ -84,12 +103,76 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   onOpenAlerts,
   onServeItem,
   onClearCart,
+  onVacateTable,
   isFullScreen = true
 }) => {
   const [kitchenNotes, setKitchenNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [showVacateConfirm, setShowVacateConfirm] = useState<boolean>(false);
 
-  // Compute subtotal from items
+  // Separate draft items from fired kitchen items
+  const draftItems = useMemo(() => {
+    return cartItems.filter(c => !c.orderItemId && !c.isFired && !['PLACED', 'REC', 'PREP', 'READY', 'SERVED'].includes(c.stage || ''));
+  }, [cartItems]);
+
+  // Consolidate committed items by dish identity
+  const committedDishes = useMemo(() => {
+    const committed = cartItems.filter(c => Boolean(c.orderItemId || c.isFired || ['PLACED', 'REC', 'PREP', 'READY', 'SERVED'].includes(c.stage || '')));
+    const map = new Map<string, ConsolidatedCommittedDish>();
+
+    committed.forEach(c => {
+      const dishKey = String(c.menuItem.id || c.menuItem.name);
+      const stage = (c.stage as string) || 'PLACED';
+      const isItemServed = stage === 'SERVED';
+      const isItemReady = stage === 'READY';
+      const isItemPrep = stage === 'PREP' || stage === 'PREPARING';
+      const isItemRec = stage === 'REC' || stage === 'RECEIVED';
+
+      if (!map.has(dishKey)) {
+        map.set(dishKey, {
+          dishId: String(c.menuItem.id),
+          name: c.menuItem.name,
+          menuItem: c.menuItem,
+          totalQuantity: 0,
+          totalAmount: 0,
+          readyCount: 0,
+          servedCount: 0,
+          prepCount: 0,
+          recCount: 0,
+          placedCount: 0,
+          primaryStage: 'PLACED',
+          itemIds: []
+        });
+      }
+
+      const entry = map.get(dishKey)!;
+      entry.totalQuantity += c.quantity;
+      entry.totalAmount += c.lineTotal;
+      if (c.orderItemId) entry.itemIds.push(c.orderItemId);
+      if (isItemServed) entry.servedCount += c.quantity;
+      else if (isItemReady) entry.readyCount += c.quantity;
+      else if (isItemPrep) entry.prepCount += c.quantity;
+      else if (isItemRec) entry.recCount += c.quantity;
+      else entry.placedCount += c.quantity;
+    });
+
+    return Array.from(map.values()).map(entry => {
+      if (entry.servedCount >= entry.totalQuantity && entry.totalQuantity > 0) {
+        entry.primaryStage = 'SERVED';
+      } else if (entry.readyCount > 0) {
+        entry.primaryStage = 'READY';
+      } else if (entry.prepCount > 0) {
+        entry.primaryStage = 'PREP';
+      } else if (entry.recCount > 0) {
+        entry.primaryStage = 'REC';
+      } else {
+        entry.primaryStage = 'PLACED';
+      }
+      return entry;
+    });
+  }, [cartItems]);
+
+  // Compute subtotal from all items
   const subtotal = useMemo(() => {
     return cartItems.reduce((acc, curr) => acc + curr.lineTotal, 0);
   }, [cartItems]);
@@ -99,39 +182,28 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
   const sgst = useMemo(() => Math.round(subtotal * RESTAURANT_CONSTANTS.TAX_RATE_SGST), [subtotal]);
   const grandTotal = useMemo(() => subtotal + cgst + sgst, [subtotal, cgst, sgst]);
 
-  // Total quantity count
+  // Total quantity count across all items
   const totalItemCount = useMemo(() => {
     return cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
   }, [cartItems]);
 
-  // Real-time Dish Statuses matching Waiter Tablet: PLACED, PREPARING, READY, RECEIVED, SERVED
-  const [dishStatuses, setDishStatuses] = useState<Record<string, 'PLACED' | 'PREPARING' | 'READY' | 'RECEIVED' | 'SERVED'>>({});
-
-  const handleMarkServed = useCallback((itemId: string) => {
-    setDishStatuses(prev => ({
-      ...prev,
-      [itemId]: 'SERVED'
-    }));
+  const handleServeDish = useCallback((dish: ConsolidatedCommittedDish) => {
+    const targetKey = dish.itemIds[0] || dish.dishId || dish.name;
     if (onServeItem) {
-      onServeItem(itemId);
+      onServeItem(targetKey);
     }
   }, [onServeItem]);
 
   // Fire KOT submission handler
   const handlePunchOrder = useCallback(() => {
-    if (cartItems.length === 0) return;
+    if (draftItems.length === 0) return;
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
       onFireKOT(kitchenNotes);
       setKitchenNotes('');
     }, 400);
-  }, [cartItems, kitchenNotes, onFireKOT]);
-
-  // Display active cart items
-  const displayItems = useMemo(() => {
-    return cartItems;
-  }, [cartItems]);
+  }, [draftItems, kitchenNotes, onFireKOT]);
 
   if (!isOpen) return null;
 
@@ -186,154 +258,212 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
       {/* Cart Content: Live Ordered Food & Status Modes */}
       <div className="p-3.5 flex-1 min-h-0 overflow-y-auto no-scrollbar space-y-3 pb-4">
         
-        {/* Ordered Items List with Real-time Modes and Badges */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between mb-1 px-1">
-            <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-              Ordered Items in Cart ({displayItems.length})
+        {/* Ticket Header Pill */}
+        <div className="flex items-center justify-between mb-1 px-1">
+          <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+            Seat Review ({totalItemCount} Total Items)
+          </span>
+          {activeTicketNumber && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+              KOT #{activeTicketNumber}
             </span>
-            {activeTicketNumber && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
-                KOT #{activeTicketNumber}
-              </span>
-            )}
-          </div>
-
-          {displayItems.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-2xs">
-              <ShoppingBag className="w-10 h-10 text-slate-300 mb-2 stroke-[1.5]" />
-              <p className="text-sm font-black text-slate-700">No active dishes in cart</p>
-              <p className="text-xs text-slate-400 mt-0.5">Dishes placed for this seat will appear here</p>
-            </div>
-          ) : (
-            displayItems.map((item, idx) => {
-              const itemStage = item.stage;
-              const itemKey = item.orderItemId || item.menuItem.id;
-              const status = (itemStage === 'READY' ? 'READY' : itemStage === 'PREP' ? 'PREPARING' : itemStage === 'REC' ? 'RECEIVED' : itemStage === 'SERVED' ? 'SERVED' : itemStage === 'PLACED' ? 'PLACED' : undefined) || (item.orderItemId ? dishStatuses[item.orderItemId] : undefined) || dishStatuses[item.menuItem.id] || 'PLACED';
-              const isServed = status === 'SERVED';
-              const isNonVeg = item.menuItem.dietary === 'non_veg';
-
-            return (
-              <div
-                key={item.orderItemId || `${item.menuItem.id}-${idx}`}
-                className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
-                  isServed
-                    ? 'border-slate-200 bg-slate-100/70 opacity-70'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
-                    <img 
-                      src={item.menuItem.image || (idx % 2 === 0 ? "/images/dishes/chicken-donne-biryani.jpg" : "/images/dishes/mutton-donne-biryani.jpg")}
-                      alt={item.menuItem.name} 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/logo.jpg';
-                      }}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                      <span className={`text-xs sm:text-sm block truncate ${
-                        isServed ? 'font-bold text-slate-400 line-through decoration-2' : 'font-black text-slate-900'
-                      }`}>
-                        {item.menuItem.name}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
-                      {item.quantity}x • <span className="text-amber-800 font-black">₹{item.lineTotal}</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* STANDARDIZED KITCHEN BADGES WITH ACTIONS (EXACT TABLET MATCH WITH LUCIDE ICONS) */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {status === 'READY' && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>READY</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleMarkServed(itemKey)}
-                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
-                        title="Mark as Served to Seat"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        <span>Serve</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {status === 'PREPARING' && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
-                        <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 animate-pulse" />
-                        <span>PREPARING</span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled
-                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
-                        title="Waiting for kitchen to mark Ready"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
-                        <span>Serve</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {status === 'PLACED' && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
-                        <Clock className="w-3.5 h-3.5 text-slate-500" />
-                        <span>PLACED</span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled
-                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
-                        title="Waiting for kitchen to mark Ready"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
-                        <span>Serve</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {status === 'RECEIVED' && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
-                        <Clock className="w-3.5 h-3.5 text-sky-600" />
-                        <span>RECEIVED</span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled
-                        className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60 flex items-center justify-center gap-1 select-none"
-                        title="Waiting for kitchen to mark Ready"
-                      >
-                        <Check className="w-3.5 h-3.5 stroke-[2] opacity-50" />
-                        <span>Serve</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {isServed && (
-                    <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>SERVED</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
+          )}
         </div>
+
+        {cartItems.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center text-slate-400 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+            <ShoppingBag className="w-10 h-10 text-slate-300 mb-2 stroke-[1.5]" />
+            <p className="text-sm font-black text-slate-700">No active dishes in cart</p>
+            <p className="text-xs text-slate-400 mt-0.5">Dishes placed for this seat will appear here</p>
+          </div>
+        ) : (
+          <>
+            {/* SECTION 1: NEW DRAFT ADDITIONS (UNPUNCHED) */}
+            {draftItems.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    New Draft Additions ({draftItems.reduce((acc, curr) => acc + curr.quantity, 0)})
+                  </span>
+                  <span className="text-[10px] font-extrabold text-amber-700">Ready to punch</span>
+                </div>
+
+                {draftItems.map((item, idx) => {
+                  const isNonVeg = item.menuItem.dietary === 'non_veg';
+                  return (
+                    <div
+                      key={`draft-${item.menuItem.id}-${idx}`}
+                      className="border border-amber-300/80 bg-amber-50/40 rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                          <img
+                            src={item.menuItem.image || "/images/dishes/chicken-donne-biryani.jpg"}
+                            alt={item.menuItem.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/logo.jpg';
+                            }}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                            <span className="text-xs sm:text-sm font-black text-slate-900 block truncate">
+                              {item.menuItem.name}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-600 font-bold block mt-0.5">
+                            ₹{item.menuItem.price} each • <span className="text-amber-800 font-black">₹{item.lineTotal}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Quantity Stepper */}
+                      <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-amber-300 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => onModifyQuantity(item.menuItem, -1)}
+                          className="w-6 h-6 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center font-bold text-slate-800 btn-press cursor-pointer"
+                          title="Reduce quantity"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-5 text-center text-xs font-black text-slate-900">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onModifyQuantity(item.menuItem, 1)}
+                          className="w-6 h-6 rounded-lg bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center font-bold btn-press cursor-pointer"
+                          title="Increase quantity"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* SECTION 2: ACTIVE KITCHEN ORDERS (CONSOLIDATED COMMITTED DISHES) */}
+            {committedDishes.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    Active Kitchen Orders ({committedDishes.reduce((acc, curr) => acc + curr.totalQuantity, 0)})
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500">Live Stage</span>
+                </div>
+
+                {committedDishes.map((dish) => {
+                  const isServed = dish.primaryStage === 'SERVED';
+                  const isNonVeg = dish.menuItem.dietary === 'non_veg';
+
+                  return (
+                    <div
+                      key={`committed-${dish.dishId}`}
+                      className={`border rounded-2xl p-2.5 shadow-xs flex items-center justify-between gap-2.5 transition-all ${
+                        isServed
+                          ? 'border-slate-200 bg-slate-100/70 opacity-70'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs">
+                          <img
+                            src={dish.menuItem.image || "/images/dishes/chicken-donne-biryani.jpg"}
+                            alt={dish.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/logo.jpg';
+                            }}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${isNonVeg ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                            <span className={`text-xs sm:text-sm block truncate ${
+                              isServed ? 'font-bold text-slate-400 line-through decoration-2' : 'font-black text-slate-900'
+                            }`}>
+                              {dish.name}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
+                            {dish.totalQuantity}x • <span className="text-amber-800 font-black">₹{dish.totalAmount}</span>
+                            {dish.servedCount > 0 && dish.readyCount > 0 && (
+                              <span className="ml-1 text-[10px] text-slate-400 font-medium">
+                                ({dish.servedCount} Served • {dish.readyCount} Ready)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Operational Status Badges & Serve Action */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {dish.primaryStage === 'READY' && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-6 px-2.5 inline-flex items-center gap-1 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>READY {dish.readyCount > 1 ? `(${dish.readyCount})` : ''}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleServeDish(dish)}
+                              className="h-6 px-2.5 rounded-lg text-[10px] sm:text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95 transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer animate-pulse"
+                              title="Mark as Served to Seat"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Serve</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {dish.primaryStage === 'PREP' && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs">
+                              <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 animate-pulse" />
+                              <span>PREPARING</span>
+                            </span>
+                          </div>
+                        )}
+
+                        {dish.primaryStage === 'REC' && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-sky-50 text-sky-800 border border-sky-300 shadow-2xs">
+                              <Clock className="w-3.5 h-3.5 text-sky-600" />
+                              <span>RECEIVED</span>
+                            </span>
+                          </div>
+                        )}
+
+                        {dish.primaryStage === 'PLACED' && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                              <Clock className="w-3.5 h-3.5 text-slate-500" />
+                              <span>PLACED</span>
+                            </span>
+                          </div>
+                        )}
+
+                        {dish.primaryStage === 'SERVED' && (
+                          <span className="h-6 px-2.5 inline-flex items-center gap-1.5 justify-center text-[10px] font-black uppercase tracking-wider rounded-full bg-slate-200 text-slate-700 border border-slate-300 shadow-2xs">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>SERVED</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Order Bill Financial Summary Card */}
         <div className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs space-y-1.5 text-xs">
@@ -351,36 +481,55 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
           </div>
         </div>
 
-        {/* Customer Kitchen Instructions Note Box */}
-        <div className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs space-y-1.5">
-          <label className="block text-[9px] font-black text-slate-600 uppercase tracking-wider">
-            Kitchen Instructions / Notes
-          </label>
-          <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex items-center gap-2">
-            <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <input
-              type="text"
-              value={kitchenNotes}
-              onChange={(e) => setKitchenNotes(e.target.value)}
-              placeholder="E.g., less spicy, extra raita, donne on side..."
-              className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
-            />
+        {/* Customer Kitchen Instructions Note Box (Available when drafting additions) */}
+        {draftItems.length > 0 && (
+          <div className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs space-y-1.5">
+            <label className="block text-[9px] font-black text-slate-600 uppercase tracking-wider">
+              Kitchen Instructions / Notes
+            </label>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex items-center gap-2">
+              <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                value={kitchenNotes}
+                onChange={(e) => setKitchenNotes(e.target.value)}
+                placeholder="E.g., less spicy, extra raita, donne on side..."
+                className="w-full bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* CART ACTION BUTTONS: '+ Add More Items' redirects to Menu & 'Proceed to Bill' */}
+        {/* CART ACTION BUTTONS: Fire KOT, '+ Add More Items', 'Proceed to Bill', & 'Vacate Table' */}
         <div className="space-y-2 pt-1">
+          {/* Button 0: Fire KOT to Kitchen for Draft Items */}
+          {draftItems.length > 0 && (
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={handlePunchOrder}
+              className="w-full h-11 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press shadow-md transition-all cursor-pointer"
+            >
+              <Flame className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <span>
+                {isSubmitting
+                  ? 'FIRING TO KITCHEN...'
+                  : `PUNCH KOT (${draftItems.reduce((acc, curr) => acc + curr.quantity, 0)} Items • ₹${draftItems.reduce((acc, curr) => acc + curr.lineTotal, 0)})`}
+              </span>
+            </button>
+          )}
+
           {/* Button 1: Add More Items (Redirects back to Menu Catalog) */}
           <button
             type="button"
             onClick={onOpenMenu}
-            className="w-full h-11 border-2 border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press shadow-2xs transition-all"
+            className="w-full h-11 border-2 border-slate-900 bg-white hover:bg-slate-50 text-slate-900 font-black text-xs rounded-xl flex items-center justify-center gap-2 btn-press shadow-2xs transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-slate-900" />
             <span>ADD MORE ITEMS (OPEN MENU)</span>
           </button>
 
-          {/* Button 2: Proceed to Bill Checkout (Enabled only when customer calls captain / requests bill) */}
+          {/* Button 2: Proceed to Bill Checkout */}
           <button
             type="button"
             disabled={!isBillRequested}
@@ -399,6 +548,45 @@ export const MobileLiveCartKOT: React.FC<MobileLiveCartKOTProps> = ({
                 : 'AWAITING CUSTOMER BILL REQUEST'}
             </span>
           </button>
+
+          {/* Button 3: Fast Vacate / Clean Table Control */}
+          {onVacateTable && (
+            <div className="pt-1">
+              {!showVacateConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowVacateConfirm(true)}
+                  className="w-full h-9 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Vacate & Reset Seat</span>
+                </button>
+              ) : (
+                <div className="p-2.5 rounded-xl border border-rose-200 bg-rose-50 flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-rose-900">Vacate {seatNumber}?</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowVacateConfirm(false)}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowVacateConfirm(false);
+                        onVacateTable(seatNumber);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold"
+                    >
+                      Confirm Vacate
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
