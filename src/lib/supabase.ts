@@ -962,13 +962,23 @@ export const realtimeBridge = {
         const alerts = getLocalAlertsList();
         const alertsToResolve = alerts.filter((a) => {
           if (a.isResolved) return false;
-          if (a.type !== 'kitchen_ready') return false;
+          if ((a.type as string) !== 'kitchen_ready' && (a.type as string) !== 'kitchen') return false;
           const aNormChair = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
           if (normChair && aNormChair && normChair !== aNormChair) return false;
-          if (targetItemId && (a.itemId === targetItemId || a.id === targetItemId)) return true;
-          if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId) return true;
-          if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName) return true;
-          if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName) return true;
+          if (targetItemId && (a.itemId === targetItemId || a.id === targetItemId || (a.itemId && targetItemId.startsWith(`${a.itemId}-`)))) return true;
+          if (targetDishId && a.dishId && (String(a.dishId).replace(/^dish-/, '') === targetDishId || a.dishId === targetDishId)) return true;
+          if (targetDishName && (
+            (a.dishName && (
+              a.dishName.toLowerCase().trim() === targetDishName ||
+              a.dishName.toLowerCase().includes(targetDishName) ||
+              targetDishName.includes(a.dishName.toLowerCase())
+            )) ||
+            (a.title && (
+              a.title.toLowerCase().trim() === targetDishName ||
+              a.title.toLowerCase().includes(targetDishName) ||
+              targetDishName.includes(a.title.toLowerCase())
+            ))
+          )) return true;
           if (normChair && aNormChair === normChair && !a.dishId && !a.itemId) return true;
           return false;
         });

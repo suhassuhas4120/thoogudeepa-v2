@@ -651,11 +651,28 @@ export const TabletCockpitMaster: React.FC = () => {
     const matchingAlerts = alerts.filter(a => {
       const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
       if (normChair && aNorm && normChair !== aNorm) return false;
-      if (a.type !== 'kitchen') return false;
-      if (dish?.orderItemId && (a.itemId === dish.orderItemId || (a.itemId && dish.orderItemId.startsWith(`${a.itemId}-`)))) return true;
-      if (targetDishId && a.dishId && (String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '') || a.dishId === targetDishId)) return true;
-      if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
-      if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
+      if ((a.type as string) !== 'kitchen' && (a.type as string) !== 'kitchen_ready') return false;
+      if (dish?.orderItemId && (
+        a.itemId === dish.orderItemId ||
+        (a.itemId && dish.orderItemId.startsWith(`${a.itemId}-`)) ||
+        (a.itemId && a.itemId.startsWith(`${dish.orderItemId}-`))
+      )) return true;
+      if (targetDishId && a.dishId && (
+        String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '') ||
+        a.dishId === targetDishId
+      )) return true;
+      if (targetDishName && (
+        (a.dishName && (
+          a.dishName.toLowerCase().trim() === targetDishName.toLowerCase().trim() ||
+          a.dishName.toLowerCase().includes(targetDishName.toLowerCase()) ||
+          targetDishName.toLowerCase().includes(a.dishName.toLowerCase())
+        )) ||
+        (a.title && (
+          a.title.toLowerCase().trim() === targetDishName.toLowerCase().trim() ||
+          a.title.toLowerCase().includes(targetDishName.toLowerCase()) ||
+          targetDishName.toLowerCase().includes(a.title.toLowerCase())
+        ))
+      )) return true;
       return false;
     });
 
