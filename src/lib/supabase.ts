@@ -1339,13 +1339,13 @@ export const realtimeBridge = {
 
   // Get active floor alerts
   async getServiceAlerts(): Promise<ServiceAlertRecord[]> {
-    return getLocalAlertsList();
+    return getLocalAlertsList().filter((a) => !a.isResolved);
   },
 
   // Resolve Service Alert
   async resolveServiceAlert(alertId: string): Promise<boolean> {
     const alerts = getLocalAlertsList();
-    const updated = alerts.map((a) => (a.id === alertId ? { ...a, isResolved: true } : a));
+    const updated = alerts.filter((a) => a.id !== alertId);
     setLocalAlertsList(updated);
 
     broadcastRealtime('RESOLVE_ALERT', { alertId });

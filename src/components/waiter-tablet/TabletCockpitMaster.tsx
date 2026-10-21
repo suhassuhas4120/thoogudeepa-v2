@@ -150,7 +150,7 @@ export const TabletCockpitMaster: React.FC = () => {
   const refreshAlerts = useCallback(async () => {
     try {
       const activeAlerts = await realtimeBridge.getServiceAlerts();
-      setAlerts(activeAlerts.map(a => ({
+      setAlerts(activeAlerts.filter(a => !a.isResolved).map(a => ({
         id: a.id,
         type: a.type === 'kitchen_ready' ? ('kitchen' as const) : ('customer' as const),
         seatNumber: a.seatNumber,
@@ -201,18 +201,25 @@ export const TabletCockpitMaster: React.FC = () => {
           const numId = Number(it.dish_id.replace(/[^0-9]/g, '')) || (idx + 1);
           const dish = MENU_DISHES.find(d => d.id === numId);
           const itStage = it.stage as string;
+          const isItemServed = Boolean(
+            itStage === 'SERVED' ||
+            (Array.isArray(it.addons) && it.addons.includes('SERVED')) ||
+            (it.id && cachedStages[it.id] === 'SERVED') ||
+            (it.dish_name && cachedStages[it.dish_name] === 'SERVED') ||
+            (it.dish_id && cachedStages[it.dish_id] === 'SERVED')
+          );
           const currentItemStage: KitchenStatus =
+            isItemServed ? 'SERVED' :
             itStage === 'READY' ? 'READY' :
             itStage === 'PREP' ? 'PREPARING' :
-            itStage === 'REC' ? 'RECEIVED' :
-            itStage === 'SERVED' ? 'SERVED' : 'PLACED';
+            itStage === 'REC' ? 'RECEIVED' : 'PLACED';
 
           const qty = it.quantity || 1;
           for (let q = 0; q < qty; q++) {
             qtyMap[numId] = (qtyMap[numId] || 0) + 1;
             const unitKey = it.id ? `${it.id}-${q}` : `${details.order?.ticket_number}-${numId}-${idx}-${q}`;
             let effectiveStatus = currentItemStage;
-            if (cachedStages[unitKey]) {
+            if (!isItemServed && cachedStages[unitKey]) {
               const cs = cachedStages[unitKey];
               effectiveStatus =
                 cs === 'READY' ? 'READY' :
@@ -338,7 +345,7 @@ export const TabletCockpitMaster: React.FC = () => {
         });
       },
       onResolveAlert: (alertId) => {
-        setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, isResolved: true } : a));
+        setAlerts(prev => prev.filter(a => a.id !== alertId));
       },
       onBillRequested: (data) => {
         refreshSeats();
@@ -497,11 +504,15 @@ export const TabletCockpitMaster: React.FC = () => {
             qtyMap[numId] = (qtyMap[numId] || 0) + it.quantity;
             const dish = MENU_DISHES.find(d => d.id === numId);
             const itStage = it.stage as string;
+            const isItemServed = Boolean(
+              itStage === 'SERVED' ||
+              (Array.isArray(it.addons) && it.addons.includes('SERVED'))
+            );
             const currentItemStage: KitchenStatus =
+              isItemServed ? 'SERVED' :
               itStage === 'READY' ? 'READY' :
               itStage === 'PREP' ? 'PREPARING' :
-              itStage === 'REC' ? 'RECEIVED' :
-              itStage === 'SERVED' ? 'SERVED' : 'PLACED';
+              itStage === 'REC' ? 'RECEIVED' : 'PLACED';
             return {
               id: numId,
               orderItemId: it.id,
@@ -641,8 +652,8 @@ export const TabletCockpitMaster: React.FC = () => {
       const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
       if (normChair && aNorm && normChair !== aNorm) return false;
       if (a.type !== 'kitchen') return false;
-      if (dish?.orderItemId && a.itemId === dish.orderItemId) return true;
-      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '')) return true;
+      if (dish?.orderItemId && (a.itemId === dish.orderItemId || (a.itemId && dish.orderItemId.startsWith(`${a.itemId}-`)))) return true;
+      if (targetDishId && a.dishId && (String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '') || a.dishId === targetDishId)) return true;
       if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
       if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
       return false;
@@ -822,6 +833,25 @@ export const TabletCockpitMaster: React.FC = () => {
     const cleanChair = (alert?.chairId || rawSeat.replace(/[^0-9]/g, '')).replace(/^0+/, '') || '1';
     const targetKey = alert?.itemId || alert?.dishId || dishName;
 
+    if (typeof window !== 'undefined' && cleanChair) {
+      try {
+        const key = `thoogudeepa_item_stages_${cleanChair}`;
+        const existing = JSON.parse(localStorage.getItem(key) || '{}');
+        if (alert?.itemId) {
+          existing[alert.itemId] = 'SERVED';
+          existing[`${alert.itemId}-0`] = 'SERVED';
+          existing[`${alert.itemId}-1`] = 'SERVED';
+          existing[`${alert.itemId}-2`] = 'SERVED';
+          existing[`${alert.itemId}-3`] = 'SERVED';
+        }
+        if (alert?.dishId) existing[String(alert.dishId)] = 'SERVED';
+        if (dishName) existing[dishName] = 'SERVED';
+        localStorage.setItem(key, JSON.stringify(existing));
+        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.padStart(2, '0')}`, JSON.stringify(existing));
+        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.replace(/^0+/, '')}`, JSON.stringify(existing));
+      } catch {}
+    }
+
     // Broadcast item served to KDS, customer tracking, and local registries
     realtimeBridge.updateStage(targetKey, 'SERVED', {
       chairId: cleanChair,
@@ -842,13 +872,14 @@ export const TabletCockpitMaster: React.FC = () => {
     }
 
     // Update active ticket items if viewing this seat
-    const curSeatClean = activeSeatName.replace(/[^0-9]/g, '');
-    if (cleanChair && curSeatClean && cleanChair === curSeatClean) {
+    const curSeatClean = activeSeatName.replace(/[^0-9]/g, '').replace(/^0+/, '');
+    const targetSeatClean = cleanChair.replace(/^0+/, '');
+    if (targetSeatClean && curSeatClean && targetSeatClean === curSeatClean) {
       setTicketItems(prev =>
         prev.map(it => {
           const isMatch = alert?.itemId
-            ? it.orderItemId === alert.itemId
-            : (Boolean(alert?.dishId && String(it.id) === alert.dishId) ||
+            ? (it.orderItemId === alert.itemId || Boolean(it.orderItemId && it.orderItemId.startsWith(`${alert.itemId}-`)))
+            : (Boolean(alert?.dishId && (String(it.id) === String(alert.dishId).replace(/^dish-/, '') || String(it.id) === alert.dishId)) ||
                Boolean(it.name.toLowerCase().trim() === dishName.toLowerCase().trim()));
           return isMatch ? { ...it, status: 'SERVED' } : it;
         })

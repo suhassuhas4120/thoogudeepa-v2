@@ -99,9 +99,19 @@ function expandOrderItemsToCart(items: any[], ticketNumber?: string, chairId?: s
     };
 
     const qty = Math.max(1, it.quantity || 1);
+    const isItemServed = Boolean(
+      it.stage === 'SERVED' ||
+      (Array.isArray(it.addons) && it.addons.includes('SERVED')) ||
+      (it.id && cachedStages[it.id] === 'SERVED') ||
+      (it.dish_name && cachedStages[it.dish_name] === 'SERVED') ||
+      (it.dish_id && cachedStages[it.dish_id] === 'SERVED')
+    );
+
     for (let q = 0; q < qty; q++) {
       const unitId = it.id ? `${it.id}-${q}` : `${ticketNumber || 'TKT'}-${it.dish_id}-${idx}-${q}`;
-      const effectiveStage = (cachedStages[unitId] as any) || it.stage || 'PLACED';
+      const effectiveStage = isItemServed
+        ? 'SERVED'
+        : ((cachedStages[unitId] as any) || it.stage || 'PLACED');
       result.push({
         menuItem: {
           ...foundMenu,
@@ -786,6 +796,25 @@ export const MobileCockpitMaster: React.FC = () => {
     const cleanChair = (alert?.chairId || rawSeat.replace(/[^0-9]/g, '')).replace(/^0+/, '') || '1';
     const targetKey = alert?.itemId || alert?.dishId || dishName;
 
+    if (typeof window !== 'undefined' && cleanChair) {
+      try {
+        const key = `thoogudeepa_item_stages_${cleanChair}`;
+        const existing = JSON.parse(localStorage.getItem(key) || '{}');
+        if (alert?.itemId) {
+          existing[alert.itemId] = 'SERVED';
+          existing[`${alert.itemId}-0`] = 'SERVED';
+          existing[`${alert.itemId}-1`] = 'SERVED';
+          existing[`${alert.itemId}-2`] = 'SERVED';
+          existing[`${alert.itemId}-3`] = 'SERVED';
+        }
+        if (alert?.dishId) existing[String(alert.dishId)] = 'SERVED';
+        if (dishName) existing[dishName] = 'SERVED';
+        localStorage.setItem(key, JSON.stringify(existing));
+        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.padStart(2, '0')}`, JSON.stringify(existing));
+        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.replace(/^0+/, '')}`, JSON.stringify(existing));
+      } catch {}
+    }
+
     // Broadcast item served to KDS, customer tracking, and local registries
     realtimeBridge.updateStage(targetKey, 'SERVED', {
       chairId: cleanChair,
@@ -806,13 +835,14 @@ export const MobileCockpitMaster: React.FC = () => {
     }
 
     // Update active cart items if currently viewing this seat
-    const curSeatClean = selectedSeatNumber.replace(/[^0-9]/g, '');
-    if (cleanChair && curSeatClean && cleanChair === curSeatClean) {
+    const curSeatClean = selectedSeatNumber.replace(/[^0-9]/g, '').replace(/^0+/, '');
+    const targetSeatClean = cleanChair.replace(/^0+/, '');
+    if (targetSeatClean && curSeatClean && targetSeatClean === curSeatClean) {
       setCartItems(prev =>
         prev.map(it => {
           const isMatch = alert?.itemId
-            ? it.orderItemId === alert.itemId
-            : (Boolean(alert?.dishId && String(it.menuItem.id) === alert.dishId) ||
+            ? (it.orderItemId === alert.itemId || Boolean(it.orderItemId && it.orderItemId.startsWith(`${alert.itemId}-`)))
+            : (Boolean(alert?.dishId && (String(it.menuItem.id) === String(alert.dishId).replace(/^dish-/, '') || String(it.menuItem.id) === alert.dishId)) ||
                Boolean(it.menuItem.name.toLowerCase().trim() === dishName.toLowerCase().trim()));
           return isMatch ? { ...it, stage: 'SERVED' } : it;
         })
@@ -857,8 +887,8 @@ export const MobileCockpitMaster: React.FC = () => {
       const aNorm = (a.chairId || a.seatNumber || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
       if (normChair && aNorm && normChair !== aNorm) return false;
       if (a.type !== 'kitchen_ready') return false;
-      if (targetDish?.orderItemId && a.itemId === targetDish.orderItemId) return true;
-      if (targetDishId && a.dishId && String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '')) return true;
+      if (targetDish?.orderItemId && (a.itemId === targetDish.orderItemId || (a.itemId && targetDish.orderItemId.startsWith(`${a.itemId}-`)))) return true;
+      if (targetDishId && a.dishId && (String(a.dishId).replace(/^dish-/, '') === targetDishId.replace(/^dish-/, '') || a.dishId === targetDishId)) return true;
       if (targetDishName && a.dishName && a.dishName.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
       if (targetDishName && a.title && a.title.toLowerCase().trim() === targetDishName.toLowerCase().trim()) return true;
       return false;
