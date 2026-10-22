@@ -40,10 +40,46 @@ interface ScreenM11SalesReportProps {
   liveOrders?: { order: OrderRecord; items: OrderItemRecord[] }[];
 }
 
+function getTimeSlotIndex(timeStr?: string): number {
+  if (!timeStr) return 0;
+  const match = timeStr.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
+  if (!match) return 0;
+  let hour = parseInt(match[1], 10);
+  const meridiem = (match[3] || '').toUpperCase();
+  if (meridiem === 'PM' && hour < 12) hour += 12;
+  if (meridiem === 'AM' && hour === 12) hour = 0;
+
+  if (hour < 12) return 0; // 11 AM slot
+  if (hour < 14) return 1; // 01 PM slot
+  if (hour < 16) return 2; // 03 PM slot
+  if (hour < 17) return 3; // 05 PM slot
+  if (hour < 19) return 4; // 06 PM slot
+  if (hour < 21) return 5; // 08:30 PM slot
+  if (hour < 22) return 6; // 10 PM slot
+  if (hour < 23) return 7; // 11 PM slot
+  return 8; // 12 AM slot
+}
+
+function getDaySlotIndex(dateStr?: string): number {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  const day = isNaN(d.getTime()) ? new Date().getDay() : d.getDay();
+  return day === 0 ? 6 : day - 1; // Mon=0 .. Sun=6
+}
+
+function getWeekSlotIndex(dateStr?: string): number {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  const dayOfMonth = isNaN(d.getTime()) ? new Date().getDate() : d.getDate();
+  if (dayOfMonth <= 7) return 0;
+  if (dayOfMonth <= 14) return 1;
+  if (dayOfMonth <= 21) return 2;
+  return 3;
+}
+
 export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportProps) {
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [activeFilter, setActiveFilter] = useState<TimeFilter>('TODAY');
-  const [customStartDate, setCustomStartDate] = useState('2026-10-14');
-  const [customEndDate, setCustomEndDate] = useState('2026-10-15');
+  const [customStartDate, setCustomStartDate] = useState(todayStr);
+  const [customEndDate, setCustomEndDate] = useState(todayStr);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [graphMode, setGraphMode] = useState<GraphComparisonMode>('TIME');
   const [hoveredPoint, setHoveredPoint] = useState<ComparisonDataPoint | null>(null);
@@ -53,16 +89,10 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
   const [settledBills, setSettledBills] = useState<any[]>(() => {
     return realtimeBridge.getSettledBills ? realtimeBridge.getSettledBills() : [];
   });
-  const [shiftStats, setShiftStats] = useState(() => {
-    return realtimeBridge.getShiftStats ? realtimeBridge.getShiftStats() : { totalSales: 0 };
-  });
 
   const reloadData = useCallback(() => {
     if (realtimeBridge.getSettledBills) {
       setSettledBills(realtimeBridge.getSettledBills());
-    }
-    if (realtimeBridge.getShiftStats) {
-      setShiftStats(realtimeBridge.getShiftStats());
     }
   }, []);
 
@@ -82,30 +112,26 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
     return settledBills || [];
   }, [settledBills]);
 
-  const realSettledSum = useMemo(() => {
-    return realSettledList.reduce((acc, b) => acc + (b.grandTotal || 0), 0);
-  }, [realSettledList]);
-
-  // Baseline turnover for the shift + real-time additions
-  const todayBaseSales = useMemo(() => {
-    const recordedSales = shiftStats?.totalSales || 0;
-    return Math.max(recordedSales, realSettledSum);
-  }, [shiftStats, realSettledSum]);
-
-  // Scaled for periods
-  const totalSalesAmount = useMemo(() => {
-    switch (activeFilter) {
-      case 'WEEKLY':
-        return todayBaseSales * 7 + (realSettledSum > 0 ? 12450 : 0);
-      case 'MONTHLY':
-        return todayBaseSales * 30 + (realSettledSum > 0 ? 58900 : 0);
-      case 'CUSTOM':
-        return Math.round(todayBaseSales * 1.8);
-      case 'TODAY':
-      default:
-        return todayBaseSales;
+  // Filter settled bills based on active period filter
+  const filteredSettledList = useMemo(() => {
+    if (activeFilter === 'CUSTOM') {
+      const start = new Date(customStartDate).getTime();
+      const end = new Date(customEndDate).getTime() + 86400000;
+      return realSettledList.filter((b) => {
+        if (!b.formattedDate && !b.timestamp) return true;
+        const bTime = new Date(b.formattedDate || b.timestamp).getTime();
+        return isNaN(bTime) || (bTime >= start && bTime <= end);
+      });
     }
-  }, [activeFilter, todayBaseSales, realSettledSum]);
+    return realSettledList;
+  }, [realSettledList, activeFilter, customStartDate, customEndDate]);
+
+  // Actual sum of real settled receipts
+  const realSettledSum = useMemo(() => {
+    return filteredSettledList.reduce((acc, b) => acc + (b.grandTotal || 0), 0);
+  }, [filteredSettledList]);
+
+  const totalSalesAmount = realSettledSum;
 
   // Period label for header
   const periodLabel = useMemo(() => {
@@ -122,7 +148,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
     }
   }, [activeFilter, customStartDate, customEndDate]);
 
-  // 2. Category-wise Sales Distribution (derived dynamically from item history & proportions)
+  // 2. Category-wise Sales Distribution (derived dynamically from real item lines)
   const categoryStats = useMemo(() => {
     let biryaniSum = 0;
     let kababSum = 0;
@@ -131,7 +157,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
     let startersSum = 0;
 
     // Aggregate from settled bills
-    realSettledList.forEach((bill) => {
+    filteredSettledList.forEach((bill) => {
       bill.items?.forEach((item: any) => {
         const lower = (item.name || item.dish_name || '').toLowerCase();
         const price = item.totalPrice || (item.price || 0) * (item.quantity || 1);
@@ -170,61 +196,44 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
 
     const itemTotalSum = biryaniSum + kababSum + graviesSum + bevsSum + startersSum;
 
-    let donneBiryaniAmt: number;
-    let chickenKababAmt: number;
-    let graviesAmt: number;
-    let bevsAmt: number;
-    let otherAmt: number;
-
-    if (itemTotalSum > 0) {
-      donneBiryaniAmt = Math.round((biryaniSum / itemTotalSum) * totalSalesAmount);
-      chickenKababAmt = Math.round((kababSum / itemTotalSum) * totalSalesAmount);
-      graviesAmt = Math.round((graviesSum / itemTotalSum) * totalSalesAmount);
-      bevsAmt = Math.round((bevsSum / itemTotalSum) * totalSalesAmount);
-      otherAmt = Math.max(0, totalSalesAmount - (donneBiryaniAmt + chickenKababAmt + graviesAmt + bevsAmt));
-    } else {
-      donneBiryaniAmt = Math.round(totalSalesAmount * 0.50);
-      chickenKababAmt = Math.round(totalSalesAmount * 0.20);
-      graviesAmt = Math.round(totalSalesAmount * 0.15);
-      bevsAmt = Math.round(totalSalesAmount * 0.10);
-      otherAmt = Math.max(0, totalSalesAmount - (donneBiryaniAmt + chickenKababAmt + graviesAmt + bevsAmt));
-    }
-
-    const totalCalculated = Math.max(1, donneBiryaniAmt + chickenKababAmt + graviesAmt + bevsAmt + otherAmt);
+    const calcPercent = (amt: number) => {
+      if (itemTotalSum <= 0) return 0;
+      return Math.round((amt / itemTotalSum) * 100);
+    };
 
     return [
       {
         name: 'Donne Biryani',
-        amount: donneBiryaniAmt,
-        percent: Math.round((donneBiryaniAmt / totalCalculated) * 100),
+        amount: biryaniSum,
+        percent: calcPercent(biryaniSum),
         barColor: 'bg-amber-600',
       },
       {
         name: 'Chicken Kabab',
-        amount: chickenKababAmt,
-        percent: Math.round((chickenKababAmt / totalCalculated) * 100),
+        amount: kababSum,
+        percent: calcPercent(kababSum),
         barColor: 'bg-[#9C3D1E]',
       },
       {
         name: 'Gravies & Breads',
-        amount: graviesAmt,
-        percent: Math.round((graviesAmt / totalCalculated) * 100),
+        amount: graviesSum,
+        percent: calcPercent(graviesSum),
         barColor: 'bg-orange-500',
       },
       {
         name: 'Beverages & Desserts',
-        amount: bevsAmt,
-        percent: Math.round((bevsAmt / totalCalculated) * 100),
+        amount: bevsSum,
+        percent: calcPercent(bevsSum),
         barColor: 'bg-emerald-600',
       },
       {
         name: 'Mutton & Starters',
-        amount: otherAmt,
-        percent: Math.round((otherAmt / totalCalculated) * 100),
+        amount: startersSum,
+        percent: calcPercent(startersSum),
         barColor: 'bg-stone-600',
       },
     ];
-  }, [totalSalesAmount, realSettledList, liveOrders]);
+  }, [filteredSettledList, liveOrders]);
 
   // 3. Payment Mode Settlement Split (calculated dynamically from real settlements)
   const paymentModeStats = useMemo(() => {
@@ -233,7 +242,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
     let cardSum = 0;
     let aggSum = 0;
 
-    realSettledList.forEach((bill) => {
+    filteredSettledList.forEach((bill) => {
       const m = (bill.method || '').toUpperCase();
       const amt = bill.grandTotal || 0;
       if (m.includes('CASH')) {
@@ -247,102 +256,113 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
       }
     });
 
-    const realMethodSum = upiSum + cashSum + cardSum + aggSum;
-    let upiAmt: number;
-    let cashAmt: number;
-    let cardAmt: number;
-    let remainingAmt: number;
-
-    if (realMethodSum > 0) {
-      upiAmt = Math.round((upiSum / realMethodSum) * totalSalesAmount);
-      cashAmt = Math.round((cashSum / realMethodSum) * totalSalesAmount);
-      cardAmt = Math.round((cardSum / realMethodSum) * totalSalesAmount);
-      remainingAmt = Math.max(0, totalSalesAmount - (upiAmt + cashAmt + cardAmt));
-    } else {
-      upiAmt = Math.round(totalSalesAmount * 0.52);
-      cashAmt = Math.round(totalSalesAmount * 0.28);
-      cardAmt = Math.round(totalSalesAmount * 0.12);
-      remainingAmt = Math.max(0, totalSalesAmount - (upiAmt + cashAmt + cardAmt));
-    }
-
-    const totalSplit = Math.max(1, upiAmt + cashAmt + cardAmt + remainingAmt);
+    const totalSplit = upiSum + cashSum + cardSum + aggSum;
+    const calcPercent = (amt: number) => {
+      if (totalSplit <= 0) return 0;
+      return Math.round((amt / totalSplit) * 100);
+    };
 
     return [
       {
         name: 'UPI Dynamic QR (PhonePe / GPay)',
         icon: <QrCode className="h-3.5 w-3.5 text-indigo-600" />,
-        amount: upiAmt,
-        percent: Math.round((upiAmt / totalSplit) * 100),
+        amount: upiSum,
+        percent: calcPercent(upiSum),
         barColor: 'bg-indigo-600',
       },
       {
         name: 'Cash',
         icon: <Banknote className="h-3.5 w-3.5 text-emerald-600" />,
-        amount: cashAmt,
-        percent: Math.round((cashAmt / totalSplit) * 100),
+        amount: cashSum,
+        percent: calcPercent(cashSum),
         barColor: 'bg-emerald-600',
       },
       {
         name: 'Card',
         icon: <CreditCard className="h-3.5 w-3.5 text-blue-600" />,
-        amount: cardAmt,
-        percent: Math.round((cardAmt / totalSplit) * 100),
+        amount: cardSum,
+        percent: calcPercent(cardSum),
         barColor: 'bg-blue-600',
       },
       {
         name: 'Food Aggregators (Swiggy/Zomato)',
         icon: <Layers className="h-3.5 w-3.5 text-amber-600" />,
-        amount: remainingAmt,
-        percent: Math.round((remainingAmt / totalSplit) * 100),
+        amount: aggSum,
+        percent: calcPercent(aggSum),
         barColor: 'bg-amber-500',
       },
     ];
-  }, [totalSalesAmount, realSettledList]);
+  }, [filteredSettledList]);
 
-  // 4. Comparison Table Graph Points (Current vs Previous Comparison across Time, Week, Month)
+  // Digital vs Cash percentages
+  const tenderRatioText = useMemo(() => {
+    const upi = paymentModeStats[0]?.amount || 0;
+    const cash = paymentModeStats[1]?.amount || 0;
+    const card = paymentModeStats[2]?.amount || 0;
+    const agg = paymentModeStats[3]?.amount || 0;
+    const total = upi + cash + card + agg;
+    if (total <= 0) return '0% Digital / 0% Cash';
+    const digi = Math.round(((upi + card + agg) / total) * 100);
+    const csh = 100 - digi;
+    return `${digi}% Digital / ${csh}% Cash`;
+  }, [paymentModeStats]);
+
+  // 4. Comparison Table Graph Points (Current vs Previous Comparison mapped from real settlement times)
   const comparisonData: ComparisonDataPoint[] = useMemo(() => {
     if (graphMode === 'MONTH') {
-      const scale = totalSalesAmount > 0 ? totalSalesAmount / 1200000 : 1;
+      const weekBuckets = [0, 0, 0, 0];
+      filteredSettledList.forEach((bill) => {
+        const slot = getWeekSlotIndex(bill.formattedDate || bill.timestamp);
+        weekBuckets[slot] += bill.grandTotal || 0;
+      });
+
       return [
-        { timeLabel: 'Week 1', currentSales: Math.round(260000 * scale), previousSales: Math.round(215000 * scale), label: `Week 1: This Month ₹${Math.round(260 * scale) / 100}L vs Last Month ₹${Math.round(215 * scale) / 100}L` },
-        { timeLabel: 'Week 2', currentSales: Math.round(285000 * scale), previousSales: Math.round(240000 * scale), label: `Week 2: This Month ₹${Math.round(285 * scale) / 100}L vs Last Month ₹${Math.round(240 * scale) / 100}L` },
-        { timeLabel: 'Week 3', currentSales: Math.round(310000 * scale), previousSales: Math.round(262000 * scale), label: `Week 3: This Month ₹${Math.round(310 * scale) / 100}L vs Last Month ₹${Math.round(262 * scale) / 100}L` },
-        { timeLabel: 'Week 4', currentSales: Math.round(345000 * scale), previousSales: Math.round(295000 * scale), label: `Week 4: This Month ₹${Math.round(345 * scale) / 100}L vs Last Month ₹${Math.round(295 * scale) / 100}L` },
+        { timeLabel: 'Week 1', currentSales: weekBuckets[0], previousSales: 0, label: `Week 1: Shift Sales ₹${weekBuckets[0].toLocaleString('en-IN')}` },
+        { timeLabel: 'Week 2', currentSales: weekBuckets[1], previousSales: 0, label: `Week 2: Shift Sales ₹${weekBuckets[1].toLocaleString('en-IN')}` },
+        { timeLabel: 'Week 3', currentSales: weekBuckets[2], previousSales: 0, label: `Week 3: Shift Sales ₹${weekBuckets[2].toLocaleString('en-IN')}` },
+        { timeLabel: 'Week 4', currentSales: weekBuckets[3], previousSales: 0, label: `Week 4: Shift Sales ₹${weekBuckets[3].toLocaleString('en-IN')}` },
       ];
     }
 
     if (graphMode === 'WEEK') {
-      const scale = totalSalesAmount > 0 ? totalSalesAmount / 360000 : 1;
-      return [
-        { timeLabel: 'Mon', currentSales: Math.round(42000 * scale), previousSales: Math.round(35000 * scale), label: `Mon: This Week ₹${Math.round(42 * scale)}k vs Last Week ₹${Math.round(35 * scale)}k` },
-        { timeLabel: 'Tue', currentSales: Math.round(38000 * scale), previousSales: Math.round(32000 * scale), label: `Tue: This Week ₹${Math.round(38 * scale)}k vs Last Week ₹${Math.round(32 * scale)}k` },
-        { timeLabel: 'Wed', currentSales: Math.round(40500 * scale), previousSales: Math.round(36000 * scale), label: `Wed: This Week ₹${Math.round(40.5 * scale)}k vs Last Week ₹${Math.round(36 * scale)}k` },
-        { timeLabel: 'Thu', currentSales: Math.round(45000 * scale), previousSales: Math.round(39000 * scale), label: `Thu: This Week ₹${Math.round(45 * scale)}k vs Last Week ₹${Math.round(39 * scale)}k` },
-        { timeLabel: 'Fri', currentSales: Math.round(58000 * scale), previousSales: Math.round(49000 * scale), label: `Fri: This Week ₹${Math.round(58 * scale)}k vs Last Week ₹${Math.round(49 * scale)}k` },
-        { timeLabel: 'Sat', currentSales: Math.round(68500 * scale), previousSales: Math.round(58000 * scale), label: `Sat: This Week ₹${Math.round(68.5 * scale)}k vs Last Week ₹${Math.round(58 * scale)}k` },
-        { timeLabel: 'Sun', currentSales: Math.round(72000 * scale), previousSales: Math.round(61000 * scale), label: `Sun: This Week ₹${Math.round(72 * scale)}k vs Last Week ₹${Math.round(61 * scale)}k` },
-      ];
+      const dayBuckets = [0, 0, 0, 0, 0, 0, 0];
+      filteredSettledList.forEach((bill) => {
+        const slot = getDaySlotIndex(bill.formattedDate || bill.timestamp);
+        dayBuckets[slot] += bill.grandTotal || 0;
+      });
+
+      const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return dayLabels.map((name, idx) => ({
+        timeLabel: name,
+        currentSales: dayBuckets[idx],
+        previousSales: 0,
+        label: `${name}: Shift Sales ₹${dayBuckets[idx].toLocaleString('en-IN')}`,
+      }));
     }
 
-    // Default: Time (Today vs Yesterday)
-    const scale = totalSalesAmount > 0 ? totalSalesAmount / 104500 : 1;
-    return [
-      { timeLabel: '11 AM', currentSales: Math.round(8500 * scale), previousSales: Math.round(6800 * scale), label: `11:00 AM — Today ₹${Math.round(8.5 * scale)}k vs Yesterday ₹${Math.round(6.8 * scale)}k` },
-      { timeLabel: '01 PM', currentSales: Math.round(20000 * scale), previousSales: Math.round(15200 * scale), label: `01:00 PM — Today ₹${Math.round(20 * scale)}k vs Yesterday ₹${Math.round(15.2 * scale)}k` },
-      { timeLabel: '03 PM', currentSales: Math.round(17000 * scale), previousSales: Math.round(13000 * scale), label: `03:00 PM — Today ₹${Math.round(17 * scale)}k vs Yesterday ₹${Math.round(13 * scale)}k` },
-      { timeLabel: '05 PM', currentSales: Math.round(16000 * scale), previousSales: Math.round(11500 * scale), label: `05:00 PM — Today ₹${Math.round(16 * scale)}k vs Yesterday ₹${Math.round(11.5 * scale)}k` },
-      { timeLabel: '06 PM', currentSales: Math.round(6000 * scale), previousSales: Math.round(4800 * scale), label: `06:00 PM — Today ₹${Math.round(6 * scale)}k vs Yesterday ₹${Math.round(4.8 * scale)}k` },
-      { timeLabel: '08:30 PM', currentSales: Math.round(25000 * scale), previousSales: Math.round(18500 * scale), label: `08:30 PM — Today ₹${Math.round(25 * scale)}k vs Yesterday ₹${Math.round(18.5 * scale)}k` },
-      { timeLabel: '10 PM', currentSales: Math.round(4000 * scale), previousSales: Math.round(3200 * scale), label: `10:00 PM — Today ₹${Math.round(4 * scale)}k vs Yesterday ₹${Math.round(3.2 * scale)}k` },
-      { timeLabel: '11 PM', currentSales: Math.round(6000 * scale), previousSales: Math.round(4200 * scale), label: `11:00 PM — Today ₹${Math.round(6 * scale)}k vs Yesterday ₹${Math.round(4.2 * scale)}k` },
-      { timeLabel: '12 AM', currentSales: Math.round(2000 * scale), previousSales: Math.round(1500 * scale), label: `12:00 AM — Today ₹${Math.round(2 * scale)}k vs Yesterday ₹${Math.round(1.5 * scale)}k` },
-    ];
-  }, [graphMode, totalSalesAmount]);
+    // Default: Time mode (Hourly distribution of real settlements)
+    const timeSlots = ['11 AM', '01 PM', '03 PM', '05 PM', '06 PM', '08:30 PM', '10 PM', '11 PM', '12 AM'];
+    const timeBuckets = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-  // Overall growth badge calculation
+    filteredSettledList.forEach((bill) => {
+      const idx = getTimeSlotIndex(bill.formattedTime);
+      timeBuckets[idx] += bill.grandTotal || 0;
+    });
+
+    return timeSlots.map((slot, idx) => ({
+      timeLabel: slot,
+      currentSales: timeBuckets[idx],
+      previousSales: 0,
+      label: `${slot} — Shift Sales ₹${timeBuckets[idx].toLocaleString('en-IN')}`,
+    }));
+  }, [graphMode, filteredSettledList]);
+
+  // Overall growth / performance metric
   const totalCurrentInGraph = comparisonData.reduce((acc, p) => acc + p.currentSales, 0);
   const totalPreviousInGraph = comparisonData.reduce((acc, p) => acc + p.previousSales, 0);
-  const growthPercent = Math.round(((totalCurrentInGraph - totalPreviousInGraph) / (totalPreviousInGraph || 1)) * 100);
+  const growthPercent = totalPreviousInGraph > 0
+    ? Math.round(((totalCurrentInGraph - totalPreviousInGraph) / totalPreviousInGraph) * 100)
+    : (totalCurrentInGraph > 0 ? 100 : 0);
 
   // SVG Chart Geometry
   const chartHeight = 210;
@@ -352,7 +372,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
 
   const maxVal = Math.max(
     ...comparisonData.map((p) => Math.max(p.currentSales, p.previousSales)),
-    10000
+    1000
   );
   const minVal = 0;
 
@@ -402,9 +422,11 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
       const chairRaw = lo.order?.chair_id || 'Chair 1';
       const cleanChair = chairRaw.replace(/[^0-9]/g, '');
       const isTk = chairRaw.toLowerCase().includes('tk') || chairRaw.toLowerCase().includes('takeaway');
-      const chairText = isTk ? 'TK-01 Parcel' : `T-01 C-${cleanChair || '1'}`;
+      const chairNum = parseInt(cleanChair, 10) || 1;
+      const tableNum = Math.ceil(chairNum / 4);
+      const chairText = isTk ? 'TK-01 Takeaway' : `T-${String(tableNum).padStart(2, '0')} Chair ${chairNum}`;
       const itemCount = lo.items ? lo.items.reduce((acc, it) => acc + (it.quantity || 1), 0) : 1;
-      const amount = lo.order?.total_amount || 0;
+      const amount = lo.order?.total_amount || (lo.items ? lo.items.reduce((acc, it) => acc + (it.price || 0) * (it.quantity || 1), 0) : 0);
       const createdDate = new Date();
 
       list.push({
@@ -414,39 +436,34 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
         status: 'unpaid',
         date: createdDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
         time: createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        amount: amount > 0 ? amount : 450,
+        amount,
         paymentMethod: 'PENDING',
       });
     });
 
     // 2. Add real paid/settled bills
-    realSettledList.forEach((bill, idx) => {
-      const itemCount = bill.items ? bill.items.reduce((acc: number, i: any) => acc + (i.quantity || 1), 0) : 2;
+    filteredSettledList.forEach((bill, idx) => {
+      const itemCount = bill.items ? bill.items.reduce((acc: number, i: any) => acc + (i.quantity || 1), 0) : 1;
       const cleanTable = (bill.tableName || 'T-01').replace('-', '');
-      const chairText = bill.seatNumber
-        ? `${cleanTable} C-${bill.seatNumber}`
-        : bill.seatLabel?.includes('Chair')
-        ? `${cleanTable} ${bill.seatLabel.replace('Chair ', 'C-')}`
-        : `${cleanTable} Whole`;
-
+      const chairText = bill.seatLabel || (bill.seatNumber ? `${cleanTable} Chair ${bill.seatNumber}` : `${cleanTable} Table`);
       const displayDate = bill.formattedDate
         ? bill.formattedDate.replace(' 2026', '')
-        : 'Today';
+        : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
       list.push({
-        orderId: bill.invoiceNumber || `INV-${902120 - idx}`,
+        orderId: bill.invoiceNumber || `INV-${String(idx + 1).padStart(4, '0')}`,
         chairNo: chairText,
         totalItems: itemCount,
         status: 'paid',
         date: displayDate,
-        time: bill.formattedTime || '11:45 PM',
+        time: bill.formattedTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         amount: bill.grandTotal || 0,
         paymentMethod: bill.method || 'UPI',
       });
     });
 
     return list;
-  }, [liveOrders, realSettledList]);
+  }, [liveOrders, filteredSettledList]);
 
   // Filtered transactions if user searches
   const filteredTransactions = useMemo(() => {
@@ -465,8 +482,9 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
 
   // Primary driver text
   const primaryDriver = useMemo(() => {
-    if (categoryStats.length === 0) return 'Donne Biryani Pots (50% share)';
-    const top = [...categoryStats].sort((a, b) => b.amount - a.amount)[0];
+    const activeStats = categoryStats.filter((c) => c.amount > 0);
+    if (activeStats.length === 0) return 'No sales recorded yet';
+    const top = [...activeStats].sort((a, b) => b.amount - a.amount)[0];
     return `${top.name} (${top.percent}% share)`;
   }, [categoryStats]);
 
@@ -683,7 +701,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
                   <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${cat.barColor}`}
-                      style={{ width: `${Math.min(100, Math.max(4, cat.percent))}%` }}
+                      style={{ width: `${Math.min(100, cat.percent)}%` }}
                     />
                   </div>
                 </div>
@@ -708,14 +726,14 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
                 <div className="text-sm font-black text-slate-800 flex items-center gap-2 mt-0.5">
                   <span>
                     {graphMode === 'MONTH'
-                      ? 'Monthly (This Month vs Last Month)'
+                      ? 'Monthly (Weekly Breakdown)'
                       : graphMode === 'WEEK'
-                      ? 'Weekly (This Week vs Last Week)'
+                      ? 'Weekly (Day Breakdown)'
                       : 'Today (Sales vs time)'}
                   </span>
                   <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md flex items-center">
                     <TrendingUp className="h-3 w-3 mr-0.5 inline" />
-                    +{growthPercent > 0 ? growthPercent : 32}%
+                    +{growthPercent}%
                   </span>
                 </div>
               </div>
@@ -769,7 +787,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
               <span className="flex items-center gap-1.5">
                 <span className="inline-block w-4 h-0.5 border-t-2 border-dashed border-indigo-500"></span>
                 <span className="text-slate-500">
-                  {graphMode === 'MONTH' ? 'Last Month' : graphMode === 'WEEK' ? 'Last Week' : 'Yesterday (Prior)'}
+                  Prior Baseline
                 </span>
               </span>
             </div>
@@ -925,9 +943,11 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
           </div>
 
           <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-bold">
-            <span>Comparison Trend:</span>
+            <span>Shift Turnover Log:</span>
             <span className="text-emerald-700 font-black">
-              +{growthPercent > 0 ? growthPercent : 32}% Higher Turnover vs Previous Cycle
+              {totalSalesAmount > 0
+                ? `₹ ${totalSalesAmount.toLocaleString('en-IN')} Live Settlement Volume`
+                : 'Awaiting Initial Shift Settlements'}
             </span>
           </div>
         </div>
@@ -945,7 +965,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
             <h4 className="text-xs font-black text-slate-900 uppercase pb-3 border-b border-slate-200 flex items-center justify-between">
               <span>Payment modes</span>
               <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-black">
-                100% BALANCED
+                {totalSalesAmount > 0 ? '100% BALANCED' : '0 SETTLED'}
               </span>
             </h4>
 
@@ -964,7 +984,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
                   <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${mode.barColor}`}
-                      style={{ width: `${Math.min(100, Math.max(4, mode.percent))}%` }}
+                      style={{ width: `${Math.min(100, mode.percent)}%` }}
                     />
                   </div>
                 </div>
@@ -983,7 +1003,7 @@ export function ScreenM11SalesReport({ liveOrders = [] }: ScreenM11SalesReportPr
               <span>Print Pdf</span>
             </button>
             <span className="text-[10px] text-slate-400 font-bold">
-              {paymentModeStats[0]?.percent || 65}% Digital / {paymentModeStats[1]?.percent || 30}% Cash
+              {tenderRatioText}
             </span>
           </div>
         </div>
