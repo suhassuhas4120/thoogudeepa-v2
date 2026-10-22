@@ -140,7 +140,7 @@ export default function ManagerPortalPage() {
       case 6:
         return <ScreenM10Menu86Stock />;
       case 7:
-        return <ScreenM11SalesReport />;
+        return <ScreenM11SalesReport liveOrders={liveOrders} />;
       case 8:
         return <ScreenM13PettyExpenses openingFloat={openingFloat} />;
       default:
