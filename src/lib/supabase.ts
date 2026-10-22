@@ -178,6 +178,7 @@ export type KDSCallbacks = {
   onBillModeActive?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; mode?: 'qr' | 'cash'; ticketNumber?: string }) => void;
   onCustomerPaidUpi?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; ticketNumber?: string }) => void;
   onBillSettled?: (data: { chairId: string; rawChairId?: string; normChairId?: string; amount?: number; paymentMethod?: string; ticketNumber?: string }) => void;
+  onCashHandover?: (data: { id: string; staffId: string; staffName: string; amount: number; timestamp: string; receivedBy: string }) => void;
   onClearAll?: () => void;
 };
 
@@ -305,6 +306,13 @@ function initSharedRealtimeChannel() {
           }
         });
       }
+    })
+    .on('broadcast', { event: 'CASH_HANDOVER' }, (msg) => {
+      activeKdsSubscribers.forEach((cb) => {
+        if (cb.onCashHandover && msg.payload?.handover) {
+          cb.onCashHandover(msg.payload.handover);
+        }
+      });
     })
     .on('broadcast', { event: 'CLEAR_ALL_ORDERS' }, () => {
       activeKdsSubscribers.forEach((cb) => {
@@ -1016,6 +1024,30 @@ export const realtimeBridge = {
       // 3. Update Supabase & broadcast cross-device
       if (supabase) {
         await supabase.from('orders').update({ status: 'ready', updated_at: new Date().toISOString() }).eq('ticket_number', ticketNumber);
+        const { data: ord } = await supabase.from('orders').select('id').eq('ticket_number', ticketNumber).maybeSingle();
+        if (ord?.id) {
+          await supabase.from('order_items').update({ stage: 'READY', addons: ['SERVED'], updated_at: new Date().toISOString() }).eq('order_id', ord.id);
+        }
+      }
+
+      if (typeof window !== 'undefined' && chairId) {
+        const cleanC = chairId.replace(/[^0-9]/g, '');
+        const normC = cleanC.replace(/^0+/, '') || '1';
+        const padC = normC.padStart(2, '0');
+        const keys = [
+          `thoogudeepa_item_stages_${chairId}`,
+          `thoogudeepa_item_stages_${cleanC}`,
+          `thoogudeepa_item_stages_${normC}`,
+          `thoogudeepa_item_stages_${padC}`,
+        ];
+        keys.forEach((k) => {
+          try {
+            const raw = localStorage.getItem(k);
+            const st = raw ? JSON.parse(raw) : {};
+            st[`ticket_dispatched_${ticketNumber}`] = 'SERVED';
+            localStorage.setItem(k, JSON.stringify(st));
+          } catch {}
+        });
       }
 
       broadcastRealtime('TICKET_DISPATCHED', { ticketNumber, chairId });
@@ -1045,23 +1077,26 @@ export const realtimeBridge = {
   // Update dish availability
   async setAvailability(dishId: string, isAvailable: boolean): Promise<boolean> {
     try {
+      const cleanId = dishId.replace(/^dish-/, '');
       if (typeof window !== 'undefined') {
         try {
           const raw = localStorage.getItem('thoogudeepa_v2_dish_stock');
           const map = raw ? JSON.parse(raw) : {};
           map[dishId] = isAvailable;
+          map[cleanId] = isAvailable;
+          map[`dish-${cleanId}`] = isAvailable;
           localStorage.setItem('thoogudeepa_v2_dish_stock', JSON.stringify(map));
         } catch {}
       }
       if (supabase) {
         await supabase
           .from('dish_inventory')
-          .upsert({ dish_id: dishId, is_available: isAvailable, updated_at: new Date().toISOString() });
+          .upsert({ dish_id: cleanId, is_available: isAvailable, updated_at: new Date().toISOString() });
       }
       if (localChannel) {
         localChannel.postMessage({
           type: 'AVAILABILITY_CHANGE',
-          dishId,
+          dishId: cleanId,
           isAvailable,
         });
       }
@@ -1620,6 +1655,7 @@ export const realtimeBridge = {
       };
       existing.unshift(newRecord);
       localStorage.setItem('thoogudeepa_v2_cash_handovers', JSON.stringify(existing.slice(0, 50)));
+      broadcastRealtime('CASH_HANDOVER', { handover: newRecord });
       return newRecord;
     } catch {
       return null;
@@ -1975,6 +2011,10 @@ export const realtimeBridge = {
             if (cb.onSeatOccupancyChange && targetChair) {
               cb.onSeatOccupancyChange({ chairId: targetChair, isOccupied: false });
             }
+          });
+        } else if (data.type === 'CASH_HANDOVER') {
+          activeKdsSubscribers.forEach((cb) => {
+            if (cb.onCashHandover && data.handover) cb.onCashHandover(data.handover);
           });
         } else if (data.type === 'AVAILABILITY_CHANGE') {
           activeKdsSubscribers.forEach((cb) => {

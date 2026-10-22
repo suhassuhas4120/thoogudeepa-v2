@@ -247,8 +247,26 @@ export default function LiveOrderTrackingPage() {
         syncLatestStages();
       },
       onTicketDispatched: (data) => {
-        if (!data.chairId || data.chairId === chairId || data.chairId.replace(/[^0-9]/g, '') === cleanCurrentChair) {
+        const targetClean = (data.chairId || '').replace(/[^0-9]/g, '');
+        if (!data.chairId || data.chairId === chairId || targetClean === cleanCurrentChair) {
           setIsDispatched(true);
+          setItemStages((prev) => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach((k) => {
+              updated[k] = 'SERVED';
+            });
+            return updated;
+          });
+          setSession((prev) => {
+            if (!prev || !prev.items) return prev;
+            const updatedItems = prev.items.map((it) => {
+              const addons = Array.isArray(it.addons) ? [...it.addons] : [];
+              if (!addons.includes('SERVED')) addons.push('SERVED');
+              return { ...it, stage: 'SERVED' as const, addons };
+            });
+            return { ...prev, items: updatedItems };
+          });
+          syncLatestStages();
         }
       },
       onSeatOccupancyChange: (data) => {

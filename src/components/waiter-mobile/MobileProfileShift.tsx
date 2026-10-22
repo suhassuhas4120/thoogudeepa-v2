@@ -41,6 +41,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { WaiterProfile, ShiftActivityLog } from './types';
+import { realtimeBridge } from '@/lib/supabase';
 
 export interface MobileProfileShiftProps {
   /** Active waiter profile metrics and credentials */
@@ -65,37 +66,35 @@ export const MobileProfileShift: React.FC<MobileProfileShiftProps> = ({
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState<boolean>(false);
 
-  // Recent operational activity logs during the shift
-  const recentActivities: ShiftActivityLog[] = useMemo(() => [
-    {
-      id: 'act-1',
-      title: 'Settled Seat 07 (UPI Payment)',
-      amountFormatted: '+₹400',
-      timestamp: '12:48 PM',
-      badgeType: 'sale'
-    },
-    {
-      id: 'act-2',
-      title: 'Punched KOT #109 (Seat 05)',
-      amountFormatted: '2 Items',
-      timestamp: '12:44 PM',
-      badgeType: 'kot'
-    },
-    {
-      id: 'act-3',
-      title: 'Settled Seat 09 (Cash Tender)',
-      amountFormatted: '+₹680',
-      timestamp: '12:35 PM',
-      badgeType: 'sale'
-    },
-    {
-      id: 'act-4',
-      title: 'Punched KOT #108 (Seat 01)',
-      amountFormatted: '3 Items',
-      timestamp: '12:20 PM',
-      badgeType: 'kot'
+  // Dynamic financial breakdown & recent operational activity logs from real settled bills
+  const settledBills = typeof window !== 'undefined' && realtimeBridge.getSettledBills ? realtimeBridge.getSettledBills() : [];
+  
+  const cashTurnover = useMemo(() => {
+    return settledBills
+      .filter((b: any) => (b.method || '').toUpperCase().includes('CASH'))
+      .reduce((sum: number, b: any) => sum + (b.grandTotal || 0), 0);
+  }, [settledBills]);
+
+  const recentActivities: ShiftActivityLog[] = useMemo(() => {
+    if (settledBills.length === 0) {
+      return [
+        {
+          id: 'act-0',
+          title: 'Shift Active & Running',
+          amountFormatted: 'Active',
+          timestamp: 'Just now',
+          badgeType: 'kot',
+        },
+      ];
     }
-  ], []);
+    return settledBills.slice(0, 5).map((b: any, idx: number) => ({
+      id: `act-${b.id || idx}`,
+      title: `Settled ${b.seatLabel || `Seat ${b.seatNumber}`} (${b.method || 'Cash'})`,
+      amountFormatted: `+₹${b.grandTotal?.toLocaleString('en-IN') || 0}`,
+      timestamp: b.formattedTime || 'Recent',
+      badgeType: 'sale' as const,
+    }));
+  }, [settledBills]);
 
   // Print thermal shift report handler
   const handlePrintReport = useCallback(() => {
@@ -329,10 +328,12 @@ export const MobileProfileShift: React.FC<MobileProfileShiftProps> = ({
                 <LogOut className="w-6 h-6 text-rose-600" />
               </div>
               <h4 className="text-xs font-black text-slate-900">
-                End Waiter Shift?
+                End Shift & Handover Cash?
               </h4>
               <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                Your shift sales report will be archived and terminal locked.
+                {cashTurnover > 0
+                  ? `Cash tender of ₹${cashTurnover.toLocaleString('en-IN')} will be deposited to Manager Safe.`
+                  : 'Your shift report will be closed and session ended.'}
               </p>
             </div>
 
@@ -349,11 +350,14 @@ export const MobileProfileShift: React.FC<MobileProfileShiftProps> = ({
                 type="button"
                 onClick={() => {
                   setShowConfirmLogout(false);
+                  if (cashTurnover > 0 && realtimeBridge.recordCashHandover) {
+                    realtimeBridge.recordCashHandover(profile.staffId || '#TH-104', profile.name || 'Waiter Lead', cashTurnover);
+                  }
                   onEndShift();
                 }}
                 className="py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-2xs transition-colors"
               >
-                End & Clock Out
+                Deposit & Clock Out
               </button>
             </div>
           </div>

@@ -57,6 +57,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
     reloadData();
     const unsub = realtimeBridge.subscribeKDS({
       onBillSettled: () => reloadData(),
+      onCashHandover: () => reloadData(),
       onClearAll: () => reloadData(),
     });
     return () => unsub();

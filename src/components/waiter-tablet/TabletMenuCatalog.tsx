@@ -15,7 +15,7 @@
  * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, 
   ChevronDown,
@@ -27,6 +27,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { DishItem, MENU_DISHES, SeatItem } from './types';
+import { realtimeBridge } from '@/lib/supabase';
 
 export interface TabletMenuCatalogProps {
   /** Target seat identifier and guest name (e.g., 'Seat 02: Walk-In') */
@@ -69,6 +70,34 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
   // Search query & Category state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [stockMap, setStockMap] = useState<Record<string, boolean>>(() => {
+    return realtimeBridge.getDishAvailability ? realtimeBridge.getDishAvailability() : {};
+  });
+
+  useEffect(() => {
+    if (realtimeBridge.getDishAvailability) {
+      setStockMap(realtimeBridge.getDishAvailability());
+    }
+    const unsub = realtimeBridge.subscribeKDS({
+      onAvailabilityChange: ({ dishId, isAvailable }) => {
+        setStockMap((prev) => ({
+          ...prev,
+          [dishId]: isAvailable,
+          [dishId.replace(/^dish-/, '')]: isAvailable,
+          [`dish-${dishId.replace(/^dish-/, '')}`]: isAvailable,
+        }));
+      },
+    });
+    return () => unsub();
+  }, []);
+
+  const isDishAvailable = (id: number | string) => {
+    const clean = String(id).replace(/^dish-/, '');
+    if (stockMap[clean] === false || stockMap[`dish-${clean}`] === false) {
+      return false;
+    }
+    return true;
+  };
 
   // Category navigation tabs
   const categories = [
@@ -253,14 +282,17 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 px-0.5">
             {filteredDishes.map(dish => {
               const qty = dishQuantities[dish.id] || 0;
+              const available = isDishAvailable(dish.id);
 
               return (
                 <div
                   key={dish.id}
-                  className={`border rounded-2xl p-3 flex flex-col justify-between transition-all bg-white shadow-xs ${
-                    qty > 0 
+                  className={`border rounded-2xl p-3 flex flex-col justify-between transition-all shadow-xs ${
+                    !available
+                      ? 'border-slate-200 bg-slate-50 opacity-60 grayscale-[30%]'
+                      : qty > 0 
                       ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/10' 
-                      : 'border-slate-200 hover:border-slate-300'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
                   }`}
                 >
                   {/* Top Section: Food Image + Dish Info */}
@@ -306,6 +338,11 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
                       <span className="text-xs font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-xl shadow-2xs tracking-tight">
                         ₹{dish.price}
                       </span>
+                      {!available && (
+                        <span className="text-[10px] font-black text-rose-800 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-md shadow-2xs">
+                          Sold Out (86)
+                        </span>
+                      )}
                       {kitchenQuantities && (kitchenQuantities[dish.id] || 0) > 0 && (
                         <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs">
                           {kitchenQuantities[dish.id]} in kitchen
@@ -314,7 +351,11 @@ export const TabletMenuCatalog: React.FC<TabletMenuCatalogProps> = ({
                     </div>
 
                     {/* Add Button or Stepper on Right Side */}
-                    {qty === 0 ? (
+                    {!available ? (
+                      <span className="h-8 px-3.5 bg-slate-200 text-slate-500 rounded-xl text-xs font-bold uppercase flex items-center justify-center cursor-not-allowed select-none">
+                        Sold Out
+                      </span>
+                    ) : qty === 0 ? (
                       // Clean Standardized Button: + Add
                       <button
                         type="button"

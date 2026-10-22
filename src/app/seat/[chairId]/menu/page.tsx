@@ -52,6 +52,36 @@ export default function CustomerMenuPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [stockMap, setStockMap] = useState<Record<string, boolean>>(() => {
+    return realtimeBridge.getDishAvailability ? realtimeBridge.getDishAvailability() : {};
+  });
+
+  useEffect(() => {
+    if (realtimeBridge.getDishAvailability) {
+      setStockMap(realtimeBridge.getDishAvailability());
+    }
+    const unsub = realtimeBridge.subscribeKDS({
+      onAvailabilityChange: ({ dishId, isAvailable }) => {
+        setStockMap((prev) => ({
+          ...prev,
+          [dishId]: isAvailable,
+          [dishId.replace(/^dish-/, '')]: isAvailable,
+          [`dish-${dishId.replace(/^dish-/, '')}`]: isAvailable,
+        }));
+      },
+    });
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const isDishAvailable = (id: string) => {
+    const clean = id.replace(/^dish-/, '');
+    if (stockMap[clean] === false || stockMap[`dish-${clean}`] === false) {
+      return false;
+    }
+    return true;
+  };
 
   // Filter items dynamically by selected category and search query
   const filteredDishes = useMemo(() => {
@@ -186,11 +216,14 @@ export default function CustomerMenuPage() {
             {filteredDishes.map((item) => {
               const currentQty = getItemQuantity(item.id);
               const isLiked = isItemLiked(item.id);
+              const available = isDishAvailable(item.id);
 
               return (
                 <div
                   key={item.id}
-                  className="relative rounded-3xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-gradient-to-b from-[#FAF8F5] via-[#F2EFE8] to-[#E5ECE5] border border-[#DCE4DC] shadow-[0_12px_28px_-6px_rgba(50,70,55,0.1)] transition-all hover:shadow-[0_16px_34px_-6px_rgba(50,70,55,0.15)]"
+                  className={`relative rounded-3xl pt-20 sm:pt-22 pb-3.5 px-3 flex flex-col items-center text-center bg-gradient-to-b from-[#FAF8F5] via-[#F2EFE8] to-[#E5ECE5] border border-[#DCE4DC] shadow-[0_12px_28px_-6px_rgba(50,70,55,0.1)] transition-all ${
+                    !available ? 'opacity-60 grayscale-[30%]' : 'hover:shadow-[0_16px_34px_-6px_rgba(50,70,55,0.15)]'
+                  }`}
                 >
                   {/* Clickable Card Body opening Item Details */}
                   <Link
@@ -209,14 +242,18 @@ export default function CustomerMenuPage() {
 
                     {/* Special indicator tag with terracotta dot */}
                     <div className="w-full flex items-center justify-center gap-1 mt-1">
-                      {item.isSignature && (
+                      {!available ? (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[9px] font-black uppercase tracking-wider border border-rose-200">
+                          Sold Out
+                        </span>
+                      ) : item.isSignature ? (
                         <div className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#C85A32]" />
                           <span className="text-[10px] font-black uppercase tracking-wider text-[#C85A32]">
                             SPECIAL
                           </span>
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Title Section */}
@@ -236,75 +273,81 @@ export default function CustomerMenuPage() {
                   </Link>
 
                   {/* Bottom Row: Terracotta Stepper/Add Button + Heart Like Button */}
-                  <div className="w-full mt-2.5 flex items-center gap-1.5">
-                    {currentQty === 0 ? (
+                  {!available ? (
+                    <div className="w-full mt-2.5 flex items-center justify-center">
+                      <div className="w-full py-1.5 rounded-xl text-center text-[11px] font-black uppercase tracking-wider bg-slate-200 text-slate-500 cursor-not-allowed select-none">
+                        Sold Out
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full mt-2.5 flex items-center gap-1.5">
+                      {currentQty === 0 ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            updateQuantity(item.id, 1);
+                          }}
+                          className="flex-1 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#C85A32] text-white cursor-pointer active:opacity-85 shadow-[0_4px_14px_rgba(200,90,50,0.3)] hover:opacity-95 transition-all"
+                        >
+                          Add
+                        </button>
+                      ) : (
+                        <div
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          className="flex-1 flex items-center justify-between rounded-xl bg-[#C85A32] text-white px-2 py-1 shadow-[0_4px_14px_rgba(200,90,50,0.3)]"
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              updateQuantity(item.id, currentQty - 1);
+                            }}
+                            className="w-5 h-5 flex items-center justify-center font-bold text-sm cursor-pointer active:opacity-60"
+                            aria-label="Decrease"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-xs font-black">{currentQty}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              updateQuantity(item.id, currentQty + 1);
+                            }}
+                            className="w-5 h-5 flex items-center justify-center font-bold text-sm cursor-pointer active:opacity-60"
+                            aria-label="Increase"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Small Heart Like Button beside Add with subtle orange border */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          updateQuantity(item.id, 1);
+                          toggleLike(item.id);
                         }}
-                        className="flex-1 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#C85A32] text-white cursor-pointer active:opacity-85 shadow-[0_4px_14px_rgba(200,90,50,0.3)] hover:opacity-95 transition-all"
-                      >
-                        Add
-                      </button>
-                    ) : (
-                      <div
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        className="flex-1 flex items-center justify-between rounded-xl bg-[#C85A32] text-white px-2 py-1 shadow-[0_4px_14px_rgba(200,90,50,0.3)]"
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            updateQuantity(item.id, currentQty - 1);
-                          }}
-                          className="w-5 h-5 flex items-center justify-center font-bold text-sm cursor-pointer active:opacity-60"
-                          aria-label="Decrease"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-xs font-black">{currentQty}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            updateQuantity(item.id, currentQty + 1);
-                          }}
-                          className="w-5 h-5 flex items-center justify-center font-bold text-sm cursor-pointer active:opacity-60"
-                          aria-label="Increase"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Small Heart Like Button beside Add with subtle orange border */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleLike(item.id);
-                      }}
-                      className="w-7 h-7 shrink-0 border border-[#C85A32]/60 rounded-xl flex items-center justify-center cursor-pointer transition-all active:scale-90 bg-transparent hover:border-[#C85A32]"
-                      aria-label="Like item"
-                    >
-                      <Heart
-                        className={`w-3.5 h-3.5 transition-all ${
+                        className={`w-8 h-8 rounded-xl border flex items-center justify-center cursor-pointer transition-all shrink-0 ${
                           isLiked
-                            ? 'fill-[#1E3A2F] text-[#1E3A2F]'
-                            : 'text-[#C85A32]/70 hover:text-[#C85A32]'
+                            ? 'bg-[#C85A32] text-white border-[#C85A32]'
+                            : 'bg-white text-[#C85A32] border-[#EAE3D5] hover:border-[#C85A32]'
                         }`}
-                      />
-                    </button>
-                  </div>
+                        aria-label="Like item"
+                      >
+                        <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-white' : ''}`} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -105,6 +105,7 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
     const interval = setInterval(updateTime, 1000);
     const unsub = realtimeBridge.subscribeKDS({
       onBillSettled: () => reloadShiftCash(),
+      onCashHandover: () => reloadShiftCash(),
       onClearAll: () => reloadShiftCash(),
     });
 

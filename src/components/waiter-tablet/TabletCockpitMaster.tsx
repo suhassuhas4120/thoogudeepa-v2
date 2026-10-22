@@ -55,6 +55,23 @@ export const TabletCockpitMaster: React.FC = () => {
   const [alerts, setAlerts] = useState<ServiceAlert[]>(INITIAL_ALERTS);
   const [shiftLogs, setShiftLogs] = useState(SHIFT_LOGS);
 
+  const effectiveProfile = useMemo(() => {
+    const settled = typeof window !== 'undefined' && realtimeBridge.getSettledBills ? realtimeBridge.getSettledBills() : [];
+    const sales = settled.reduce((sum: number, b: any) => sum + (b.grandTotal || 0), 0);
+    const tips = settled.reduce((sum: number, b: any) => sum + (b.tip || 0), 0);
+    const count = settled.length;
+    return {
+      ...profile,
+      metrics: {
+        totalSales: sales,
+        billsSettled: count,
+        tipsEarned: tips,
+        kotsPunched: count + ticketItems.length,
+        guestsServed: count * 2,
+      },
+    };
+  }, [profile, ticketItems.length]);
+
   // Active Target Seat & Cockpit Right Pane Mode ('ticket' or 'bill')
   const [activeSeatName, setActiveSeatName] = useState<string>('Seat 02: Walk-In');
   const activeSeatNameRef = useRef<string>(activeSeatName);
@@ -1028,7 +1045,7 @@ export const TabletCockpitMaster: React.FC = () => {
         {/* ======================================================== */}
         {currentScreen === 'profile' && (
           <TabletProfileShift
-            profile={profile}
+            profile={effectiveProfile}
             shiftLogs={shiftLogs}
             onBackToSeats={() => setCurrentScreen('seats')}
             onPrintShiftReport={() => showToast('Shift summary printed to thermal printer')}

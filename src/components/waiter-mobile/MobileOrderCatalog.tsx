@@ -14,7 +14,7 @@
  * - Strict Line Count: Maintained strictly between 300 and 400 lines
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Search, 
@@ -35,6 +35,7 @@ import {
   MenuCategoryKey, 
   SAMPLE_MENU_ITEMS 
 } from './types';
+import { realtimeBridge } from '@/lib/supabase';
 
 export interface MobileOrderCatalogProps {
   /** Active target seat number (e.g., 'Seat 02') */
@@ -73,6 +74,34 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState<MenuCategoryKey>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [stockMap, setStockMap] = useState<Record<string, boolean>>(() => {
+    return realtimeBridge.getDishAvailability ? realtimeBridge.getDishAvailability() : {};
+  });
+
+  useEffect(() => {
+    if (realtimeBridge.getDishAvailability) {
+      setStockMap(realtimeBridge.getDishAvailability());
+    }
+    const unsub = realtimeBridge.subscribeKDS({
+      onAvailabilityChange: ({ dishId, isAvailable }) => {
+        setStockMap((prev) => ({
+          ...prev,
+          [dishId]: isAvailable,
+          [dishId.replace(/^dish-/, '')]: isAvailable,
+          [`dish-${dishId.replace(/^dish-/, '')}`]: isAvailable,
+        }));
+      },
+    });
+    return () => unsub();
+  }, []);
+
+  const isDishAvailable = (id: string) => {
+    const clean = id.replace(/^dish-/, '');
+    if (stockMap[clean] === false || stockMap[`dish-${clean}`] === false) {
+      return false;
+    }
+    return true;
+  };
 
   // Category definitions with active counts
   const categories: { key: MenuCategoryKey; label: string }[] = useMemo(() => [
@@ -271,11 +300,14 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
             const currentDraftQty = draftQuantities.get(dish.id) || 0;
             const inKitchenQty = firedQuantities.get(dish.id) || 0;
             const isNonVeg = dish.dietary === 'non_veg';
+            const available = isDishAvailable(dish.id);
 
             return (
               <div
                 key={dish.id}
-                className="border border-slate-200 rounded-2xl p-3 bg-white shadow-xs flex items-center gap-3.5 hover:border-slate-300 transition-all"
+                className={`border rounded-2xl p-3 shadow-xs flex items-center gap-3.5 transition-all ${
+                  !available ? 'bg-slate-50 border-slate-200 opacity-60 grayscale-[30%]' : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
               >
                 {/* Dish Thumbnail Image */}
                 {dish.image && (
@@ -323,6 +355,11 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
                     <span className="text-sm sm:text-base font-black text-amber-950 font-mono bg-amber-100 border border-amber-300 px-3 py-0.5 rounded-lg shadow-2xs inline-block">
                       ₹{dish.price}
                     </span>
+                    {!available && (
+                      <span className="text-[10px] font-black text-rose-800 bg-rose-50 border border-rose-300 px-2 py-0.5 rounded-md shadow-2xs">
+                        Sold Out (86)
+                      </span>
+                    )}
                     {inKitchenQty > 0 && (
                       <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs">
                         {inKitchenQty} in kitchen
@@ -333,7 +370,11 @@ export const MobileOrderCatalog: React.FC<MobileOrderCatalogProps> = ({
 
                 {/* Add / Stepper Controls with generous touch target */}
                 <div className="flex items-center shrink-0">
-                  {currentDraftQty > 0 ? (
+                  {!available ? (
+                    <span className="h-8 px-3 rounded-xl bg-slate-200 text-slate-500 text-xs font-bold uppercase flex items-center select-none cursor-not-allowed">
+                      Sold Out
+                    </span>
+                  ) : currentDraftQty > 0 ? (
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button
                         type="button"

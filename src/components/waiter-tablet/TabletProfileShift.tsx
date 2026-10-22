@@ -24,7 +24,7 @@
  * - Strict line count maintained between 300 and 400 lines (never exceeds 400).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ChevronLeft, 
   Clock,
@@ -36,6 +36,7 @@ import {
   Users
 } from 'lucide-react';
 import { WaiterProfile, ShiftActivity } from './types';
+import { realtimeBridge } from '@/lib/supabase';
 
 export interface TabletProfileShiftProps {
   /** Waiter profile information and shift performance numbers */
@@ -60,9 +61,19 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
   const [isConfirmingLogout, setIsConfirmingLogout] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
 
-  // Financial breakdown calculations for Zone 1 reconciliation
-  const cashTurnover = 6420;
-  const upiTurnover = profile.metrics.totalSales - cashTurnover;
+  // Dynamic financial breakdown calculations for Zone 1 reconciliation from real settled bills
+  const settledBills = typeof window !== 'undefined' && realtimeBridge.getSettledBills ? realtimeBridge.getSettledBills() : [];
+  const cashTurnover = useMemo(() => {
+    return settledBills
+      .filter((b: any) => (b.method || '').toUpperCase().includes('CASH'))
+      .reduce((sum: number, b: any) => sum + (b.grandTotal || 0), 0);
+  }, [settledBills]);
+
+  const upiTurnover = useMemo(() => {
+    return settledBills
+      .filter((b: any) => !(b.method || '').toUpperCase().includes('CASH'))
+      .reduce((sum: number, b: any) => sum + (b.grandTotal || 0), 0);
+  }, [settledBills]);
 
   // Print shift report handler with visual feedback
   const handlePrint = () => {
@@ -83,9 +94,12 @@ export const TabletProfileShift: React.FC<TabletProfileShiftProps> = ({
     setIsConfirmingLogout(false);
   };
 
-  // Confirm logout and close shift
+  // Confirm logout, record verified cash handover to manager safe, and close shift
   const handleConfirmEndShift = () => {
     setIsConfirmingLogout(false);
+    if (cashTurnover > 0 && realtimeBridge.recordCashHandover) {
+      realtimeBridge.recordCashHandover(profile.staffId || '#TH-104', profile.name || 'Zone 1 Lead', cashTurnover);
+    }
     onEndShift();
   };
 
