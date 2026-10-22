@@ -146,53 +146,9 @@ export default function LiveOrderTrackingPage() {
     }
     checkAccess();
 
-    // Restore cached stage progress for this seat if available
-    try {
-      let cached = {};
-      const keysToTry = [
-        chairId ? `thoogudeepa_item_stages_${chairId}` : '',
-        cleanCurrentChair ? `thoogudeepa_item_stages_${cleanCurrentChair}` : '',
-        paddedChair ? `thoogudeepa_item_stages_${paddedChair}` : '',
-      ].filter(Boolean);
-      for (const k of keysToTry) {
-        const raw = localStorage.getItem(k);
-        if (raw) cached = { ...cached, ...JSON.parse(raw) };
-      }
-      // Purge any legacy generic dish keys from cached storage
-      let hadLegacy = false;
-      for (const k of Object.keys(cached)) {
-        if (
-          k.startsWith('dish-') ||
-          /^[0-9]+$/.test(k) ||
-          k.includes('-dish-') ||
-          /^[A-Za-z\s]+$/.test(k)
-        ) {
-          delete (cached as any)[k];
-          hadLegacy = true;
-        }
-      }
-      if (hadLegacy) {
-        for (const k of keysToTry) {
-          try {
-            localStorage.setItem(k, JSON.stringify(cached));
-          } catch {}
-        }
-      }
-      if (Object.keys(cached).length > 0) {
-        setItemStages(cached);
-      }
-      const dispatchRecord = localStorage.getItem(`thoogudeepa_ticket_dispatched_${chairId}`) ||
-                             localStorage.getItem(`thoogudeepa_ticket_dispatched_${cleanCurrentChair}`);
-      if (dispatchRecord) {
-        setIsDispatched(true);
-      }
-    } catch {
-      // Ignore storage errors
-    }
-
     setIsLoaded(true);
 
-    // Initial background sync
+    // Initial server and realtime sync
     syncLatestStages();
 
     // Instant re-sync when customer switches back to this tab

@@ -204,14 +204,6 @@ export const TabletCockpitMaster: React.FC = () => {
         setActiveTicketNumber('');
       }
       if (details.items && details.items.length > 0) {
-        let cachedStages: Record<string, string> = {};
-        if (typeof window !== 'undefined' && cleanChair) {
-          try {
-            const raw = localStorage.getItem(`thoogudeepa_item_stages_${cleanChair}`);
-            if (raw) cachedStages = JSON.parse(raw);
-          } catch {}
-        }
-
         const qtyMap: Record<number, number> = {};
         const items: TicketItem[] = [];
         details.items.forEach((it, idx) => {
@@ -220,10 +212,7 @@ export const TabletCockpitMaster: React.FC = () => {
           const itStage = it.stage as string;
           const isItemServed = Boolean(
             itStage === 'SERVED' ||
-            (Array.isArray(it.addons) && it.addons.includes('SERVED')) ||
-            (it.id && cachedStages[it.id] === 'SERVED') ||
-            (it.dish_name && cachedStages[it.dish_name] === 'SERVED') ||
-            (it.dish_id && cachedStages[it.dish_id] === 'SERVED')
+            (Array.isArray(it.addons) && it.addons.includes('SERVED'))
           );
           const currentItemStage: KitchenStatus =
             isItemServed ? 'SERVED' :
@@ -235,15 +224,6 @@ export const TabletCockpitMaster: React.FC = () => {
           for (let q = 0; q < qty; q++) {
             qtyMap[numId] = (qtyMap[numId] || 0) + 1;
             const unitKey = it.id ? `${it.id}-${q}` : `${details.order?.ticket_number}-${numId}-${idx}-${q}`;
-            let effectiveStatus = currentItemStage;
-            if (!isItemServed && cachedStages[unitKey]) {
-              const cs = cachedStages[unitKey];
-              effectiveStatus =
-                cs === 'READY' ? 'READY' :
-                cs === 'PREP' ? 'PREPARING' :
-                cs === 'REC' ? 'RECEIVED' :
-                cs === 'SERVED' ? 'SERVED' : effectiveStatus;
-            }
             items.push({
               id: numId,
               orderItemId: unitKey,
@@ -252,7 +232,7 @@ export const TabletCockpitMaster: React.FC = () => {
               quantity: 1,
               price: it.price,
               imageUrl: dish?.imageUrl || '/logo.jpg',
-              status: effectiveStatus
+              status: currentItemStage
             });
           }
         });
@@ -877,25 +857,6 @@ export const TabletCockpitMaster: React.FC = () => {
     const rawSeat = alert?.seatNumber || '';
     const cleanChair = (alert?.chairId || rawSeat.replace(/[^0-9]/g, '')).replace(/^0+/, '') || '1';
     const targetKey = alert?.itemId || alert?.dishId || dishName;
-
-    if (typeof window !== 'undefined' && cleanChair) {
-      try {
-        const key = `thoogudeepa_item_stages_${cleanChair}`;
-        const existing = JSON.parse(localStorage.getItem(key) || '{}');
-        if (alert?.itemId) {
-          existing[alert.itemId] = 'SERVED';
-          existing[`${alert.itemId}-0`] = 'SERVED';
-          existing[`${alert.itemId}-1`] = 'SERVED';
-          existing[`${alert.itemId}-2`] = 'SERVED';
-          existing[`${alert.itemId}-3`] = 'SERVED';
-        }
-        if (alert?.dishId) existing[String(alert.dishId)] = 'SERVED';
-        if (dishName) existing[dishName] = 'SERVED';
-        localStorage.setItem(key, JSON.stringify(existing));
-        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.padStart(2, '0')}`, JSON.stringify(existing));
-        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.replace(/^0+/, '')}`, JSON.stringify(existing));
-      } catch {}
-    }
 
     // Broadcast item served to KDS, customer tracking, and local registries
     realtimeBridge.updateStage(targetKey, 'SERVED', {

@@ -90,53 +90,10 @@ export default function KitchenDisplaySystemPage() {
         (orders || []).forEach((o) => {
           const chair = o.order.chair_id ? o.order.chair_id.replace(/[^0-9]/g, '') : '';
           const tNum = o.order.ticket_number || '';
-          let cachedStages: Record<string, string> = {};
-          if (typeof window !== 'undefined' && chair) {
-            try {
-              cachedStages = JSON.parse(localStorage.getItem(`thoogudeepa_item_stages_${chair}`) || '{}');
-            } catch {}
-          }
 
           o.items.forEach((it, idx) => {
             const itemKey = it.id || `${tNum}-${it.dish_id}-${idx}`;
-            const isUntouchedPlaced = it.stage === 'PLACED' || (Array.isArray(it.addons) && it.addons.includes('PLACED'));
-            const candList: string[] = [];
-
-            const lookupKeys = [
-              it.id,
-              chair && it.id && `${chair}-${it.id}`,
-              chair && tNum && it.id && `${chair}-${tNum}-${it.id}`,
-              tNum && it.id && `${tNum}-${it.id}`,
-              itemKey,
-              chair && `${chair}-${itemKey}`,
-              chair && tNum && `${chair}-${tNum}-${itemKey}`,
-            ].filter(Boolean) as string[];
-
-            for (const k of lookupKeys) {
-              if (cachedStages[k]) candList.push(cachedStages[k]);
-            }
-
-            if (it.stage && (!isUntouchedPlaced || it.stage !== 'REC')) {
-              candList.push(it.stage);
-            }
-
-            let effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = 'PLACED';
-            if (candList.includes('SERVED')) {
-              effStage = 'SERVED';
-            } else if (candList.includes('READY')) {
-              effStage = 'READY';
-            } else if (candList.includes('PREP')) {
-              effStage = 'PREP';
-            } else if (candList.includes('REC')) {
-              const userTappedRec = lookupKeys.some((k) => cachedStages[k] === 'REC');
-              if (userTappedRec || !isUntouchedPlaced) {
-                effStage = 'REC';
-              } else {
-                effStage = 'PLACED';
-              }
-            } else {
-              effStage = 'PLACED';
-            }
+            const effStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' = it.stage || 'PLACED';
 
             it.stage = effStage;
             stages[itemKey] = effStage;

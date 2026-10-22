@@ -72,25 +72,14 @@ export interface BillVerificationPayload {
   requestedAt: number;
 }
 
-const STORAGE_BILL_REQUESTS_KEY = 'thoogudeepa_v2_active_bill_requests';
+let memoryBillRequests: Record<string, BillVerificationPayload> = {};
 
 function getLocalBillRequests(): Record<string, BillVerificationPayload> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_BILL_REQUESTS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  return memoryBillRequests;
 }
 
 function setLocalBillRequests(map: Record<string, BillVerificationPayload>): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_BILL_REQUESTS_KEY, JSON.stringify(map));
-  } catch {
-    // Ignore storage errors
-  }
+  memoryBillRequests = map;
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -103,78 +92,43 @@ export const supabase: SupabaseClient | null = getSupabaseClient();
 // Local BroadcastChannel for real-time synchronization across browser tabs
 const localChannel = typeof window !== 'undefined' ? new BroadcastChannel('thoogudeepa_kds_sync') : null;
 
-// Key for storing active table occupancy across browser tabs / devices
-const STORAGE_OCCUPANCY_KEY = 'thoogudeepa_v2_seat_occupancy_registry';
-const STORAGE_LOCAL_ORDERS_KEY = 'thoogudeepa_v2_active_orders_list';
-const STORAGE_ALERTS_KEY = 'thoogudeepa_v2_service_alerts';
 const STORAGE_SHIFT_STATS_KEY = 'thoogudeepa_v2_waiter_shift_stats';
 
+// In-memory singletons for active table occupancy, active orders, and service alerts
+let memoryAlertsList: ServiceAlertRecord[] = [];
+let memoryOccupancyMap: Record<string, SeatOccupancyRecord> = {};
+let memoryOrdersList: { order: OrderRecord; items: OrderItemRecord[] }[] = [];
+
 function getLocalAlertsList(): ServiceAlertRecord[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_ALERTS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return memoryAlertsList;
 }
 
 function setLocalAlertsList(list: ServiceAlertRecord[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_ALERTS_KEY, JSON.stringify(list));
-  } catch {
-    // Ignore storage errors
-  }
+  memoryAlertsList = list;
 }
 
 function getLocalOccupancyMap(): Record<string, SeatOccupancyRecord> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_OCCUPANCY_KEY);
-    if (!raw) return {};
-    const map: Record<string, SeatOccupancyRecord> = JSON.parse(raw);
-    const now = Date.now();
-    let changed = false;
-    for (const key of Object.keys(map)) {
-      if (map[key]?.placedAt && (now - map[key].placedAt > 4 * 60 * 60 * 1000)) {
-        delete map[key];
-        changed = true;
-      }
+  const now = Date.now();
+  let changed = false;
+  for (const key of Object.keys(memoryOccupancyMap)) {
+    if (memoryOccupancyMap[key]?.placedAt && (now - memoryOccupancyMap[key].placedAt > 4 * 60 * 60 * 1000)) {
+      delete memoryOccupancyMap[key];
+      changed = true;
     }
-    if (changed) setLocalOccupancyMap(map);
-    return map;
-  } catch {
-    return {};
   }
+  return memoryOccupancyMap;
 }
 
 function setLocalOccupancyMap(map: Record<string, SeatOccupancyRecord>): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_OCCUPANCY_KEY, JSON.stringify(map));
-  } catch {
-    // Ignore storage errors
-  }
+  memoryOccupancyMap = map;
 }
 
 function getLocalOrdersList(): { order: OrderRecord; items: OrderItemRecord[] }[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_LOCAL_ORDERS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return memoryOrdersList;
 }
 
 function setLocalOrdersList(list: { order: OrderRecord; items: OrderItemRecord[] }[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_LOCAL_ORDERS_KEY, JSON.stringify(list));
-  } catch {
-    // Ignore storage errors
-  }
+  memoryOrdersList = list;
 }
 
 export type KDSCallbacks = {
@@ -451,14 +405,6 @@ export const realtimeBridge = {
       };
       setLocalOccupancyMap(occupancyMap);
 
-      // 2. Record order locally for offline / local resilience
-      if (typeof window !== 'undefined') {
-        const cleanC = order.chair_id.replace(/[^0-9]/g, '');
-        localStorage.removeItem(`thoogudeepa_ticket_dispatched_${order.chair_id}`);
-        localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC}`);
-        localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC.padStart(2, '0')}`);
-      }
-
       const cleanChair = order.chair_id.replace(/[^0-9]/g, '');
 
       // 3. Remote Supabase insertion if connected (authoritative database transaction)
@@ -571,33 +517,14 @@ export const realtimeBridge = {
       const paddedChair = cleanChair.padStart(2, '0');
       const unpaddedChair = cleanChair.replace(/^0+/, '');
 
-      // Check active dining session in browser storage for instant ownership
-      let localSessionTicket = '';
-      if (typeof window !== 'undefined') {
-        try {
-          const raw = localStorage.getItem('thoogudeepa_v2_active_dining_session');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            const sessChair = (parsed.seatId || '').replace(/[^0-9]/g, '');
-            if (sessChair === cleanChair && parsed.paymentStatus === 'unpaid') {
-              localSessionTicket = parsed.ticketNumber || '';
-            }
-          }
-        } catch {}
-      }
-
-      // 1. Check local registry first
+      // 1. Check in-memory occupancy registry first
       const map = getLocalOccupancyMap();
       const localRecord = map[chairId] || map[paddedChair] || map[unpaddedChair] || map[cleanChair];
 
       if (localRecord && localRecord.status !== 'completed' && localRecord.status !== 'cancelled') {
-        const isOwner = Boolean(
-          (currentDeviceToken && localRecord.deviceToken && currentDeviceToken === localRecord.deviceToken) ||
-          (localSessionTicket && localRecord.ticketNumber && localSessionTicket === localRecord.ticketNumber)
-        );
         return {
           isOccupied: true,
-          isOwner,
+          isOwner: true,
           ticketNumber: localRecord.ticketNumber,
           orderStatus: localRecord.status,
           placedAt: localRecord.placedAt,
@@ -616,13 +543,9 @@ export const realtimeBridge = {
           .maybeSingle();
 
         if (!error && activeOrder) {
-          const isOwner = Boolean(
-            (localSessionTicket && localSessionTicket === activeOrder.ticket_number) ||
-            (localRecord && (localRecord.ticketNumber === activeOrder.ticket_number || localRecord.deviceToken === currentDeviceToken))
-          );
           return {
             isOccupied: true,
-            isOwner,
+            isOwner: true,
             ticketNumber: activeOrder.ticket_number,
             orderStatus: activeOrder.status,
           };
@@ -749,84 +672,7 @@ export const realtimeBridge = {
       });
       setLocalOrdersList(orders);
 
-      // 2. Persist to seat-specific stage cache strictly by item identifier
-      if (typeof window !== 'undefined') {
-        const chair = meta?.chairId ? meta.chairId.replace(/[^0-9]/g, '') : '';
-        if (chair) {
-          try {
-            const key = `thoogudeepa_item_stages_${chair}`;
-            const existing = JSON.parse(localStorage.getItem(key) || '{}');
-            const normChair = chair.replace(/^0+/, '') || '1';
-            const padChair = normChair.padStart(2, '0');
-
-            // Purge all legacy generic dish keys from storage
-            for (const k of Object.keys(existing)) {
-              if (
-                k.startsWith('dish-') ||
-                /^[0-9]+$/.test(k) ||
-                k.includes('-dish-') ||
-                /^[A-Za-z\s]+$/.test(k)
-              ) {
-                delete existing[k];
-              }
-            }
-
-            const isGenericKey =
-              !itemIdOrKey ||
-              itemIdOrKey.startsWith('dish-') ||
-              /^[0-9]+$/.test(itemIdOrKey) ||
-              /^[A-Za-z\s]+$/.test(itemIdOrKey);
-
-            if (!isGenericKey) {
-              existing[itemIdOrKey] = stage;
-              existing[`${chair}-${itemIdOrKey}`] = stage;
-              existing[`${normChair}-${itemIdOrKey}`] = stage;
-              existing[`${padChair}-${itemIdOrKey}`] = stage;
-              if (tNum) {
-                existing[`${chair}-${tNum}-${itemIdOrKey}`] = stage;
-                existing[`${normChair}-${tNum}-${itemIdOrKey}`] = stage;
-                existing[`${padChair}-${tNum}-${itemIdOrKey}`] = stage;
-                existing[`${tNum}-${itemIdOrKey}`] = stage;
-              }
-            }
-
-            if (targetItemId && targetItemId !== itemIdOrKey) {
-              const isGenericTarget =
-                targetItemId.startsWith('dish-') ||
-                /^[0-9]+$/.test(targetItemId) ||
-                /^[A-Za-z\s]+$/.test(targetItemId);
-
-              if (!isGenericTarget) {
-                existing[targetItemId] = stage;
-                existing[`${chair}-${targetItemId}`] = stage;
-                existing[`${normChair}-${targetItemId}`] = stage;
-                existing[`${padChair}-${targetItemId}`] = stage;
-                if (tNum) {
-                  existing[`${chair}-${tNum}-${targetItemId}`] = stage;
-                  existing[`${normChair}-${tNum}-${targetItemId}`] = stage;
-                  existing[`${padChair}-${tNum}-${targetItemId}`] = stage;
-                  existing[`${tNum}-${targetItemId}`] = stage;
-                }
-              }
-            }
-            localStorage.setItem(key, JSON.stringify(existing));
-
-            // Mirror to padded and unpadded keys to survive any seat formatting
-            const padded = chair.padStart(2, '0');
-            const unpadded = chair.replace(/^0+/, '');
-            if (padded !== chair) {
-              localStorage.setItem(`thoogudeepa_item_stages_${padded}`, JSON.stringify(existing));
-            }
-            if (unpadded !== chair) {
-              localStorage.setItem(`thoogudeepa_item_stages_${unpadded}`, JSON.stringify(existing));
-            }
-          } catch {
-            // Ignore storage errors
-          }
-        }
-      }
-
-      // 3. Remote update if Supabase is connected
+      // 2. Remote update if Supabase is connected
       if (supabase) {
         // Map database stage to satisfy DB check constraint ('REC', 'PREP', 'READY')
         const dbStage: 'REC' | 'PREP' | 'READY' =
@@ -1017,48 +863,18 @@ export const realtimeBridge = {
   // Dispatch / Complete order from pass
   async dispatchTicket(ticketNumber: string, chairId?: string): Promise<boolean> {
     try {
-      // 1. Update local orders list
+      // 1. Update in-memory orders list
       const orders = getLocalOrdersList();
       const updated = orders.filter((o) => o.order.ticket_number !== ticketNumber);
       setLocalOrdersList(updated);
 
-      // 2. Dispatch record in local storage
-      if (typeof window !== 'undefined' && chairId) {
-        try {
-          const key = `thoogudeepa_ticket_dispatched_${chairId}`;
-          localStorage.setItem(key, JSON.stringify({ ticketNumber, dispatchedAt: Date.now() }));
-        } catch {
-          // Ignore storage errors
-        }
-      }
-
-      // 3. Update Supabase & broadcast cross-device
+      // 2. Update Supabase & broadcast cross-device
       if (supabase) {
         await supabase.from('orders').update({ status: 'ready', updated_at: new Date().toISOString() }).eq('ticket_number', ticketNumber);
         const { data: ord } = await supabase.from('orders').select('id').eq('ticket_number', ticketNumber).maybeSingle();
         if (ord?.id) {
           await supabase.from('order_items').update({ stage: 'READY', addons: ['SERVED'], updated_at: new Date().toISOString() }).eq('order_id', ord.id);
         }
-      }
-
-      if (typeof window !== 'undefined' && chairId) {
-        const cleanC = chairId.replace(/[^0-9]/g, '');
-        const normC = cleanC.replace(/^0+/, '') || '1';
-        const padC = normC.padStart(2, '0');
-        const keys = [
-          `thoogudeepa_item_stages_${chairId}`,
-          `thoogudeepa_item_stages_${cleanC}`,
-          `thoogudeepa_item_stages_${normC}`,
-          `thoogudeepa_item_stages_${padC}`,
-        ];
-        keys.forEach((k) => {
-          try {
-            const raw = localStorage.getItem(k);
-            const st = raw ? JSON.parse(raw) : {};
-            st[`ticket_dispatched_${ticketNumber}`] = 'SERVED';
-            localStorage.setItem(k, JSON.stringify(st));
-          } catch {}
-        });
       }
 
       broadcastRealtime('TICKET_DISPATCHED', { ticketNumber, chairId });
@@ -1118,109 +934,26 @@ export const realtimeBridge = {
     }
   },
 
-  // Hydrate order items with seat-persisted stages and local storage state
+  // Hydrate order items with authoritative database stages and addons
   hydrateOrderItemStages(order: OrderRecord, items: OrderItemRecord[]): OrderItemRecord[] {
-    if (typeof window === 'undefined') return items;
     try {
-      const chair = (order.chair_id || '').replace(/[^0-9]/g, '');
-      const padded = chair.padStart(2, '0');
-      const unpadded = chair.replace(/^0+/, '');
-      const tNum = order.ticket_number || '';
-
-      // Read seat-scoped stages from localStorage
-      let cached: Record<string, string> = {};
-      const keysToTry = [
-        chair ? `thoogudeepa_item_stages_${chair}` : '',
-        padded ? `thoogudeepa_item_stages_${padded}` : '',
-        unpadded ? `thoogudeepa_item_stages_${unpadded}` : '',
-      ].filter(Boolean);
-
-      for (const k of keysToTry) {
-        try {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            cached = { ...cached, ...parsed };
-          }
-        } catch {}
-      }
-
-      // Purge any legacy generic dish keys from cached storage
-      let hadLegacyKeys = false;
-      for (const k of Object.keys(cached)) {
-        if (
-          k.startsWith('dish-') ||
-          /^[0-9]+$/.test(k) ||
-          k.includes('-dish-') ||
-          /^[A-Za-z\s]+$/.test(k)
-        ) {
-          delete cached[k];
-          hadLegacyKeys = true;
-        }
-      }
-      if (hadLegacyKeys) {
-        for (const k of keysToTry) {
-          try {
-            localStorage.setItem(k, JSON.stringify(cached));
-          } catch {}
-        }
-      }
-
-      // Check localOrders list in storage
-      const localOrders = getLocalOrdersList();
-      const matchingLocalOrder = localOrders.find((lo) => {
-        const loChair = (lo.order.chair_id || '').replace(/[^0-9]/g, '');
-        const matchChair = !chair || loChair === chair || loChair === padded || loChair === unpadded;
-        const matchTicket = !tNum || lo.order.ticket_number === tNum;
-        return matchChair && matchTicket;
-      });
-
-      return items.map((it, idx) => {
-        // Check matching item in local order only for local-backed orders
-        let localStage: 'PLACED' | 'REC' | 'PREP' | 'READY' | 'SERVED' | undefined;
-        if (matchingLocalOrder && (!order.id || order.id.startsWith('local-'))) {
-          const localMatch = matchingLocalOrder.items.find((lit) => {
-            return (it.id && lit.id === it.id) || (!it.id && lit.dish_id === it.dish_id);
-          });
-          if (localMatch?.stage) {
-            localStage = localMatch.stage;
-          }
-        }
-
-        const candidates: string[] = [];
-        if (localStage) candidates.push(localStage);
-        if (it.stage) candidates.push(it.stage);
-
-        const checkKeys = it.id
-          ? [
-              it.id,
-              chair && `${chair}-${it.id}`,
-              tNum && `${tNum}-${it.id}`,
-              chair && tNum && `${chair}-${tNum}-${it.id}`,
-            ].filter(Boolean) as string[]
-          : [];
-
-        for (const k of checkKeys) {
-          if (cached[k]) candidates.push(cached[k]);
-        }
-
+      return items.map((it) => {
         const addons = Array.isArray(it.addons) ? it.addons : [];
-        if (candidates.includes('SERVED') || (it.stage === 'SERVED' && addons.includes('SERVED'))) {
+        if (addons.includes('SERVED') || it.stage === 'SERVED') {
           return { ...it, stage: 'SERVED' };
         }
-        if (candidates.includes('READY') || it.stage === 'READY') {
+        if (it.stage === 'READY') {
           return { ...it, stage: 'READY' };
         }
-        if (candidates.includes('PREP') || it.stage === 'PREP') {
+        if (it.stage === 'PREP') {
           return { ...it, stage: 'PREP' };
         }
-        if (candidates.includes('REC') || it.stage === 'REC') {
+        if (it.stage === 'REC' && !addons.includes('PLACED')) {
           return { ...it, stage: 'REC' };
         }
         return { ...it, stage: 'PLACED' };
       });
-    } catch (err) {
-      console.warn('Error hydrating order items:', err);
+    } catch {
       return items;
     }
   },

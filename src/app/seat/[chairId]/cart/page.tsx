@@ -131,43 +131,11 @@ export default function CustomerCartPage() {
 
       if (typeof window !== 'undefined') {
         const cleanC = chairId.replace(/[^0-9]/g, '');
-        const padC = cleanC.padStart(2, '0');
-        const unpadC = cleanC.replace(/^0+/, '');
         try {
           localStorage.removeItem(`thoogudeepa_ticket_dispatched_${chairId}`);
           localStorage.removeItem(`thoogudeepa_ticket_dispatched_${cleanC}`);
-          localStorage.removeItem(`thoogudeepa_ticket_dispatched_${padC}`);
-          if (!isSameSession) {
-            localStorage.removeItem(`thoogudeepa_item_stages_${chairId}`);
-            localStorage.removeItem(`thoogudeepa_item_stages_${cleanC}`);
-            localStorage.removeItem(`thoogudeepa_item_stages_${padC}`);
-            localStorage.removeItem(`thoogudeepa_item_stages_${unpadC}`);
-          } else {
-            const stageKeys = [
-              `thoogudeepa_item_stages_${chairId}`,
-              `thoogudeepa_item_stages_${cleanC}`,
-              `thoogudeepa_item_stages_${padC}`,
-              `thoogudeepa_item_stages_${unpadC}`
-            ];
-            for (const sk of stageKeys) {
-              const raw = localStorage.getItem(sk);
-              if (raw) {
-                try {
-                  const parsed = JSON.parse(raw);
-                  let changed = false;
-                  for (const k of Object.keys(parsed)) {
-                    if (k.startsWith('dish-') || /^[0-9]+$/.test(k) || k.includes('-dish-') || /^[A-Za-z\s]+$/.test(k)) {
-                      delete parsed[k];
-                      changed = true;
-                    }
-                  }
-                  if (changed) {
-                    localStorage.setItem(sk, JSON.stringify(parsed));
-                  }
-                } catch {}
-              }
-            }
-          }
+          localStorage.removeItem(`thoogudeepa_item_stages_${chairId}`);
+          localStorage.removeItem(`thoogudeepa_item_stages_${cleanC}`);
         } catch {}
       }
 

@@ -74,13 +74,6 @@ const getInitialStoredAccount = (): WaiterAuthAccount => {
 function expandOrderItemsToCart(items: any[], ticketNumber?: string, chairId?: string): CartItem[] {
   const result: CartItem[] = [];
   const cleanChair = chairId ? chairId.replace(/[^0-9]/g, '') : '';
-  let cachedStages: Record<string, string> = {};
-  if (typeof window !== 'undefined' && cleanChair) {
-    try {
-      const raw = localStorage.getItem(`thoogudeepa_item_stages_${cleanChair}`);
-      if (raw) cachedStages = JSON.parse(raw);
-    } catch {}
-  }
 
   items.forEach((it, idx) => {
     const foundMenu: MenuItem = SAMPLE_MENU_ITEMS.find(
@@ -101,17 +94,14 @@ function expandOrderItemsToCart(items: any[], ticketNumber?: string, chairId?: s
     const qty = Math.max(1, it.quantity || 1);
     const isItemServed = Boolean(
       it.stage === 'SERVED' ||
-      (Array.isArray(it.addons) && it.addons.includes('SERVED')) ||
-      (it.id && cachedStages[it.id] === 'SERVED') ||
-      (it.dish_name && cachedStages[it.dish_name] === 'SERVED') ||
-      (it.dish_id && cachedStages[it.dish_id] === 'SERVED')
+      (Array.isArray(it.addons) && it.addons.includes('SERVED'))
     );
 
     for (let q = 0; q < qty; q++) {
       const unitId = it.id ? `${it.id}-${q}` : `${ticketNumber || 'TKT'}-${it.dish_id}-${idx}-${q}`;
       const effectiveStage = isItemServed
         ? 'SERVED'
-        : ((cachedStages[unitId] as any) || it.stage || 'PLACED');
+        : (it.stage || 'PLACED');
       result.push({
         menuItem: {
           ...foundMenu,
@@ -835,25 +825,6 @@ export const MobileCockpitMaster: React.FC = () => {
     const rawSeat = alert?.seatNumber || '';
     const cleanChair = (alert?.chairId || rawSeat.replace(/[^0-9]/g, '')).replace(/^0+/, '') || '1';
     const targetKey = alert?.itemId || alert?.dishId || dishName;
-
-    if (typeof window !== 'undefined' && cleanChair) {
-      try {
-        const key = `thoogudeepa_item_stages_${cleanChair}`;
-        const existing = JSON.parse(localStorage.getItem(key) || '{}');
-        if (alert?.itemId) {
-          existing[alert.itemId] = 'SERVED';
-          existing[`${alert.itemId}-0`] = 'SERVED';
-          existing[`${alert.itemId}-1`] = 'SERVED';
-          existing[`${alert.itemId}-2`] = 'SERVED';
-          existing[`${alert.itemId}-3`] = 'SERVED';
-        }
-        if (alert?.dishId) existing[String(alert.dishId)] = 'SERVED';
-        if (dishName) existing[dishName] = 'SERVED';
-        localStorage.setItem(key, JSON.stringify(existing));
-        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.padStart(2, '0')}`, JSON.stringify(existing));
-        localStorage.setItem(`thoogudeepa_item_stages_${cleanChair.replace(/^0+/, '')}`, JSON.stringify(existing));
-      } catch {}
-    }
 
     // Broadcast item served to KDS, customer tracking, and local registries
     realtimeBridge.updateStage(targetKey, 'SERVED', {
