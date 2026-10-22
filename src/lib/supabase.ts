@@ -1532,7 +1532,7 @@ export const realtimeBridge = {
           tableName: isTk ? 'TK-01' : `T-${padded}`,
           seatLabel: isTk ? 'Takeaway Parcel' : `Chair ${cleanChair}`,
           seatNumber: isTk ? 0 : Number(cleanChair) || 1,
-          captainName: 'Captain Ramesh',
+          captainName: isTk ? 'Takeaway Desk' : 'Floor Captain',
           subtotal,
           totalTax: tax,
           cgst: Math.round(tax / 2),

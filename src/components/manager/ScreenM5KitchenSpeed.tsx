@@ -16,8 +16,6 @@ import {
   Droplets,
   Sparkles,
   Star,
-  Activity,
-  ShieldCheck,
 } from 'lucide-react';
 import { realtimeBridge, OrderRecord, OrderItemRecord, ServiceAlertRecord } from '@/lib/supabase';
 import {
@@ -81,17 +79,20 @@ export function ScreenM5KitchenSpeed({
       const chairNum = parseInt(chairRaw.replace(/[^0-9]/g, ''), 10) || 1;
       const tNum = isTk ? 'TK-01' : `T-${String(chairNum).padStart(2, '0')}`;
       const orderIdPart = lo.order.id ? lo.order.id.slice(0, 4) : `${oIdx + 1}`;
+      const elapsedMinutes = lo.order.created_at
+        ? Math.max(1, Math.round((Date.now() - new Date(lo.order.created_at).getTime()) / 60000))
+        : 1;
       return {
         id: lo.order.ticket_number || `KOT-${tNum}-${orderIdPart}`,
         tableNumber: tNum,
-        serverName: isTk ? 'Takeaway Desk' : 'Captain Ramesh',
+        serverName: isTk ? 'Takeaway Desk' : 'Floor Captain',
         timestamp: lo.order.created_at
           ? new Date(lo.order.created_at).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
             })
           : 'Just now',
-        elapsedMinutes: 5,
+        elapsedMinutes,
         status: (lo.order.status as any) || 'NEW',
         items: (lo.items || []).map((it, iIdx) => ({
           id: it.id || `live-item-${chairNum}-${iIdx}`,
@@ -212,36 +213,21 @@ export function ScreenM5KitchenSpeed({
 
   return (
     <div className="w-full mx-auto p-1 space-y-4 font-mono">
-      {/* ── TOP TITLE HEADER BANNER (OVERVIEW ONLY) ── */}
-      <div className="bg-white border border-[#EAE5DF] rounded-xl p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      {/* ── TOP TITLE HEADER BANNER ── */}
+      <div className="bg-white border border-[#EAE5DF] rounded-xl p-4 sm:p-5 shadow-xs flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#9C3D1E] text-white shadow-sm">
             <ChefHat className="h-6 w-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] font-black uppercase tracking-wider text-orange-800 bg-orange-100 rounded px-1.5 py-0.5">
-                MANAGER OVERVIEW CONSOLE
-              </span>
-              <span className="font-mono text-[10px] text-slate-400">
-                THOOGUDEEPA DONNE BIRYANI MANE
+                KITCHEN &amp; NOTIFICATIONS
               </span>
             </div>
-            <h1 className="text-base sm:text-lg font-black font-mono text-slate-900 mt-0.5">
-              Kitchen orders and customer Notifications
+            <h1 className="text-base sm:text-lg font-black font-mono text-slate-900 mt-1">
+              Kitchen Orders and Customer Notifications
             </h1>
-          </div>
-        </div>
-
-        {/* Status Indicator (Pure Read-Only Overview) */}
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-slate-200 text-xs text-slate-600">
-            <Activity className="h-4 w-4 text-emerald-600 animate-pulse" />
-            <span className="font-bold text-[11px]">LIVE SYNC ACTIVE</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
-            <ShieldCheck className="h-4 w-4 text-slate-700" />
-            <span>READ-ONLY AUDIT MODE</span>
           </div>
         </div>
       </div>
@@ -392,7 +378,7 @@ export function ScreenM5KitchenSpeed({
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-500 px-1">
                 <span className="font-bold">
-                  Showing {filteredPlaced.length} Placed Orders (Grid: 2 Columns)
+                  Showing {filteredPlaced.length} Placed Orders
                 </span>
                 <span className="text-[10px] text-slate-400">Real-time active tickets</span>
               </div>
@@ -496,7 +482,7 @@ export function ScreenM5KitchenSpeed({
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-500 px-1">
                 <span className="font-bold">
-                  Showing {filteredPaid.length} Paid Orders (Grid: 2 Columns)
+                  Showing {filteredPaid.length} Paid Orders
                 </span>
                 <span className="text-[10px] text-slate-400">Shift settled receipts</span>
               </div>
