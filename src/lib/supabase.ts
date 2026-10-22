@@ -132,7 +132,18 @@ function getLocalOccupancyMap(): Record<string, SeatOccupancyRecord> {
   if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem(STORAGE_OCCUPANCY_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const map: Record<string, SeatOccupancyRecord> = JSON.parse(raw);
+    const now = Date.now();
+    let changed = false;
+    for (const key of Object.keys(map)) {
+      if (map[key]?.placedAt && (now - map[key].placedAt > 4 * 60 * 60 * 1000)) {
+        delete map[key];
+        changed = true;
+      }
+    }
+    if (changed) setLocalOccupancyMap(map);
+    return map;
   } catch {
     return {};
   }

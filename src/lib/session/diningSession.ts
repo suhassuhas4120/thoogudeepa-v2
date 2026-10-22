@@ -45,12 +45,19 @@ export function getDeviceToken(): string {
   }
 }
 
+const MAX_SESSION_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours maximum dining duration
+
 export function getActiveDiningSession(): ActiveDiningSession | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(STORAGE_SESSION_KEY);
     if (!raw) return null;
     const session: ActiveDiningSession = JSON.parse(raw);
+    // Automatically retire sessions older than 4 hours to avoid stale locks
+    if (session.orderedAt && (Date.now() - session.orderedAt > MAX_SESSION_AGE_MS)) {
+      clearActiveDiningSession();
+      return null;
+    }
     return session;
   } catch {
     return null;

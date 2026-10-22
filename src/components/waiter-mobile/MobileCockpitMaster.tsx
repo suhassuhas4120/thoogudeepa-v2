@@ -456,12 +456,26 @@ export const MobileCockpitMaster: React.FC = () => {
       }
     });
 
+    // Background visibility listener for instant sync without aggressive polling
+    const onVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshSeats();
+        refreshAlerts();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
     const pollInterval = setInterval(() => {
       refreshSeats();
       refreshAlerts();
-    }, 2500);
+    }, 30000);
 
     return () => {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
       clearInterval(pollInterval);
       unsub();
     };

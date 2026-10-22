@@ -435,6 +435,7 @@ export default function SeatQRsPage() {
                     </button>
                     <Link
                       href={`/seat/${qr.seatId}`}
+                      prefetch={false}
                       target="_blank"
                       className="px-2.5 py-1 rounded bg-zinc-900 hover:bg-black text-white font-black uppercase tracking-wider flex items-center gap-1 transition-colors"
                       title="Open seat ordering screen"

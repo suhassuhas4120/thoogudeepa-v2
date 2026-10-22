@@ -44,8 +44,27 @@ export default function CustomerBottomNav({
       }
     };
     checkActiveOrder();
-    const interval = setInterval(checkActiveOrder, 3000);
-    return () => clearInterval(interval);
+    const onVisibility = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        checkActiveOrder();
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', checkActiveOrder);
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+    const interval = setInterval(checkActiveOrder, 30000);
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', checkActiveOrder);
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+      clearInterval(interval);
+    };
   }, [chairId]);
 
   const current = selectedTab ?? activeTab;
@@ -181,6 +200,7 @@ export default function CustomerBottomNav({
               <Link
                 key={item.id}
                 href={item.href}
+                prefetch={false}
                 onClick={() => setSelectedTab(item.id)}
                 className="w-full h-full flex items-center justify-center cursor-pointer"
                 aria-label={item.label}

@@ -151,9 +151,20 @@ export default function KitchenDisplaySystemPage() {
 
     loadOrders();
 
+    // Instant re-sync when kitchen tab becomes visible
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isCancelled) {
+        loadOrders();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    // Light 30-second fallback poll to preserve socket health without network flooding
     const pollInterval = setInterval(() => {
       loadOrders();
-    }, 2500);
+    }, 30000);
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onNewOrder: (newOrder) => {
@@ -353,6 +364,9 @@ export default function KitchenDisplaySystemPage() {
 
     return () => {
       isCancelled = true;
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       clearInterval(pollInterval);
       screenWakeLock.deactivate();
       unsubscribe();

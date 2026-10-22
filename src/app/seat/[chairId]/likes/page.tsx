@@ -80,6 +80,7 @@ export default function CustomerLikesPage() {
                 >
                   <Link
                     href={`/seat/${chairId}/item/${item.id}`}
+                    prefetch={false}
                     className="w-full flex flex-col items-center cursor-pointer"
                   >
                     {/* Circular Image Container */}

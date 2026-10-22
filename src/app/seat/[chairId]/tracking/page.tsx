@@ -195,10 +195,20 @@ export default function LiveOrderTrackingPage() {
     // Initial background sync
     syncLatestStages();
 
-    // Regular interval poll to guarantee active order status stays current
-    const pollInterval = setInterval(() => {
+    // Instant re-sync when customer switches back to this tab
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncLatestStages();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    // Light 30-second fallback poll to preserve socket health without network flooding
+    const fallbackInterval = setInterval(() => {
       syncLatestStages();
-    }, 2500);
+    }, 30000);
 
     const unsubscribe = realtimeBridge.subscribeKDS({
       onStageChange: (data) => {
@@ -291,7 +301,10 @@ export default function LiveOrderTrackingPage() {
     });
 
     return () => {
-      clearInterval(pollInterval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+      clearInterval(fallbackInterval);
       unsubscribe();
     };
   }, [chairId, syncLatestStages]);

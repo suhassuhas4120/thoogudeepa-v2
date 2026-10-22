@@ -228,6 +228,7 @@ export default function CustomerMenuPage() {
                   {/* Clickable Card Body opening Item Details */}
                   <Link
                     href={`/seat/${chairId}/item/${item.id}`}
+                    prefetch={false}
                     className="w-full flex flex-col items-center cursor-pointer active:opacity-75"
                   >
                     {/* Circular Image Container */}
