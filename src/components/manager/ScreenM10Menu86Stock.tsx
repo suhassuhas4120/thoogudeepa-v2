@@ -270,7 +270,7 @@ export function ScreenM10Menu86Stock() {
   return (
     <div className="w-full mx-auto p-1 space-y-4 font-mono">
       {/* Top Header Banner */}
-      <div className="bg-white border border-[#EAE5DF] rounded-xl p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white border border-[#EAE5DF] rounded-xl p-4 sm:p-5 shadow-xs flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#9C3D1E] text-white shadow-sm">
             <UtensilsCrossed className="h-6 w-6" />
@@ -284,34 +284,6 @@ export function ScreenM10Menu86Stock() {
             </h1>
           </div>
         </div>
-
-        {/* Action Controls & Metric Badges */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsLocked(!isLocked)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-              isLocked
-                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                : 'bg-rose-50 text-rose-800 border border-rose-300 animate-pulse'
-            }`}
-          >
-            {isLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-            <span>{isLocked ? 'Editing locked' : 'Editing UNLOCKED'}</span>
-          </button>
-          <span className="text-xs font-bold text-slate-700 bg-[#FAF8F5] border border-slate-200 px-3 py-1.5 rounded-xl">
-            {promos.filter((p) => p.isActive).length} Active Campaigns
-          </span>
-          <span
-            className={`text-xs font-bold px-3 py-1.5 rounded-xl border ${
-              soldOutCount > 0
-                ? 'bg-rose-100 text-rose-800 border-rose-300 font-black'
-                : 'bg-rose-50 text-rose-700 border-rose-200'
-            }`}
-          >
-            {soldOutCount} Sold Out (86)
-          </span>
-        </div>
       </div>
 
       {/* 2-Column Split Console */}
@@ -322,17 +294,32 @@ export function ScreenM10Menu86Stock() {
             <div className="flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4 text-[#9C3D1E]" />
               <h3 className="font-mono text-xs font-black uppercase text-slate-900">
-                Real-Time Dish Availability ({MENU_ITEMS.length} Dishes)
+                Dish Availability ({MENU_ITEMS.length} Dishes)
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={resetAllInStock}
-              disabled={isLocked}
-              className="px-2.5 py-1 bg-[#FAF8F5] border border-slate-300 rounded text-[10px] font-bold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
-            >
-              Reset All In-Stock
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsLocked(!isLocked)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                  isLocked
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-rose-50 text-rose-800 border border-rose-300 animate-pulse'
+                }`}
+                title={isLocked ? 'Click to Unlock Stock Editing' : 'Click to Lock Stock Editing'}
+              >
+                {isLocked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                <span>{isLocked ? 'Locked' : 'Unlocked'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={resetAllInStock}
+                disabled={isLocked}
+                className="px-2.5 py-1 bg-[#FAF8F5] border border-slate-300 rounded-lg text-xs font-bold text-slate-700 disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Reset All In-Stock
+              </button>
+            </div>
           </div>
 
           {/* Category Filter Tabs */}
@@ -442,9 +429,6 @@ export function ScreenM10Menu86Stock() {
                 Add Promotional Offers
               </h3>
             </div>
-            <span className="text-[10px] text-slate-400 font-bold">
-              Scheduler &amp; Validity Engine
-            </span>
           </div>
 
           {/* Creation Form with Full Date & Time Scheduling */}
