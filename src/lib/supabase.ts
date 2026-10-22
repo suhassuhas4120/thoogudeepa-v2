@@ -1045,6 +1045,14 @@ export const realtimeBridge = {
   // Update dish availability
   async setAvailability(dishId: string, isAvailable: boolean): Promise<boolean> {
     try {
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('thoogudeepa_v2_dish_stock');
+          const map = raw ? JSON.parse(raw) : {};
+          map[dishId] = isAvailable;
+          localStorage.setItem('thoogudeepa_v2_dish_stock', JSON.stringify(map));
+        } catch {}
+      }
       if (supabase) {
         await supabase
           .from('dish_inventory')
@@ -1646,6 +1654,42 @@ export const realtimeBridge = {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
       });
       localStorage.setItem('thoogudeepa_v2_tip_payouts', JSON.stringify(payoutLogs.slice(0, 50)));
+    } catch {}
+  },
+
+  // Get live dish availability map (86 stock)
+  getDishAvailability(): Record<string, boolean> {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem('thoogudeepa_v2_dish_stock');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  // Get promotional campaigns
+  getPromos(): any[] {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('thoogudeepa_v2_promos');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  // Save promotional campaigns
+  savePromos(rules: any[]) {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem('thoogudeepa_v2_promos', JSON.stringify(rules));
+      if (localChannel) {
+        localChannel.postMessage({
+          type: 'PROMOS_UPDATED',
+          rules,
+        });
+      }
     } catch {}
   },
 

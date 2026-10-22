@@ -35,6 +35,12 @@ export interface PromoRule {
   description: string;
   timing?: string;
   dateRange?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  isAllDay?: boolean;
+  durationDays?: number;
 }
 
 export interface PettyExpense {
