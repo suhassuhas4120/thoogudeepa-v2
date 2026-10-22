@@ -6,13 +6,10 @@ import {
   Coins,
   Receipt,
   UserCheck,
-  CheckCircle2,
   Check,
   Gift,
   Clock,
-  ShieldCheck,
   ArrowDownToLine,
-  Layers,
 } from 'lucide-react';
 import { realtimeBridge, OrderRecord, OrderItemRecord } from '@/lib/supabase';
 import { StaffRosterMember } from './types';
@@ -204,7 +201,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
     const amount = Number(handoverAmounts[staffId] ?? '');
 
     if (!Number.isFinite(amount) || amount <= 0 || amount > amountDue) {
-      alert(`Enter a valid amount between ₹1 and ₹${amountDue.toLocaleString('en-IN')} for ${staffName}.`);
+      alert(`Enter an amount between ₹1 and ₹${amountDue.toLocaleString('en-IN')} for ${staffName}.`);
       return;
     }
 
@@ -223,7 +220,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
       realtimeBridge.recordTipPayout(captainName, amount);
     }
     reloadData();
-    alert(`₹${amount.toLocaleString('en-IN')} tip paid out to ${captainName}!`);
+    alert(`₹${amount.toLocaleString('en-IN')} tip paid to ${captainName}!`);
   };
 
   return (
@@ -236,7 +233,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
           </div>
           <div>
             <span className="font-mono text-[10px] font-black uppercase tracking-wider text-orange-800 bg-orange-100 rounded px-1.5 py-0.5">
-              RECONCILIATION &amp; AUDIT
+              WAITER CASH &amp; TIPS
             </span>
             <h1 className="text-base sm:text-lg font-black font-mono text-slate-900 mt-1">
               Waiter Cash &amp; Tips
@@ -248,11 +245,11 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-xs font-bold text-slate-700 bg-[#FAF8F5] border border-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-2">
             <Banknote className="h-4 w-4 text-emerald-600" />
-            <span>Till Safe Handed Over: <strong className="text-emerald-700">₹{totalCashHandedOver.toLocaleString('en-IN')}</strong></span>
+            <span>Handed Over: <strong className="text-emerald-700">₹{totalCashHandedOver.toLocaleString('en-IN')}</strong></span>
           </div>
           <div className="text-xs font-bold text-slate-700 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-xl flex items-center gap-2">
             <Clock className="h-4 w-4 text-orange-600" />
-            <span>Floor Due: <strong className="text-[#9C3D1E]">₹{totalCashDue.toLocaleString('en-IN')}</strong></span>
+            <span>Due: <strong className="text-[#9C3D1E]">₹{totalCashDue.toLocaleString('en-IN')}</strong></span>
           </div>
         </div>
       </div>
@@ -265,11 +262,11 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
             <div className="flex items-center gap-2">
               <UserCheck className="h-4 w-4 text-[#9C3D1E]" />
               <h3 className="font-mono text-xs font-black uppercase text-slate-900">
-                Captain Cash Handover &amp; Till Audit
+                Captain Cash Handover
               </h3>
             </div>
             <span className="text-[10px] text-slate-500 font-bold">
-              Shift Total Collected: ₹{totalCashCollected.toLocaleString('en-IN')}
+              Total Collected: ₹{totalCashCollected.toLocaleString('en-IN')}
             </span>
           </div>
 
@@ -317,7 +314,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
                     </div>
                   </div>
 
-                  {amountDue > 0 ? (
+                  {amountDue > 0 && (
                     <div className="flex gap-2 pt-1">
                       <input
                         type="number"
@@ -340,11 +337,6 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
                         Receive to Safe
                       </button>
                     </div>
-                  ) : (
-                    <div className="text-[10px] text-slate-400 font-bold pt-1 flex items-center gap-1">
-                      <Check className="h-3 w-3 text-emerald-600" />
-                      <span>All cash collected by {st.name} is reconciled with Till Safe</span>
-                    </div>
                   )}
                 </div>
               );
@@ -355,7 +347,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
           <div className="border-t border-slate-200 pt-4 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
               <ArrowDownToLine className="h-3.5 w-3.5 text-emerald-600" />
-              <span>Till Safe Handover Receipts Log</span>
+              <span>Handover Log</span>
             </div>
 
             {handovers.length > 0 ? (
@@ -367,7 +359,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
                   >
                     <div>
                       <span className="font-bold text-slate-900 block">{h.staffName}</span>
-                      <span className="text-[10px] text-slate-400">{h.timestamp} • Received by {h.receivedBy}</span>
+                      <span className="text-[10px] text-slate-400">{h.timestamp}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="font-black text-emerald-700 text-xs">
@@ -382,7 +374,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
               </div>
             ) : (
               <div className="p-4 text-center text-slate-400 bg-[#FAF8F5] rounded-lg border border-dashed border-slate-200 text-xs">
-                No cash handovers recorded to till safe yet for this shift.
+                No handovers recorded yet.
               </div>
             )}
           </div>
@@ -394,7 +386,7 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
             <div className="flex items-center gap-2">
               <Gift className="h-4 w-4 text-[#9C3D1E]" />
               <h3 className="font-mono text-xs font-black uppercase text-slate-900">
-                Captain Tips Distribution
+                Captain Tips
               </h3>
             </div>
             <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
@@ -427,13 +419,6 @@ export function ScreenM9WaiterCash({ liveOrders = [] }: ScreenM9WaiterCashProps)
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="p-3 rounded-lg bg-orange-50 border border-orange-200 text-[11px] text-orange-800 space-y-1">
-            <div className="font-black">Tip Settlement Policy</div>
-            <p className="text-[10px] text-orange-700 leading-relaxed">
-              Tips collected from customer bills or guest contributions are attributed to the floor captain overseeing that zone. Payouts are marked and recorded in the shift audit trail.
-            </p>
           </div>
         </div>
       </div>
