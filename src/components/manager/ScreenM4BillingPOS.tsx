@@ -768,7 +768,7 @@ export function ScreenM4BillingPOS({
 
       {/* Thermal Slip Preview Dialog */}
       {printThermalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white text-black font-mono w-full max-w-sm rounded-xl p-5 space-y-3 shadow-xl">
             <div className="text-center space-y-1 border-b border-black/20 pb-2">
               <h3 className="font-black text-sm uppercase">THOOGUDEEPA DONNE BIRYANI MANE</h3>
@@ -816,7 +816,7 @@ export function ScreenM4BillingPOS({
 
       {/* 100-Seat Floor Matrix Modal */}
       {seatPickerModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white border-2 border-[#9C3D1E] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden font-mono text-slate-900">
             {/* Modal Header */}
             <div className="p-4 bg-[#FAF8F5] border-b border-[#EAE5DF] flex items-center justify-between">

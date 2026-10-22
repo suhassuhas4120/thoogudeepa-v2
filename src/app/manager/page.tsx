@@ -25,7 +25,24 @@ const TAB_ITEMS: { id: ManagerScreenId; name: string }[] = [
 
 export default function ManagerPortalPage() {
   const [activeTab, setActiveTab] = useState<ManagerScreenId>(1);
-  const [openingFloat, setOpeningFloat] = useState<number>(50000);
+  const [openingFloat, setOpeningFloat] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('thoogudeepa_opening_float');
+        if (saved) return Number(saved);
+      } catch {}
+    }
+    return 50000;
+  });
+
+  const handleUpdateOpeningFloat = (val: number) => {
+    setOpeningFloat(val);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('thoogudeepa_opening_float', val.toString());
+      } catch {}
+    }
+  };
   const [selectedSeatForBilling, setSelectedSeatForBilling] = useState<string>('17');
   const [liveOrders, setLiveOrders] = useState<{ order: OrderRecord; items: OrderItemRecord[] }[]>([]);
   const [alerts, setAlerts] = useState<ServiceAlertRecord[]>([]);
@@ -103,7 +120,7 @@ export default function ManagerPortalPage() {
           <ScreenM1Login
             onUnlock={() => handleTabClick(2)}
             openingFloat={openingFloat}
-            setOpeningFloat={setOpeningFloat}
+            setOpeningFloat={handleUpdateOpeningFloat}
           />
         );
       case 2:
@@ -148,7 +165,7 @@ export default function ManagerPortalPage() {
           <ScreenM1Login
             onUnlock={() => handleTabClick(2)}
             openingFloat={openingFloat}
-            setOpeningFloat={setOpeningFloat}
+            setOpeningFloat={handleUpdateOpeningFloat}
           />
         );
     }

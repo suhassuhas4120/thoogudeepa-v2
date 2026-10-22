@@ -49,12 +49,20 @@ export function ScreenM2Floor100({
   const [printKotNotice, setPrintKotNotice] = useState<string | null>(null);
   const [vacatedSeats, setVacatedSeats] = useState<Set<string>>(new Set());
   const [shiftSales, setShiftSales] = useState<number>(() => {
-    return realtimeBridge.getShiftStats().totalSales;
+    if (typeof window !== 'undefined' && realtimeBridge.getSettledBills) {
+      const settled = realtimeBridge.getSettledBills();
+      return settled.reduce((acc: number, b: any) => acc + (b.grandTotal || 0), 0);
+    }
+    return 0;
   });
 
   React.useEffect(() => {
     const updateStats = () => {
-      setShiftSales(realtimeBridge.getShiftStats().totalSales);
+      if (realtimeBridge.getSettledBills) {
+        const settled = realtimeBridge.getSettledBills();
+        const sum = settled.reduce((acc: number, b: any) => acc + (b.grandTotal || 0), 0);
+        setShiftSales(sum);
+      }
     };
     updateStats();
     const unsub = realtimeBridge.subscribeKDS({

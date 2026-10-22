@@ -77,7 +77,8 @@ export function ScreenM5KitchenSpeed({
       const chairRaw = (lo.order.chair_id || '').trim();
       const isTk = chairRaw === 'TK-01' || chairRaw.toLowerCase().includes('takeaway') || chairRaw.toLowerCase().includes('parcel');
       const chairNum = parseInt(chairRaw.replace(/[^0-9]/g, ''), 10) || 1;
-      const tNum = isTk ? 'TK-01' : `T-${String(chairNum).padStart(2, '0')}`;
+      const tableNum = isTk ? 0 : Math.ceil(chairNum / 4);
+      const tNum = isTk ? 'TK-01' : `T-${String(tableNum).padStart(2, '0')}`;
       const orderIdPart = lo.order.id ? lo.order.id.slice(0, 4) : `${oIdx + 1}`;
       const elapsedMinutes = lo.order.created_at
         ? Math.max(1, Math.round((Date.now() - new Date(lo.order.created_at).getTime()) / 60000))
@@ -121,9 +122,10 @@ export function ScreenM5KitchenSpeed({
       const chairRaw = (al.chairId || al.seatNumber || '').trim();
       const isTk = chairRaw === 'TK-01' || chairRaw.toLowerCase().includes('takeaway');
       const chairNum = parseInt(chairRaw.replace(/[^0-9]/g, ''), 10) || 1;
+      const tableNum = isTk ? 0 : Math.ceil(chairNum / 4);
       return {
         id: al.id,
-        tableNumber: isTk ? 'TK-01' : `T-${String(chairNum).padStart(2, '0')}`,
+        tableNumber: isTk ? 'TK-01' : `T-${String(tableNum).padStart(2, '0')}`,
         seatNumber: isTk ? 0 : chairNum,
         type: al.type || 'WAITER',
         message: al.message || al.title || al.type,

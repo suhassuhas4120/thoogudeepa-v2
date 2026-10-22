@@ -83,7 +83,9 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
   }, []);
 
   // Real shift calculations
-  const morningCash = openingFloat && openingFloat > 0 ? openingFloat : 50000;
+  const morningCash = openingFloat && openingFloat > 0
+    ? openingFloat
+    : (typeof window !== 'undefined' ? Number(localStorage.getItem('thoogudeepa_opening_float')) || 50000 : 50000);
   const totalOutflow = pettyExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
   const totalRemaining = Math.max(0, morningCash - totalOutflow);
   const currentCash = totalRemaining;
