@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Lock,
   Unlock,
@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Check,
 } from 'lucide-react';
+import { realtimeBridge } from '@/lib/supabase';
 
 export interface PettyExpenseItem {
   id: string;
@@ -56,8 +57,29 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
   const [showLockSuccess, setShowLockSuccess] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   const [currentDateStr, setCurrentDateStr] = useState('');
+  const [shiftCashInflow, setShiftCashInflow] = useState<number>(0);
 
-  // Live real-time clock and current calendar date
+  // Calculate live shift cash collections from settled bills & waiter handovers
+  const reloadShiftCash = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      let sum = 0;
+      if (realtimeBridge.getCashHandovers) {
+        const handovers = realtimeBridge.getCashHandovers();
+        sum = handovers.reduce((acc: number, h: any) => acc + (h.amount || 0), 0);
+      }
+      if (realtimeBridge.getSettledBills) {
+        const bills = realtimeBridge.getSettledBills();
+        const cashFromBills = bills
+          .filter((b: any) => (b.method || '').toUpperCase().includes('CASH'))
+          .reduce((acc: number, b: any) => acc + (b.grandTotal || 0), 0);
+        sum = Math.max(sum, cashFromBills);
+      }
+      setShiftCashInflow(sum);
+    } catch {}
+  }, []);
+
+  // Live real-time clock, current date, and cash synchronization
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -78,19 +100,26 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
       );
     };
     updateTime();
+    reloadShiftCash();
+
     const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    const unsub = realtimeBridge.subscribeKDS({
+      onBillSettled: () => reloadShiftCash(),
+      onClearAll: () => reloadShiftCash(),
+    });
+
+    return () => {
+      clearInterval(interval);
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [reloadShiftCash]);
 
   // Real shift calculations
   const morningCash = openingFloat && openingFloat > 0
     ? openingFloat
     : (typeof window !== 'undefined' ? Number(localStorage.getItem('thoogudeepa_opening_float')) || 50000 : 50000);
   const totalOutflow = pettyExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
-  const totalRemaining = Math.max(0, morningCash - totalOutflow);
-  const currentCash = totalRemaining;
-  const cashClearedTonight = isCounterLocked ? currentCash : currentCash;
-  const physicalCashAfterClosing = 0;
+  const currentCashInTill = Math.max(0, morningCash - totalOutflow + shiftCashInflow);
 
   // Form submission handler
   const handleSubmit = (e: React.FormEvent) => {
@@ -180,29 +209,29 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
       <div className="flex flex-col lg:flex-row gap-5 items-stretch">
         {/* =========================================================================
             LEFT COLUMN (65% width):
-            1. Expenses list (with Total outflow & Total remaining)
+            1. Vouchers list (focused purely on disbursements)
             2. Record new Expense form
             ========================================================================= */}
         <div className="w-full lg:w-[65%] space-y-4 flex flex-col justify-between">
-          {/* TOP BOX: Expenses */}
+          {/* TOP BOX: Expenses Vouchers */}
           <div className="bg-white border border-slate-300 rounded-xl p-5 shadow-xs flex-1 flex flex-col justify-between">
             <div>
-              {/* Header with Title and Outflow/Remaining numbers */}
+              {/* Header with Title and Outflow numbers */}
               <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-200 gap-2">
                 <h3 className="text-base font-black text-slate-900 uppercase tracking-tight">
-                  Expenses
+                  Expense Vouchers
                 </h3>
                 <div className="text-right text-xs">
                   <div className="font-bold text-slate-500">
-                    Total outflow :{' '}
+                    Total Outflow :{' '}
                     <span className="font-black text-rose-700 text-sm">
-                      ₹ {totalOutflow.toLocaleString('en-IN')}
+                      - ₹ {totalOutflow.toLocaleString('en-IN')}
                     </span>
                   </div>
                   <div className="font-bold text-slate-500 mt-0.5">
-                    Total remaining :{' '}
-                    <span className="font-black text-emerald-700 text-sm">
-                      ₹ {totalRemaining.toLocaleString('en-IN')}
+                    Vouchers Recorded :{' '}
+                    <span className="font-black text-slate-800 text-sm">
+                      {pettyExpenses.length}
                     </span>
                   </div>
                 </div>
@@ -221,7 +250,7 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
                       </div>
                       <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-bold">
                         <span>
-                          category: <strong className="text-slate-800">{pe.category}</strong>
+                          Category: <strong className="text-slate-800">{pe.category}</strong>
                         </span>
                         <span>
                           To: <strong className="text-slate-800">{pe.paidTo}</strong>
@@ -241,16 +270,11 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
                 ))}
 
                 {pettyExpenses.length === 0 && (
-                  <div className="py-8 text-center text-slate-400 text-xs font-bold">
+                  <div className="py-10 text-center text-slate-400 text-xs font-bold">
                     No petty expense vouchers recorded for this shift yet.
                   </div>
                 )}
               </div>
-            </div>
-
-            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-bold">
-              <span>{pettyExpenses.length} Total vouchers recorded</span>
-              <span>All payments backed by signed physical vouchers</span>
             </div>
           </div>
 
@@ -346,7 +370,7 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
 
         {/* =========================================================================
             RIGHT COLUMN (35% width):
-            Cash counter status card
+            Cash counter status card (reconciled drawer balances)
             ========================================================================= */}
         <div className="w-full lg:w-[35%] bg-white border border-slate-300 rounded-xl p-5 shadow-xs flex flex-col justify-between">
           <div className="space-y-5">
@@ -390,41 +414,53 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
             {/* Audit Figures */}
             <div className="space-y-3.5 text-xs">
               <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-600 font-bold">Total cash morning :</span>
+                <span className="text-slate-600 font-bold">Opening Cash Float :</span>
                 <span className="font-black text-slate-900 text-sm">
                   ₹ {morningCash.toLocaleString('en-IN')}
                 </span>
               </div>
 
               <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-600 font-bold">petty cash outflows :</span>
+                <span className="text-slate-600 font-bold">Petty Cash Outflows :</span>
                 <span className="font-black text-rose-700 text-sm">
                   - ₹ {totalOutflow.toLocaleString('en-IN')}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-2.5 bg-[#FAF8F5] border border-slate-300 rounded-xl">
-                <span className="text-slate-900 font-black">Current cash :</span>
-                <span className="font-black text-slate-900 text-base">
-                  ₹ {currentCash.toLocaleString('en-IN')}
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-600 font-bold">Shift Cash Collections :</span>
+                <span className="font-black text-emerald-700 text-sm">
+                  + ₹ {shiftCashInflow.toLocaleString('en-IN')}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-600 font-bold">cash cleared tonight :</span>
-                <span className="font-black text-emerald-800 text-sm">
-                  ₹ {cashClearedTonight.toLocaleString('en-IN')}
+              <div className="flex justify-between items-center p-3 bg-[#FAF8F5] border border-slate-300 rounded-xl">
+                <div>
+                  <span className="text-slate-900 font-black block">Current Cash in Till :</span>
+                  <span className="text-[10px] text-slate-500 font-medium">Opening float − Outflow + Collections</span>
+                </div>
+                <span className="font-black text-slate-900 text-lg">
+                  ₹ {currentCashInTill.toLocaleString('en-IN')}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-600 font-bold">
-                  Actual physical cash after closing :
-                </span>
-                <span className="font-black text-slate-900 text-sm">
-                  ₹ {physicalCashAfterClosing}
-                </span>
-              </div>
+              {isCounterLocked ? (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-rose-800 font-bold">Night Vault Deposit :</span>
+                    <span className="font-black text-rose-900 text-sm">₹ {currentCashInTill.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-medium">Physical Cash in Till After Drop :</span>
+                    <span className="font-black text-slate-700">₹ 0</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center py-1 text-slate-500">
+                  <span className="font-bold">Drawer Status :</span>
+                  <span className="font-black text-emerald-700">Active &amp; Balanced</span>
+                </div>
+              )}
             </div>
 
             {/* Success toast upon locking */}
@@ -459,9 +495,6 @@ export function ScreenM13PettyExpenses({ openingFloat }: ScreenM13PettyExpensesP
                 </>
               )}
             </button>
-            <p className="text-[10px] text-slate-400 text-center font-bold mt-2">
-              End-of-shift safe deposit &amp; drawer lock authorization
-            </p>
           </div>
         </div>
       </div>

@@ -9,7 +9,6 @@ import {
   Printer,
   Trash2,
   Receipt,
-  Bell,
   CheckCircle2,
   Store,
   Armchair,
@@ -603,30 +602,6 @@ export function ScreenM2Floor100({
               <Trash2 className="h-3.5 w-3.5" />
               <span>VACATE</span>
             </button>
-          </div>
-
-          {/* Customer Notifications Bar */}
-          <div className="border-t border-slate-200 pt-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
-                <Bell className="h-3.5 w-3.5 text-[#9C3D1E]" />
-                CUSTOMER NOTIFICATIONS
-              </span>
-              <span className="text-[10px] text-slate-500 font-bold">
-                {activeSelectedSeat?.alert ? '1 Action Needed' : 'Normal'}
-              </span>
-            </div>
-
-            {activeSelectedSeat?.alert ? (
-              <div className="p-2 bg-rose-50 border border-rose-300 rounded-lg text-xs text-rose-900 flex items-center justify-between">
-                <span>{activeSelectedSeat.alert.title}: {activeSelectedSeat.alert.message}</span>
-                <span className="font-bold text-[10px]">Just now</span>
-              </div>
-            ) : (
-              <div className="p-2 bg-[#FAF8F5] border border-slate-200 rounded-lg text-[10px] text-slate-500">
-                No active service calls or water refill pings for Seat #{activeSelectedSeat?.chairId || '01'}.
-              </div>
-            )}
           </div>
         </div>
       </div>

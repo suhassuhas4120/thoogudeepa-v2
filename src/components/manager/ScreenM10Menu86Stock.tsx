@@ -22,55 +22,6 @@ import { MENU_ITEMS, MENU_CATEGORIES } from '@/lib/data/menuData';
 import { PromoRule } from './types';
 import { realtimeBridge } from '@/lib/supabase';
 
-const DEFAULT_PROMOS: PromoRule[] = [
-  {
-    id: 'pr-0',
-    code: 'B1G1',
-    title: 'Sunday Special',
-    discountPercent: 50,
-    minBillAmount: 1500,
-    isActive: true,
-    description: 'Buy 1 Get 1 Free on Donne Biryani',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-    startTime: '05:00',
-    endTime: '12:00',
-    isAllDay: false,
-    timing: '5:00 AM - 12:00 PM',
-    dateRange: '7 Days Special',
-  },
-  {
-    id: 'pr-1',
-    code: 'HAPPYHOUR10',
-    title: 'Happy Hours',
-    discountPercent: 10,
-    minBillAmount: 500,
-    isActive: true,
-    description: '10% Flat on Dine-in Orders',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-    startTime: '16:00',
-    endTime: '19:00',
-    isAllDay: false,
-    timing: '4:00 PM - 7:00 PM',
-    dateRange: 'Daily Active',
-  },
-  {
-    id: 'pr-2',
-    code: 'WEEKENDCOMBO',
-    title: 'Weekend Family Feast',
-    discountPercent: 15,
-    minBillAmount: 1500,
-    isActive: true,
-    description: '15% on Biryani Pots & Starters',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-    isAllDay: true,
-    timing: 'All Day',
-    dateRange: '30 Days Campaign',
-  },
-];
-
 export function ScreenM10Menu86Stock() {
   // Sourced dish stock availability map (persisted in localStorage & Supabase)
   const [stockMap, setStockMap] = useState<Record<string, boolean>>(() => {
@@ -92,13 +43,15 @@ export function ScreenM10Menu86Stock() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
-  // Promos list with persistence
+  // Promos list strictly loaded from persistent storage (zero fake default campaigns)
   const [promos, setPromos] = useState<PromoRule[]>(() => {
     if (typeof window !== 'undefined' && realtimeBridge.getPromos) {
       const saved = realtimeBridge.getPromos();
-      if (saved && saved.length > 0) return saved;
+      if (saved && Array.isArray(saved)) {
+        return saved.filter((p: PromoRule) => !['pr-0', 'pr-1', 'pr-2'].includes(p.id));
+      }
     }
-    return DEFAULT_PROMOS;
+    return [];
   });
 
   // Form states for new offer
@@ -417,6 +370,13 @@ export function ScreenM10Menu86Stock() {
                 </div>
               );
             })}
+
+            {promos.length === 0 && (
+              <div className="py-10 text-center text-slate-400 text-xs font-bold border border-dashed border-slate-300 rounded-xl bg-white p-6 space-y-1">
+                <p className="text-slate-700 font-black">No active campaigns</p>
+                <p className="text-[11px] text-slate-400 font-medium">Use the form on the left to create and schedule real promotional offers.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -705,6 +665,13 @@ export function ScreenM10Menu86Stock() {
                 </div>
               );
             })}
+
+            {promos.length === 0 && (
+              <div className="py-10 text-center text-slate-400 text-xs font-bold border border-dashed border-slate-300 rounded-xl bg-white p-6 space-y-1">
+                <p className="text-slate-700 font-black">No active campaigns</p>
+                <p className="text-[11px] text-slate-400 font-medium">Use the form on the left to create and schedule real promotional offers.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
