@@ -136,7 +136,7 @@ export default function ManagerPortalPage() {
           />
         );
       case 5:
-        return <ScreenM9WaiterCash />;
+        return <ScreenM9WaiterCash liveOrders={liveOrders} />;
       case 6:
         return <ScreenM10Menu86Stock />;
       case 7:

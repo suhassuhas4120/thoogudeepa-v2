@@ -1579,6 +1579,76 @@ export const realtimeBridge = {
     }
   },
 
+  // Get cash handover receipts to manager till safe
+  getCashHandovers(): Array<{
+    id: string;
+    staffId: string;
+    staffName: string;
+    amount: number;
+    timestamp: string;
+    receivedBy: string;
+  }> {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('thoogudeepa_v2_cash_handovers');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  // Record a verified cash handover to manager till safe
+  recordCashHandover(staffId: string, staffName: string, amount: number) {
+    if (typeof window === 'undefined') return null;
+    try {
+      const existing = this.getCashHandovers();
+      const newRecord = {
+        id: `hnd-${Date.now()}`,
+        staffId,
+        staffName,
+        amount,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+        receivedBy: 'Manager',
+      };
+      existing.unshift(newRecord);
+      localStorage.setItem('thoogudeepa_v2_cash_handovers', JSON.stringify(existing.slice(0, 50)));
+      return newRecord;
+    } catch {
+      return null;
+    }
+  },
+
+  // Get captain tips pool
+  getCaptainTips(): Record<string, number> {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem('thoogudeepa_v2_captain_tips');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  // Record tip payout to captain
+  recordTipPayout(captainName: string, amount: number) {
+    if (typeof window === 'undefined') return;
+    try {
+      const tips = this.getCaptainTips();
+      tips[captainName] = Math.max(0, (tips[captainName] || 0) - amount);
+      localStorage.setItem('thoogudeepa_v2_captain_tips', JSON.stringify(tips));
+
+      const payoutLogRaw = localStorage.getItem('thoogudeepa_v2_tip_payouts');
+      const payoutLogs = payoutLogRaw ? JSON.parse(payoutLogRaw) : [];
+      payoutLogs.unshift({
+        id: `tip-out-${Date.now()}`,
+        captainName,
+        amount,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+      });
+      localStorage.setItem('thoogudeepa_v2_tip_payouts', JSON.stringify(payoutLogs.slice(0, 50)));
+    } catch {}
+  },
+
   // Get live status of floor seats (Seats 01-10 Zone 1, dynamically expandable)
   async getFloorSeats(start = 1, count = 10): Promise<
     Array<{
